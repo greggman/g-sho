@@ -1,0 +1,122 @@
+# g-sho — plan
+
+A Japanese–English dictionary website inspired by [jisho.org](https://jisho.org).
+Fully static: the dictionary data is preprocessed at build time into many small
+JSON shards, and the browser fetches only the shards needed for a query. There is
+no server-side code and no database, so it can be hosted anywhere (GitHub Pages).
+
+## Data sources
+
+All sources are the same ones jisho.org credits, consumed through the
+[jmdict-simplified](https://github.com/scriptin/jmdict-simplified) JSON builds
+(CC BY-SA 4.0), which are regenerated weekly from the upstream files.
+
+| Data | Upstream | License |
+| --- | --- | --- |
+| Words (JMdict, English glosses) | EDRDG | CC BY-SA 4.0 |
+| Kanji (KANJIDIC2) | EDRDG | CC BY-SA 4.0 |
+| Radical decomposition (RADKFILE / KRADFILE) | EDRDG | CC BY-SA 4.0 |
+| Example sentences linked to word senses | Tatoeba (via JMdict) | CC BY 2.0 FR |
+
+Attribution for all of them is shown on an About page in the site, as the
+licenses require. Later phases may add JMnedict (names), KanjiVG (stroke order,
+CC BY-SA 3.0) and JLPT word lists.
+
+## Tooling
+
+- TypeScript (6.0.x — typescript-eslint, used by gts, does not support 7 yet)
+- [gts](https://github.com/google/gts) for lint + formatting
+- esbuild to bundle the client
+- Node 24 runs the build scripts `.ts` directly (native type stripping) and
+  runs the tests with `node --test`
+- GitHub Actions: lint, test, download data, build shards, bundle, deploy to
+  GitHub Pages. The dictionary files are generated in CI and are not committed.
+
+## Layout
+
+```
+src/shared/     code used by both the data builder and the browser
+                (hash, text normalization, kana helpers, data types)
+src/client/     browser app (search, romaji→kana, deinflection, sentence
+                segmentation, rendering)
+scripts/        download.ts, build-data.ts, build.ts (esbuild; --watch/--serve)
+static/         index.html, about.html, style.css
+test/           node:test unit tests
+.github/workflows/deploy.yml
+```
+
+## Static data format
+
+Everything under `dist/data/`, produced by `scripts/build-data.ts`.
+
+- **Entries** `ent/NNNN.json` — compact JMdict entries (short keys, empty fields
+  dropped), sharded by `id % 8192` (~4 KB each).
+- **Japanese index** `ja/NNNN.json` — `{ key: [entryId, ...] }`. An id is stored
+  negated when the matched form is marked common, so results can be ranked
+  before any entries are fetched. Keys are every
+  kanji and kana form, normalized (katakana→hiragana, full-width→half-width,
+  lowercase). The shard is `fnv1a(bucket) % JA_SHARDS`, where `bucket` is the
+  first two characters of the key (or the one character for one-character keys).
+  So a shard holds every key that starts with the same two characters, which
+  gives prefix search ("たべ" → たべる, たべもの, …) from a single fetch.
+- **English index** `en/NNN.json` — `{ word: [[entryId, score], ...] }` built
+  from gloss tokens (stop words dropped), sharded by `fnv1a(word)`. Scores favor
+  a gloss that is exactly the word, common entries, and early senses. Lists are
+  capped so shards stay small.
+- **Kanji** `kanji/NNN.json` — KANJIDIC2 details sharded by code point.
+- **Radicals** `radk.json` — radical → kanji list plus stroke counts, loaded only
+  when the radical picker is opened.
+- `meta.json` — shard counts, data version and date. The client reads the shard
+  counts from here, so they can be tuned without changing code.
+
+Shard counts are chosen so a typical shard is 4–16 KB before gzip. The full
+build is ~11,400 files, ~60 MB. A word lookup fetches about 5–10 files, and a
+sentence about 20.
+
+## Search behavior (like jisho)
+
+One search box, `?q=` in the URL (history and shareable links).
+
+1. **Japanese input** (kana/kanji): exact matches first, then prefix matches.
+   Ranked by exact/prefix, common flag, and whether the matched form is the
+   entry's primary form.
+2. **Romaji input**: converted to kana (Hepburn + wāpuro spellings) and searched
+   as Japanese, *and* searched as English. The better exact hit set is shown first.
+3. **English input**: each word is looked up in the English index. Short glosses
+   are also indexed as whole phrases, so a multi-word query first finds exact
+   phrase matches ("ice cream"), then entries ranked by how many of the words
+   they contain.
+4. **Inflected words**: a rule-based deinflector (Yomichan-style suffix rules
+   with part-of-speech checks) maps 食べました → 食べる, 高かった → 高い, etc.
+   Results show a note like "食べました is an inflection of 食べる: 食べる →
+   polite → past".
+5. **Sentences**: Japanese input that isn't a single word is segmented by
+   greedy longest match against the index (with deinflection at each
+   position). The tokens appear as a clickable bar, like jisho; clicking one
+   shows that word's entries.
+6. **Kanji panel**: kanji in the query and in the results show a side panel
+   with meanings, on/kun readings, stroke count, grade, JLPT level, frequency
+   and components (from KRADFILE).
+7. **Radical picker**: pick radicals to narrow down kanji; clicking a kanji
+   adds it to the search box.
+8. Each entry shows readings (furigana over the primary form), common tag,
+   senses with part of speech, tags/notes, other forms, and Tatoeba example
+   sentences where JMdict links them.
+
+## Phases
+
+**Phase 1 (done)**: scaffolding (package.json, gts, tsconfig, esbuild),
+download + data build pipeline, shard format, client search (Japanese,
+romaji, English, deinflection, sentence segmentation), entry rendering with
+examples, kanji panel, radical picker, About/attribution page, unit tests,
+GitHub Actions deploy.
+
+**Later**:
+- Full Tatoeba sentence search (not just sentences linked to senses)
+- JMnedict name search
+- KanjiVG stroke order diagrams
+- JLPT tags on words
+- Wildcard search (`*`, `?`) and `#tag` filters
+- Better segmentation (a kuromoji/MeCab-style morphological analyzer) if greedy
+  matching proves too weak
+- Offline use (service worker cache of fetched shards)

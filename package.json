@@ -1,0 +1,29 @@
+{
+  "name": "g-sho",
+  "version": "0.1.0",
+  "description": "A static Japanese-English dictionary website inspired by jisho.org",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "download": "node scripts/download.ts",
+    "build:data": "node scripts/build-data.ts",
+    "build": "node scripts/build.ts",
+    "build:all": "npm run download && npm run build:data && npm run build",
+    "serve": "node scripts/build.ts --serve",
+    "dev": "node scripts/build.ts --watch --serve",
+    "test": "node --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "lint": "gts lint",
+    "fix": "gts fix",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "esbuild": "^0.28.2",
+    "gts": "^7.0.0",
+    "typescript": "~6.0.3"
+  }
+}

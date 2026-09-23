@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>g-sho — Japanese dictionary</title>
+    <meta
+      name="description"
+      content="A Japanese-English dictionary. Search in English, Japanese, or romaji."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="logo" href="./" lang="ja"><span class="logo-mark">書</span>g-sho</a>
+      <form id="search-form" class="search" role="search">
+        <input
+          id="q"
+          name="q"
+          type="search"
+          lang="ja"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="English, 日本語, or romaji"
+          aria-label="Search"
+          autofocus
+        />
+        <button
+          id="radical-toggle"
+          type="button"
+          class="radical-toggle"
+          title="Search by radical"
+          aria-expanded="false"
+          aria-controls="radical-panel"
+          lang="ja"
+        >
+          部首
+        </button>
+        <button type="submit" class="search-button" aria-label="Search">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+            <path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </form>
+    </header>
+    <div id="radical-panel" class="radical-panel" hidden></div>
+    <main id="content" class="content" aria-live="polite">
+      <noscript>This dictionary needs JavaScript to search.</noscript>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Dictionary data from
+        <a href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project">JMdict</a>,
+        <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project">KANJIDIC2</a>, and
+        <a href="https://www.edrdg.org/krad/kradinf.html">RADKFILE/KRADFILE</a>
+        © <a href="https://www.edrdg.org/">EDRDG</a> (CC BY-SA 4.0), and example sentences from
+        <a href="https://tatoeba.org/">Tatoeba</a> (CC BY 2.0 FR).
+        <a href="about.html">About &amp; sources</a>
+      </p>
+      <p id="data-info" class="data-info"></p>
+    </footer>
+  </body>
+</html>

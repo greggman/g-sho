@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>About g-sho</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="logo" href="./" lang="ja"><span class="logo-mark">書</span>g-sho</a>
+    </header>
+    <main class="content prose">
+      <h1>About</h1>
+      <p>
+        g-sho is a Japanese–English dictionary inspired by
+        <a href="https://jisho.org/">jisho.org</a>. It is a static site: the dictionary is split
+        into thousands of small files at build time, and your browser downloads only the pieces
+        it needs for each search. Nothing you search for is sent anywhere else.
+      </p>
+
+      <h2>Data sources</h2>
+      <p>
+        The data comes from the projects below, through the
+        <a href="https://github.com/scriptin/jmdict-simplified">jmdict-simplified</a> JSON builds.
+        Their licenses require attribution and, for the EDRDG files, that derived data be shared
+        under the same license.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Source</th>
+            <th>License</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Words</td>
+            <td>
+              <a href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project"
+                >JMdict</a
+              >, by Jim Breen and the
+              <a href="https://www.edrdg.org/">Electronic Dictionary Research and Development Group</a>
+            </td>
+            <td><a href="https://www.edrdg.org/edrdg/licence.html">CC BY-SA 4.0</a></td>
+          </tr>
+          <tr>
+            <td>Kanji</td>
+            <td>
+              <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project">KANJIDIC2</a>, EDRDG
+            </td>
+            <td><a href="https://www.edrdg.org/edrdg/licence.html">CC BY-SA 4.0</a></td>
+          </tr>
+          <tr>
+            <td>Radicals and kanji parts</td>
+            <td>
+              <a href="https://www.edrdg.org/krad/kradinf.html">RADKFILE and KRADFILE</a>, EDRDG
+            </td>
+            <td><a href="https://www.edrdg.org/edrdg/licence.html">CC BY-SA 4.0</a></td>
+          </tr>
+          <tr>
+            <td>Example sentences</td>
+            <td>
+              <a href="https://tatoeba.org/">Tatoeba</a>, as linked to word senses in JMdict
+            </td>
+            <td>
+              <a href="https://creativecommons.org/licenses/by/2.0/fr/">CC BY 2.0 FR</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The processed data files this site serves (under <code>data/</code>) are derived from
+        these sources and are available under the same licenses.
+      </p>
+
+      <h2>How search works</h2>
+      <ul>
+        <li>
+          Japanese words are matched exactly and by prefix. Inflected verbs and adjectives
+          (<span lang="ja">食べました</span>, <span lang="ja">高かった</span>) are traced back to
+          their dictionary form with a set of conjugation rules.
+        </li>
+        <li>Romaji is converted to kana and searched alongside English.</li>
+        <li>
+          Sentences are split into words by finding the longest dictionary word at each position.
+          This is simpler than the morphological analyzers some dictionaries use, so it
+          occasionally splits text in the wrong place.
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>
