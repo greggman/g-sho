@@ -242,7 +242,9 @@ function formScore(form: JmForm, index: number, entryCommon: boolean): number {
   let score = 0;
   if (form.common) score += 100;
   if (entryCommon) score += 10;
-  score -= index * 3;
+  // An entry's main spelling beats another entry's alternative spelling,
+  // even a common word's: 書 is 書 (しょ) before 文 (ふみ), also written 書.
+  if (index > 0) score -= 20 + index * 3;
   if (form.tags.some(t => RARE_FORM_TAGS.has(t))) score -= 30;
   return score;
 }

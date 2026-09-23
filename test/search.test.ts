@@ -36,6 +36,12 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     assert.equal((await firstWord('たべる')).text, '食べる');
   });
 
+  test('main spelling before an alternative spelling', async () => {
+    // 書 is also an alternative spelling of 文 (ふみ), a common word.
+    const {e} = await firstWord('書');
+    assert.equal(e.k?.[0].t, '書');
+  });
+
   test('katakana', async () => {
     assert.equal((await firstWord('ラーメン')).text, 'ラーメン');
   });
