@@ -988,6 +988,12 @@ mark {
   margin: 4px 0;
 }
 
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .prose {
   max-width: 720px;
 }
