@@ -300,7 +300,68 @@ function gradeText(g: number): string {
   return 'Jinmeiyō (used in names)';
 }
 
-export function renderKanji(k: KanjiInfo): HTMLElement {
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svg(
+  tag: string,
+  attrs: Record<string, string | number>,
+  ...children: Element[]
+): SVGElement {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  el.append(...children);
+  return el;
+}
+
+/** Where a stroke's path starts ("M52.75,10.5c…" → [52.75, 10.5]). */
+export function strokeStart(d: string): [number, number] | undefined {
+  const m = /^\s*M\s*(-?[\d.]+)[\s,]*(-?[\d.]+)/i.exec(d);
+  return m ? [Number(m[1]), Number(m[2])] : undefined;
+}
+
+/**
+ * Stroke order as a row of frames, one per stroke: earlier strokes in gray,
+ * the new stroke highlighted with a dot where it starts. Strokes are KanjiVG
+ * paths in a 109×109 box.
+ */
+export function renderStrokeOrder(
+  char: string,
+  strokes: string[],
+): HTMLElement {
+  const frames = strokes.map((_, i) => {
+    const start = strokeStart(strokes[i]);
+    return svg(
+      'svg',
+      {
+        class: 'stroke-frame',
+        viewBox: '0 0 109 109',
+        role: 'img',
+        'aria-label': `Stroke ${i + 1} of ${strokes.length}`,
+      },
+      svg('line', {class: 'stroke-guide', x1: 54.5, y1: 0, x2: 54.5, y2: 109}),
+      svg('line', {class: 'stroke-guide', x1: 0, y1: 54.5, x2: 109, y2: 54.5}),
+      ...strokes.slice(0, i).map(d => svg('path', {class: 'stroke-done', d})),
+      svg('path', {class: 'stroke-current', d: strokes[i]}),
+      ...(start
+        ? [
+            svg('circle', {
+              class: 'stroke-start',
+              cx: start[0],
+              cy: start[1],
+              r: 4,
+            }),
+          ]
+        : []),
+    );
+  });
+  return h(
+    'div',
+    {class: 'stroke-order', 'aria-label': `Stroke order of ${char}`},
+    ...frames,
+  );
+}
+
+export function renderKanji(k: KanjiInfo, strokes?: string[]): HTMLElement {
   const stats = [
     k.s && `${k.s} strokes`,
     k.g && gradeText(k.g),
@@ -342,6 +403,7 @@ export function renderKanji(k: KanjiInfo): HTMLElement {
           h('span', {lang: 'ja'}, k.parts.join(' ')),
         ),
     ),
+    strokes && renderStrokeOrder(k.c, strokes),
   );
 }
 

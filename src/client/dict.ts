@@ -14,6 +14,7 @@ import type {
   KanjiShard,
   Meta,
   RadicalData,
+  StrokeShard,
 } from '../shared/types.ts';
 
 /** Loads a data file by its path relative to the data directory. */
@@ -111,6 +112,16 @@ export class Dict {
   async kanji(ch: string): Promise<KanjiInfo | undefined> {
     const shard = await this.file<KanjiShard>(
       `kanji/${shardName(kanjiShard(ch, this.meta.shards.kanji))}.json`,
+    );
+    return shard[ch];
+  }
+
+  /** The character's strokes in order (SVG path data, 109×109), if known. */
+  async strokes(ch: string): Promise<string[] | undefined> {
+    const n = this.meta.shards.strokes;
+    if (!n) return undefined; // data built before stroke order was added
+    const shard = await this.file<StrokeShard>(
+      `strokes/${shardName(kanjiShard(ch, n))}.json`,
     );
     return shard[ch];
   }

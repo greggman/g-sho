@@ -66,7 +66,8 @@ Dictionary data comes from [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-
 [KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project), and
 [RADKFILE/KRADFILE](https://www.edrdg.org/krad/kradinf.html) by the
 [Electronic Dictionary Research and Development Group](https://www.edrdg.org/)
-(CC BY-SA 4.0), with example sentences from [Tatoeba](https://tatoeba.org/)
+(CC BY-SA 4.0), stroke order from [KanjiVG](https://kanjivg.tagaini.net/)
+(CC BY-SA 3.0), with example sentences from [Tatoeba](https://tatoeba.org/)
 (CC BY 2.0 FR), via [jmdict-simplified](https://github.com/scriptin/jmdict-simplified).
 The handwriting model is [LT8/japanese-handwriting-onnx](https://huggingface.co/LT8/japanese-handwriting-onnx),
 trained on the [ETL Character Database](https://etlcdb.db.aist.go.jp/?lang=en)

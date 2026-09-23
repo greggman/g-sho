@@ -886,6 +886,47 @@ mark {
   font-size: 0.8rem;
 }
 
+/* stroke order */
+
+.stroke-order {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stroke-frame {
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stroke-guide {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.stroke-done {
+  stroke: var(--faint);
+  stroke-width: 4;
+}
+
+.stroke-current {
+  stroke: #d9412b;
+  stroke-width: 5;
+}
+
+.stroke-start {
+  fill: #d9412b;
+  opacity: 0.5;
+}
+
 /* home */
 
 .home {

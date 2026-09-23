@@ -90,6 +90,17 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     ]);
   });
 
+  test('stroke order matches the stroke count', async () => {
+    for (const k of '食日書語学犬猫木一鬱') {
+      const [info, strokes] = await Promise.all([
+        dict.kanji(k),
+        dict.strokes(k),
+      ]);
+      assert.equal(strokes?.length, info?.s, k);
+      assert.match(strokes![0], /^M/);
+    }
+  });
+
   test('kanji info', async () => {
     const k = await dict.kanji('食');
     assert.equal(k?.s, 9);

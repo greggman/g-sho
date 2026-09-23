@@ -5,7 +5,8 @@
  * Skips the download when .cache/version.json already matches the latest release.
  *
  * Also downloads the handwriting recognition model into .cache/handwriting/,
- * pinned to a Hugging Face revision.
+ * pinned to a Hugging Face revision, and the latest KanjiVG stroke data into
+ * .cache/kanjivg/.
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -61,18 +62,50 @@ async function downloadHandwritingModel() {
   );
 }
 
-async function downloadDictionary() {
+async function latestRelease(repo: string): Promise<Release> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
   };
   if (process.env.GITHUB_TOKEN) {
     headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
-  const release = (await (
-    await fetchOk(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers,
-    })
-  ).json()) as Release;
+  const res = await fetchOk(
+    `https://api.github.com/repos/${repo}/releases/latest`,
+    {headers},
+  );
+  return (await res.json()) as Release;
+}
+
+/** KanjiVG stroke data (SVG per character) for stroke order diagrams. */
+async function downloadKanjiVG() {
+  const release = await latestRelease('KanjiVG/kanjivg');
+  const dir = path.join(CACHE_DIR, 'kanjivg');
+  const versionFile = path.join(dir, 'version.json');
+  const have = fs.existsSync(versionFile)
+    ? JSON.parse(fs.readFileSync(versionFile, 'utf8')).version
+    : undefined;
+  if (have === release.tag_name) {
+    console.log(`KanjiVG ${release.tag_name} already downloaded`);
+    return;
+  }
+  const asset = release.assets.find(a => a.name.endsWith('-main.zip'));
+  if (!asset) throw new Error(`no -main.zip in KanjiVG ${release.tag_name}`);
+  console.log(`downloading ${asset.name}`);
+  const res = await fetchOk(asset.browser_download_url);
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const zip = path.join(dir, 'kanjivg.zip');
+  fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+  execFileSync('unzip', ['-q', zip, '-d', dir]);
+  fs.rmSync(zip);
+  fs.writeFileSync(
+    versionFile,
+    JSON.stringify({version: release.tag_name}, null, 2) + '\n',
+  );
+}
+
+async function downloadDictionary() {
+  const release = await latestRelease(REPO);
 
   fs.mkdirSync(CACHE_DIR, {recursive: true});
   const versionFile = path.join(CACHE_DIR, 'version.json');
@@ -123,4 +156,8 @@ async function downloadDictionary() {
   console.log(`downloaded ${release.tag_name}`);
 }
 
-await Promise.all([downloadDictionary(), downloadHandwritingModel()]);
+await Promise.all([
+  downloadDictionary(),
+  downloadHandwritingModel(),
+  downloadKanjiVG(),
+]);

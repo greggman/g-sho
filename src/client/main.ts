@@ -107,7 +107,14 @@ async function renderResults(
   pages: number,
 ): Promise<HTMLElement> {
   const kanji = await Promise.all(
-    sidebarKanji(query, result).map(k => dict.kanji(k)),
+    sidebarKanji(query, result).map(async k => {
+      const [info, strokes] = await Promise.all([
+        dict.kanji(k),
+        // Stroke order is a nice-to-have: don't fail the page without it.
+        dict.strokes(k).catch(() => undefined),
+      ]);
+      return info && {info, strokes};
+    }),
   );
   const [sentenceBar, sentenceWords] = result.sentence
     ? renderSentence(dict, result, entryActions)
@@ -151,7 +158,7 @@ async function renderResults(
             'Kanji',
             h('span', {class: 'count'}, ` — ${found.length} found`),
           ),
-          found.map(renderKanji),
+          found.map(k => renderKanji(k.info, k.strokes)),
         ),
     ),
   );

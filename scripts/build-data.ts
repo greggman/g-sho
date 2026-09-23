@@ -28,13 +28,14 @@ import type {
   Meta,
   RadicalData,
   Sense,
+  StrokeShard,
 } from '../src/shared/types.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CACHE_DIR = path.join(ROOT, '.cache');
 const OUT_DIR = path.join(ROOT, 'dist', 'data');
 
-const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128};
+const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128, strokes: 1024};
 
 /** Longest English phrase (in words) indexed as a whole. */
 const MAX_PHRASE_WORDS = 4;
@@ -423,6 +424,34 @@ function buildRadicals(strokes: Record<string, number>) {
   fs.writeFileSync(path.join(OUT_DIR, 'radk.json'), JSON.stringify(data));
 }
 
+// ---- stroke order (KanjiVG) ----
+
+/** <path id="kvg:098df-s3" ... d="M52.25,29.25c1,1,..."/> */
+const STROKE_PATH = /<path\s+id="kvg:[0-9a-f]+-s(\d+)"[^>]*?\sd="([^"]+)"/g;
+
+function buildStrokes() {
+  const dir = path.join(CACHE_DIR, 'kanjivg', 'kanji');
+  const shards = new Map<number, StrokeShard>();
+  let count = 0;
+  for (const file of fs.readdirSync(dir)) {
+    // Skip variants like 05b57-Kaisho.svg; the base file is the standard form.
+    const m = /^([0-9a-f]+)\.svg$/.exec(file);
+    if (!m) continue;
+    const char = String.fromCodePoint(parseInt(m[1], 16));
+    const svg = fs.readFileSync(path.join(dir, file), 'utf8');
+    const strokes = [...svg.matchAll(STROKE_PATH)]
+      .map(([, n, d]) => [Number(n), d] as const)
+      .sort((a, b) => a[0] - b[0])
+      .map(([, d]) => d);
+    if (strokes.length === 0) continue;
+    getShard(shards, kanjiShard(char, SHARDS.strokes), () => ({}))[char] =
+      strokes;
+    count++;
+  }
+  writeShards('strokes', shards);
+  return count;
+}
+
 function main() {
   const start = Date.now();
   fs.rmSync(OUT_DIR, {recursive: true, force: true});
@@ -433,6 +462,7 @@ function main() {
   const entryCount = buildWords(dict);
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
+  buildStrokes();
 
   const meta: Meta = {
     version,

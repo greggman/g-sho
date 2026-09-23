@@ -17,10 +17,10 @@ All sources are the same ones jisho.org credits, consumed through the
 | Kanji (KANJIDIC2) | EDRDG | CC BY-SA 4.0 |
 | Radical decomposition (RADKFILE / KRADFILE) | EDRDG | CC BY-SA 4.0 |
 | Example sentences linked to word senses | Tatoeba (via JMdict) | CC BY 2.0 FR |
+| Stroke order | KanjiVG | CC BY-SA 3.0 |
 
 Attribution for all of them is shown on an About page in the site, as the
-licenses require. Later phases may add JMnedict (names), KanjiVG (stroke order,
-CC BY-SA 3.0) and JLPT word lists.
+licenses require. Later phases may add JMnedict (names) and JLPT word lists.
 
 ## Tooling
 
@@ -64,6 +64,10 @@ Everything under `dist/data/`, produced by `scripts/build-data.ts`.
   a gloss that is exactly the word, common entries, and early senses. Lists are
   capped so shards stay small.
 - **Kanji** `kanji/NNN.json` — KANJIDIC2 details sharded by code point.
+- **Stroke order** `strokes/NNNN.json` — KanjiVG stroke paths per character,
+  in stroke order, sharded by code point. Each kanji card draws them as a row
+  of frames like jisho: earlier strokes gray, the new one highlighted with a
+  dot where it starts.
 - **Radicals** `radk.json` — radical → kanji list plus stroke counts, loaded only
   when the radical picker is opened.
 - `meta.json` — shard counts, data version and date. The client reads the shard
@@ -183,7 +187,6 @@ GitHub Actions deploy.
 **Later**:
 - Full Tatoeba sentence search (not just sentences linked to senses)
 - JMnedict name search
-- KanjiVG stroke order diagrams
 - JLPT tags on words
 - Wildcard search (`*`, `?`) and `#tag` filters
 - Better segmentation (a kuromoji/MeCab-style morphological analyzer) if greedy

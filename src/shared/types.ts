@@ -118,6 +118,12 @@ export interface KanjiInfo {
 /** kanji/NNNN.json: kanji → info */
 export type KanjiShard = Record<string, KanjiInfo>;
 
+/**
+ * strokes/NNNN.json: character → its strokes in stroke order, as SVG path
+ * data in KanjiVG's 109×109 coordinate space.
+ */
+export type StrokeShard = Record<string, string[]>;
+
 /** radk.json */
 export interface RadicalData {
   /** radicals in stroke order: [radical, stroke count] */
@@ -140,6 +146,7 @@ export interface Meta {
     ja: number;
     en: number;
     kanji: number;
+    strokes: number;
   };
   /** tag → human readable description */
   tags: Record<string, string>;
