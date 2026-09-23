@@ -1,3 +1,4 @@
+import {parseFurigana} from '../shared/furigana.ts';
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, join, searchLink} from './dom.ts';
@@ -141,21 +142,61 @@ export function posLabel(dict: Dict, tag: string): string {
   return SHORT_TAGS[tag] ?? capitalize(dict.tagDescription(tag));
 }
 
-/** Highlights the word within an example sentence. */
+/**
+ * Splits furigana parts so the word at [start, end) of the plain text can be
+ * highlighted: plain text is cut at the boundaries; a part with a reading is
+ * kept whole and highlighted if the word touches it.
+ */
+export function highlightParts(
+  parts: RubyPart[],
+  start: number,
+  end: number,
+): [RubyPart, boolean][] {
+  const out: [RubyPart, boolean][] = [];
+  let pos = 0;
+  for (const part of parts) {
+    const [text, rt] = part;
+    const a = pos;
+    const b = pos + text.length;
+    pos = b;
+    if (rt || end <= a || start >= b) {
+      out.push([part, start < b && end > a]);
+      continue;
+    }
+    const cuts = [a, Math.max(a, start), Math.min(b, end), b];
+    for (let i = 0; i < 3; i++) {
+      const piece = text.slice(cuts[i] - a, cuts[i + 1] - a);
+      if (piece) out.push([[piece], i === 1]);
+    }
+  }
+  return out;
+}
+
+/** An example sentence with furigana, the word it illustrates highlighted. */
 function exampleSentence(ex: Example): HTMLElement {
-  const i = ex.w ? ex.ja.indexOf(ex.w) : -1;
-  const ja =
-    i < 0
-      ? [ex.ja]
-      : [
-          ex.ja.slice(0, i),
-          h('mark', null, ex.w),
-          ex.ja.slice(i + ex.w.length),
-        ];
+  const parts = ex.f ? parseFurigana(ex.f) : [[ex.ja] as RubyPart];
+  const start = ex.w ? ex.ja.indexOf(ex.w) : -1;
+  const pieces =
+    start < 0
+      ? parts.map(p => [p, false] as [RubyPart, boolean])
+      : highlightParts(parts, start, start + ex.w.length);
+  // Group consecutive highlighted pieces into one <mark>.
+  const nodes: (Node | string)[] = [];
+  let mark: HTMLElement | undefined;
+  for (const [part, marked] of pieces) {
+    const [node] = ruby([part]);
+    if (marked) {
+      if (!mark) nodes.push((mark = h('mark')));
+      mark.append(node);
+    } else {
+      mark = undefined;
+      nodes.push(node);
+    }
+  }
   return h(
     'li',
     {class: 'example'},
-    h('p', {class: 'example-ja', lang: 'ja'}, ja),
+    h('p', {class: 'example-ja', lang: 'ja'}, nodes),
     h('p', {class: 'example-en'}, ex.en),
   );
 }

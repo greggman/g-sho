@@ -56,7 +56,8 @@ export function otherForms(entry: Entry): Headword[] {
 }
 
 /** A piece of a word and the furigana over it (if any). */
-export type RubyPart = [text: string, ruby?: string];
+export type {RubyPart} from '../shared/furigana.ts';
+import type {RubyPart} from '../shared/furigana.ts';
 
 /**
  * Splits a word into parts with furigana over just the kanji:

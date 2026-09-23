@@ -43,6 +43,11 @@ export interface Example {
   en: string;
   /** the form of the word as it appears in the sentence */
   w: string;
+  /**
+   * The sentence with furigana, in Tatoeba's markup: "[世界|せ|かい]に…"
+   * (one reading per character) or "[今日|きょう]" (one for the group).
+   */
+  f?: string;
 }
 
 export interface Sense {

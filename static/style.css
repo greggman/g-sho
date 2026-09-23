@@ -729,6 +729,12 @@ ruby rt {
   color: var(--muted);
 }
 
+/* Keep a word's kanji together when its reading is wider than they are
+   (中国 under ちゅうごく) instead of spreading them apart. */
+ruby {
+  ruby-align: center;
+}
+
 .badge {
   display: inline-block;
   margin-top: 8px;
@@ -817,6 +823,11 @@ ruby rt {
 
 .example-ja {
   font-size: 1.05rem;
+  line-height: 2.1;
+}
+
+.example-ja rt {
+  font-size: 0.55em;
 }
 
 .example-en {

@@ -7,8 +7,9 @@
  * Also downloads the handwriting recognition model into .cache/handwriting/,
  * pinned to a Hugging Face revision, the latest KanjiVG stroke data into
  * .cache/kanjivg/, EDRDG's JMdict XML (.cache/JMdict_e.gz), which has the
- * word frequency ranks the JSON version leaves out, and wordfreq's Japanese
- * word frequencies (.cache/wordfreq/), pinned to a commit.
+ * word frequency ranks the JSON version leaves out, wordfreq's Japanese
+ * word frequencies (.cache/wordfreq/), pinned to a commit, and Tatoeba's
+ * sentence transcriptions (furigana for example sentences, .cache/tatoeba/).
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -158,6 +159,35 @@ async function downloadWordfreq() {
   );
 }
 
+/**
+ * Tatoeba's transcriptions export, which has furigana for Japanese
+ * sentences ("[世界|せ|かい]に…"). Skipped when the ETag is unchanged.
+ */
+async function downloadTatoebaTranscriptions() {
+  const url = 'https://downloads.tatoeba.org/exports/transcriptions.tar.bz2';
+  const dir = path.join(CACHE_DIR, 'tatoeba');
+  const csv = path.join(dir, 'transcriptions.csv');
+  const etagFile = path.join(dir, 'transcriptions.etag');
+  const etag =
+    fs.existsSync(etagFile) && fs.existsSync(csv)
+      ? fs.readFileSync(etagFile, 'utf8')
+      : undefined;
+  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
+  if (res.status === 304) {
+    console.log('Tatoeba transcriptions already downloaded');
+    return;
+  }
+  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+  console.log('downloading Tatoeba transcriptions');
+  fs.mkdirSync(dir, {recursive: true});
+  const archive = path.join(dir, 'transcriptions.tar.bz2');
+  fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+  execFileSync('tar', ['xjf', archive, '-C', dir]);
+  fs.rmSync(archive);
+  const newEtag = res.headers.get('etag');
+  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+}
+
 async function downloadDictionary() {
   const release = await latestRelease(REPO);
 
@@ -214,6 +244,7 @@ await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),
   downloadWordfreq(),
+  downloadTatoebaTranscriptions(),
   downloadHandwritingModel(),
   downloadKanjiVG(),
 ]);

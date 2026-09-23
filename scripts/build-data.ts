@@ -13,6 +13,7 @@ import {
   kanjiShard,
   shardName,
 } from '../src/shared/hash.ts';
+import {parseFurigana, plainText} from '../src/shared/furigana.ts';
 import {decodeMsgpack} from './msgpack.ts';
 import {
   EN_STOP_WORDS,
@@ -100,7 +101,11 @@ interface JmSense {
     text: string | null;
   }[];
   gloss: {text: string; type: string | null}[];
-  examples: {text: string; sentences: {lang: string; text: string}[]}[];
+  examples: {
+    source: {type: string; value: string};
+    text: string;
+    sentences: {lang: string; text: string}[];
+  }[];
 }
 
 interface JmWord {
@@ -185,7 +190,28 @@ function getShard<T>(
 
 // ---- words ----
 
-function convertWord(w: JmWord): Entry {
+/**
+ * Tatoeba's furigana transcriptions of Japanese sentences, by sentence id.
+ * Empty if not downloaded.
+ */
+function readFurigana(): Map<string, string> {
+  const file = path.join(CACHE_DIR, 'tatoeba', 'transcriptions.csv');
+  const out = new Map<string, string>();
+  if (!fs.existsSync(file)) {
+    console.warn(
+      'warning: Tatoeba transcriptions missing; no example furigana',
+    );
+    return out;
+  }
+  // id, language, script, user, transcription (tab-separated)
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const [id, lang, , , text] = line.split('\t');
+    if (lang === 'jpn' && text) out.set(id, text);
+  }
+  return out;
+}
+
+function convertWord(w: JmWord, furigana: Map<string, string>): Entry {
   const entry: Entry = {
     id: Number(w.id),
     r: w.kana.map(r => ({
@@ -215,11 +241,20 @@ function convertWord(w: JmWord): Entry {
         })),
       );
       sense.ex = nonEmpty(
-        s.examples.map(e => ({
-          ja: e.sentences.find(x => x.lang === 'jpn')?.text ?? '',
-          en: e.sentences.find(x => x.lang === 'eng')?.text ?? '',
-          w: e.text,
-        })),
+        s.examples.map(e => {
+          const ja = e.sentences.find(x => x.lang === 'jpn')?.text ?? '';
+          const f =
+            e.source.type === 'tatoeba'
+              ? furigana.get(e.source.value)
+              : undefined;
+          return {
+            ja,
+            en: e.sentences.find(x => x.lang === 'eng')?.text ?? '',
+            w: e.text,
+            // Only if it's a transcription of this exact sentence.
+            ...(f && plainText(parseFurigana(f)) === ja && {f}),
+          };
+        }),
       );
       // Drop the undefined properties so JSON.stringify output is minimal
       // and the key order is stable.
@@ -400,6 +435,7 @@ function buildWords(
   dict: JmDict,
   priorities: Priorities,
   zipf: Map<string, number>,
+  furigana: Map<string, string>,
 ) {
   const spellingPriority = spellingPriorities(dict, priorities, zipf);
   const entryShards = new Map<number, EntryShard>();
@@ -436,7 +472,7 @@ function buildWords(
   };
 
   for (const w of dict.words) {
-    const entry = convertWord(w);
+    const entry = convertWord(w, furigana);
     getShard(entryShards, entryShard(entry.id, SHARDS.entries), () => ({}))[
       entry.id
     ] = entry;
@@ -621,7 +657,12 @@ function main() {
 
   const version = readJson<{version: string}>('version.json').version;
   const dict = readJson<JmDict>('jmdict.json');
-  const entryCount = buildWords(dict, readPriorities(), readWordfreq());
+  const entryCount = buildWords(
+    dict,
+    readPriorities(),
+    readWordfreq(),
+    readFurigana(),
+  );
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
   buildStrokes();
