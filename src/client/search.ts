@@ -1,4 +1,4 @@
-import {hasJapanese, isKana, isKanji} from '../shared/kana.ts';
+import {hasJapanese, isAllKana, isKana, isKanji} from '../shared/kana.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -8,6 +8,7 @@ import {
 import type {Entry} from '../shared/types.ts';
 import {deinflect, posToType, type Deinflection} from './deinflect.ts';
 import type {Dict, JaHit} from './dict.ts';
+import {headword} from './forms.ts';
 import {romajiToKana} from './romaji.ts';
 
 export const PAGE_SIZE = 20;
@@ -42,14 +43,21 @@ export interface Token {
   reasons?: string[];
 }
 
+/** A word of a sentence and the dictionary entries it could be, best first. */
+export interface SentenceWord {
+  /** index into SearchResult.tokens */
+  token: number;
+  matches: WordResult[];
+}
+
 export interface SearchResult {
   query: string;
   /** the kana a romaji query was read as */
   kana?: string;
   /** set when the query was split into words */
   tokens?: Token[];
-  /** which token the words are for */
-  selectedToken?: number;
+  /** for sentences: every known word with its matches */
+  sentence?: SentenceWord[];
   words: WordResult[];
   /** total number of matching words (words holds one page of them) */
   total: number;
@@ -87,7 +95,11 @@ async function matchingHits(
  * Ranked Japanese matches for `text`: exact and deinflected matches, then
  * words that start with it.
  */
-async function rankJapanese(dict: Dict, text: string): Promise<Candidate[]> {
+async function rankJapanese(
+  dict: Dict,
+  text: string,
+  withPrefixes = true,
+): Promise<Candidate[]> {
   const key = normalizeJa(text);
   if (!key) return [];
 
@@ -121,6 +133,7 @@ async function rankJapanese(dict: Dict, text: string): Promise<Candidate[]> {
     }
   }
 
+  if (!withPrefixes) return tiers.flat();
   const prefixed = await dict.jaKeysWithPrefix(key);
   prefixed.sort(
     ([ka], [kb]) => ka.length - kb.length || (ka < kb ? -1 : ka > kb ? 1 : 0),
@@ -254,8 +267,36 @@ async function fetchPage(
 export interface SearchOptions {
   /** number of pages of results to return */
   pages?: number;
-  /** for sentences, which token to show words for */
-  token?: number;
+}
+
+/** Dictionary matches kept per word of a sentence. */
+const SENTENCE_MATCHES = 5;
+
+/**
+ * The entries a sentence's word could be. Words written in kana are usually
+ * words normally written in kana (は is the particle, not 歯 "tooth"), so
+ * those entries come first.
+ */
+async function sentenceMatches(
+  dict: Dict,
+  token: Token,
+): Promise<WordResult[]> {
+  const candidates = (await rankJapanese(dict, token.text, false)).slice(
+    0,
+    SENTENCE_MATCHES * 2,
+  );
+  const entries = await dict.entries(candidates.map(c => c.id));
+  const byId = new Map(entries.map(e => [e.id, e]));
+  const results = candidates.flatMap(c => {
+    const entry = byId.get(c.id);
+    return entry ? [{entry, inflection: c.inflection}] : [];
+  });
+  if (isAllKana(token.text)) {
+    const kanaHead = (w: WordResult) =>
+      isAllKana(headword(w.entry).text) ? 0 : 1;
+    results.sort((a, b) => kanaHead(a) - kanaHead(b));
+  }
+  return results.slice(0, SENTENCE_MATCHES);
 }
 
 export async function search(
@@ -275,19 +316,19 @@ export async function search(
       const tokens = await segment(dict, q);
       const known = tokens.filter(t => t.known);
       if (tokens.length > 1 && known.length > 0) {
-        const selected =
-          options.token !== undefined && tokens[options.token]?.known
-            ? options.token
-            : tokens.indexOf(known[0]);
-        const token = tokens[selected];
-        const words = await rankJapanese(dict, token.text);
-        return {
-          query: q,
-          tokens,
-          selectedToken: selected,
-          words: await fetchPage(dict, words, pages),
-          total: words.length,
-        };
+        const sentence = await Promise.all(
+          tokens.flatMap((t, i) =>
+            t.known
+              ? [
+                  sentenceMatches(dict, t).then(matches => ({
+                    token: i,
+                    matches,
+                  })),
+                ]
+              : [],
+          ),
+        );
+        return {query: q, tokens, sentence, words: [], total: 0};
       }
     }
     return {

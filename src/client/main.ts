@@ -1,4 +1,5 @@
 import {hasJapanese, isKanji} from '../shared/kana.ts';
+import {loadSettings, type AnkiSettings} from './anki/settings.ts';
 import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
@@ -6,7 +7,8 @@ import {RadicalPicker} from './radicals.ts';
 import {
   renderEntry,
   renderKanji,
-  renderTokens,
+  renderSentence,
+  type EntryActions,
   resultsHeading,
 } from './render.ts';
 import {search, type SearchResult} from './search.ts';
@@ -33,6 +35,8 @@ const radicalToggle = $<HTMLButtonElement>('radical-toggle');
 const radicalPanel = $<HTMLElement>('radical-panel');
 const handwritingToggle = $<HTMLButtonElement>('handwriting-toggle');
 const handwritingPanel = $<HTMLElement>('handwriting-panel');
+const ankiToggle = $<HTMLButtonElement>('anki-toggle');
+const ankiPanel = $<HTMLElement>('anki-panel');
 const content = $<HTMLElement>('content');
 const dataInfo = $<HTMLElement>('data-info');
 
@@ -105,40 +109,34 @@ async function renderResults(
   const kanji = await Promise.all(
     sidebarKanji(query, result).map(k => dict.kanji(k)),
   );
-  const main = h(
-    'section',
-    {class: 'words'},
-    resultsHeading(result),
-    result.words.length === 0 &&
-      h(
-        'p',
-        {class: 'no-results'},
-        `Sorry, couldn't find anything matching ${query}.`,
-      ),
-    result.words.map(w => renderEntry(dict, w)),
-    result.words.length < result.total &&
-      h(
-        'a',
-        {
-          class: 'more-words',
-          href: searchUrl(query, {
-            ...(result.selectedToken !== undefined && {
-              t: result.selectedToken,
-            }),
-            p: pages + 1,
-          }),
-        },
-        'More words',
-      ),
-  );
+  const [sentenceBar, sentenceWords] = result.sentence
+    ? renderSentence(dict, result, entryActions)
+    : [];
+  const main =
+    sentenceWords ??
+    h(
+      'section',
+      {class: 'words'},
+      resultsHeading(result),
+      result.words.length === 0 &&
+        h(
+          'p',
+          {class: 'no-results'},
+          `Sorry, couldn't find anything matching ${query}.`,
+        ),
+      result.words.map(w => renderEntry(dict, w, entryActions)),
+      result.words.length < result.total &&
+        h(
+          'a',
+          {class: 'more-words', href: searchUrl(query, {p: pages + 1})},
+          'More words',
+        ),
+    );
   const found = kanji.filter(k => k !== undefined);
   return h(
     'div',
     {class: 'results'},
-    result.tokens &&
-      renderTokens(result.tokens, result.selectedToken ?? 0, i =>
-        searchUrl(query, {t: i}),
-      ),
+    sentenceBar,
     h(
       'div',
       {class: 'columns'},
@@ -159,12 +157,14 @@ async function renderResults(
   );
 }
 
+/** Controls added to every entry; set when Anki is connected. */
+let entryActions: EntryActions | undefined;
+
 let currentSearch = 0;
 
 async function route(dict: Dict) {
   const params = new URLSearchParams(location.search);
   const query = params.get('q')?.trim() ?? '';
-  const token = params.has('t') ? Number(params.get('t')) : undefined;
   const pages = Math.max(1, Number(params.get('p') ?? 1) || 1);
   input.value = query;
   document.title = query ? `${query} - g-sho` : 'g-sho — Japanese dictionary';
@@ -176,7 +176,7 @@ async function route(dict: Dict) {
   const id = ++currentSearch;
   content.setAttribute('aria-busy', 'true');
   try {
-    const result = await search(dict, query, {token, pages});
+    const result = await search(dict, query, {pages});
     const view = await renderResults(dict, query, result, pages);
     if (id !== currentSearch) return;
     content.replaceChildren(view);
@@ -246,7 +246,15 @@ function setupPanel(
 const panels: [HTMLButtonElement, HTMLElement][] = [
   [radicalToggle, radicalPanel],
   [handwritingToggle, handwritingPanel],
+  [ankiToggle, ankiPanel],
 ];
+
+/** Turns the add-to-Anki buttons on or off for the settings. */
+async function applyAnki(dict: Dict, settings: AnkiSettings) {
+  entryActions = settings.enabled
+    ? (await import('./anki/controller.ts')).createAnkiActions(settings, dict)
+    : undefined;
+}
 
 function setupPanels(dict: Dict) {
   setupPanel(radicalToggle, radicalPanel, async () => {
@@ -261,6 +269,13 @@ function setupPanels(dict: Dict) {
       hw.clear();
     });
     return hw.element;
+  });
+  setupPanel(ankiToggle, ankiPanel, async () => {
+    const {createAnkiPanel} = await import('./anki/panel.ts');
+    return createAnkiPanel(loadSettings(), async settings => {
+      await applyAnki(dict, settings);
+      void route(dict);
+    });
   });
 }
 
@@ -288,6 +303,8 @@ async function main() {
       return;
     }
     const a = (e.target as Element).closest('a');
+    // Links within the page (#word-3) just scroll.
+    if (a?.getAttribute('href')?.startsWith('#')) return;
     if (
       !a ||
       a.origin !== location.origin ||
@@ -303,6 +320,7 @@ async function main() {
 
   window.addEventListener('popstate', () => void route(dict));
   setupPanels(dict);
+  await applyAnki(dict, loadSettings());
   await route(dict);
 }
 

@@ -369,6 +369,173 @@ a:hover {
   }
 }
 
+/* ---- Anki ---- */
+
+.anki-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 16px;
+  max-width: 640px;
+}
+
+.panel-title {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.anki-settings p {
+  margin: 0 0 10px;
+}
+
+.anki-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 0.9rem;
+}
+
+.anki-settings label > :first-child {
+  flex: none;
+}
+
+.anki-settings select,
+.anki-settings input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.anki-settings button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  margin-top: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.anki-settings button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.anki-status.error {
+  color: #c0392b;
+}
+
+.anki-status.ok {
+  color: var(--accent-strong);
+}
+
+.anki-fields {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.anki-advanced summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+/* the + / ✓ control on each entry */
+.anki {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.anki-button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+
+.anki-button::-webkit-details-marker {
+  display: none;
+}
+
+.anki-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.anki-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.anki[data-state='present'] .anki-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.anki[data-state='error'] .anki-button {
+  color: #c0392b;
+}
+
+.anki-menu-items {
+  position: absolute;
+  z-index: 10;
+  top: 30px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  overflow: hidden;
+}
+
+.anki-menu-items button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.anki-menu-items button:hover {
+  background: var(--accent-soft);
+}
+
+.entry-head .anki {
+  display: block;
+  margin: 8px 0 0;
+}
+
 /* ---- results ---- */
 
 .content {
@@ -451,6 +618,84 @@ a.token.selected {
 
 .token.unknown {
   color: var(--muted);
+}
+
+/* sentence words */
+
+.sentence rt {
+  font-size: 0.5em;
+}
+
+.sentence-word {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 16px;
+}
+
+.sentence-word:target {
+  background: linear-gradient(90deg, var(--accent-soft), transparent 60%);
+}
+
+.sentence-word-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.sentence-word-text {
+  font-size: 1.6rem;
+  line-height: 1.4;
+}
+
+.sentence-word-head .badge {
+  margin-top: 0;
+}
+
+.dictionary-form {
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.dictionary-form a {
+  color: var(--text);
+}
+
+.chain {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.compact-senses {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.compact-senses li {
+  margin: 2px 0;
+}
+
+.compact-senses .pos {
+  margin-top: 6px;
+}
+
+.word-details {
+  margin-top: 6px;
+}
+
+.word-details > summary {
+  color: var(--link);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.word-details .entry {
+  padding: 12px 0 12px 12px;
+  border-bottom: 0;
+  border-left: 2px solid var(--border);
+  margin-top: 8px;
 }
 
 /* entries */

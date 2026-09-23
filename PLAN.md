@@ -92,8 +92,11 @@ One search box, `?q=` in the URL (history and shareable links).
    polite → past".
 5. **Sentences**: Japanese input that isn't a single word is segmented by
    greedy longest match against the index (with deinflection at each
-   position). The tokens appear as a clickable bar, like jisho; clicking one
-   shows that word's entries.
+   position). Unlike jisho, where you click each word in turn, every word is
+   shown at once: the sentence with furigana at the top, then a compact card
+   per word (furigana, dictionary form and inflection, first meanings) with
+   the full entry and other possible matches in a `<details>`. Words written
+   in kana prefer entries usually written in kana (は → the particle, not 歯).
 6. **Kanji panel**: kanji in the query and in the results show a side panel
    with meanings, on/kun readings, stroke count, grade, JLPT level, frequency
    and components (from KRADFILE).
@@ -144,6 +147,30 @@ jisho.org uses).
 - **UI**: a pad with Undo and Clear. It recognizes after each stroke and shows
   candidates as buttons; picking one inserts it into the search box, the same
   way the radical picker does.
+
+## Anki
+
+A [+] on every entry adds the word to Anki; ✓ means it's already there and
+opens "Update in Anki" (overwrite the note) and "Show in Anki".
+
+- **Transport**: the page talks directly to the AnkiConnect add-on on
+  `http://127.0.0.1:8765`; no browser extension needed. AnkiConnect's
+  `requestPermission` accepts any origin and shows a dialog in Anki; saying
+  yes adds our origin to its allow list. It also answers Private/Local Network
+  Access preflights. Browsers may additionally ask the user to allow access to
+  local network devices.
+- **Nothing contacts Anki until the user clicks Connect** in the Anki panel,
+  so visitors without Anki never see a prompt.
+- **Defaults that just work**: a `g-sho` deck and a `g-sho (Japanese)` note
+  type (Word, Reading, Furigana, Meaning, PartOfSpeech, Example, JMdictId,
+  Link; one recognition card using Anki's furigana filter), both created on
+  the first add.
+- **Options**: any existing deck; any existing note type, with a per-field
+  choice of what to put in it (guessed from field names: Front/Back,
+  Expression/Reading/Meaning, …). Settings are kept in localStorage.
+- **Duplicates**: found by the JMdict ID field when the note type has one,
+  otherwise by the word field; all entries on a page are checked in one
+  `multi` request.
 
 ## Phases
 

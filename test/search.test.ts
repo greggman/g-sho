@@ -76,7 +76,18 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
       ['私', 'は', '日本語', 'を', '勉強しています', '。'],
     );
     assert.equal(r.tokens?.[4].base, '勉強');
-    assert.equal(r.selectedToken, 0);
+  });
+
+  test('every word of a sentence has matches', async () => {
+    const r = await search(dict, '私は日本語を勉強しています。');
+    const heads = r.sentence?.map(w => headword(w.matches[0].entry).text);
+    // は and を are the particles, not 歯 (tooth) or 葉 (leaf).
+    assert.deepEqual(heads, ['私', 'は', '日本語', 'を', '勉強']);
+    assert.deepEqual(r.sentence?.[4].matches[0].inflection?.reasons, [
+      'polite',
+      'progressive',
+      'suru verb',
+    ]);
   });
 
   test('kanji info', async () => {

@@ -1,8 +1,24 @@
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, join, searchLink} from './dom.ts';
-import {furigana, headword, otherForms, type Headword} from './forms.ts';
-import type {Inflection, SearchResult, Token, WordResult} from './search.ts';
+import {
+  furigana,
+  headword,
+  otherForms,
+  surfaceFurigana,
+  type Headword,
+  type RubyPart,
+} from './forms.ts';
+import type {
+  Inflection,
+  SearchResult,
+  SentenceWord,
+  Token,
+  WordResult,
+} from './search.ts';
+
+/** Extra controls to show on each entry (e.g. an "add to Anki" button). */
+export type EntryActions = (entry: Entry) => Node | undefined;
 
 /** ISO 639-2 codes used in JMdict language sources. Others show as the code. */
 const LANGUAGES: Record<string, string> = {
@@ -86,15 +102,18 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function ruby(parts: RubyPart[]): (Node | string)[] {
+  return parts.map(([text, rt]) =>
+    rt ? h('ruby', null, text, h('rt', null, rt)) : text,
+  );
+}
+
 /** A word with furigana over its kanji. */
 export function rubyWord(word: Headword): HTMLElement {
-  if (!word.reading) return h('span', {class: 'word', lang: 'ja'}, word.text);
   return h(
     'span',
     {class: 'word', lang: 'ja'},
-    furigana(word.text, word.reading).map(([text, ruby]) =>
-      ruby ? h('ruby', null, text, h('rt', null, ruby)) : text,
-    ),
+    word.reading ? ruby(furigana(word.text, word.reading)) : word.text,
   );
 }
 
@@ -118,7 +137,7 @@ function inflectionNote(inf: Inflection): HTMLElement {
   );
 }
 
-function posLabel(dict: Dict, tag: string): string {
+export function posLabel(dict: Dict, tag: string): string {
   return SHORT_TAGS[tag] ?? capitalize(dict.tagDescription(tag));
 }
 
@@ -224,6 +243,7 @@ function isCommon(entry: Entry): boolean {
 export function renderEntry(
   dict: Dict,
   {entry, inflection}: WordResult,
+  actions?: EntryActions,
 ): HTMLElement {
   const others = otherForms(entry);
   let prevPos: string | undefined;
@@ -239,6 +259,7 @@ export function renderEntry(
         searchLink(headword(entry).text, rubyWord(headword(entry))),
       ),
       isCommon(entry) && h('span', {class: 'badge common'}, 'common word'),
+      actions?.(entry),
     ),
     h(
       'div',
@@ -324,31 +345,121 @@ export function renderKanji(k: KanjiInfo): HTMLElement {
   );
 }
 
-export function renderTokens(
+/** Senses shown on a sentence word before its details are expanded. */
+const COMPACT_SENSES = 3;
+
+/** The sentence as a row of words with furigana, each linking to its card. */
+function renderSentenceBar(
   tokens: Token[],
-  selected: number,
-  hrefFor: (i: number) => string,
+  words: SentenceWord[],
 ): HTMLElement {
+  const byToken = new Map(words.map(w => [w.token, w]));
   return h(
     'nav',
     {class: 'sentence', lang: 'ja', 'aria-label': 'Words in the sentence'},
-    tokens.map((t, i) =>
-      t.known
-        ? h(
-            'a',
-            {
-              class: i === selected ? 'token selected' : 'token',
-              href: hrefFor(i),
-              title: t.base
-                ? inflectionChain(t.base, t.reasons ?? [])
-                : undefined,
-              'aria-current': i === selected ? 'true' : undefined,
-            },
-            t.text,
-          )
-        : h('span', {class: 'token unknown'}, t.text),
+    tokens.map((t, i) => {
+      const word = byToken.get(i);
+      if (!word) return h('span', {class: 'token unknown'}, t.text);
+      return h(
+        'a',
+        {class: 'token', href: `#word-${i}`},
+        ruby(surfaceFurigana(t.text, word.matches[0].entry, t.base)),
+      );
+    }),
+  );
+}
+
+/** A compact card for one word of a sentence; the full entry is in <details>. */
+function renderSentenceWord(
+  dict: Dict,
+  token: Token,
+  word: SentenceWord,
+  actions?: EntryActions,
+): HTMLElement {
+  const [best, ...others] = word.matches;
+  const {entry, inflection} = best;
+  const head = headword(entry);
+  let prevPos: string | undefined;
+  const senses = entry.s.slice(0, COMPACT_SENSES).map((s, i) => {
+    const pos = s.p?.map(p => posLabel(dict, p)).join(', ');
+    const el = h(
+      'li',
+      null,
+      pos && pos !== prevPos && h('span', {class: 'pos'}, pos),
+      h('span', {class: 'sense-num'}, `${i + 1}. `),
+      s.g.join('; '),
+    );
+    prevPos = pos;
+    return el;
+  });
+  const more = entry.s.length - COMPACT_SENSES;
+  const summary = [
+    more > 0 ? `${more} more meaning${more > 1 ? 's' : ''}` : 'Full entry',
+    others.length > 0 &&
+      `${others.length} other match${others.length > 1 ? 'es' : ''}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return h(
+    'article',
+    {class: 'sentence-word', id: `word-${word.token}`},
+    h(
+      'div',
+      {class: 'sentence-word-head'},
+      h(
+        'span',
+        {class: 'sentence-word-text', lang: 'ja'},
+        ruby(surfaceFurigana(token.text, entry, token.base)),
+      ),
+      head.text !== token.text &&
+        h(
+          'span',
+          {class: 'dictionary-form'},
+          '→ ',
+          searchLink(head.text, rubyWord(head)),
+        ),
+      isCommon(entry) && h('span', {class: 'badge common'}, 'common'),
+      actions?.(entry),
+    ),
+    inflection &&
+      h(
+        'p',
+        {class: 'chain', lang: 'ja'},
+        inflectionChain(inflection.to, inflection.reasons),
+      ),
+    h('ol', {class: 'compact-senses'}, senses),
+    h(
+      'details',
+      {class: 'word-details'},
+      h('summary', null, summary),
+      renderEntry(dict, best, actions),
+      others.map(o => renderEntry(dict, o, actions)),
     ),
   );
+}
+
+/** A sentence: the word bar, then a card for every word. */
+export function renderSentence(
+  dict: Dict,
+  result: SearchResult,
+  actions?: EntryActions,
+): HTMLElement[] {
+  const tokens = result.tokens ?? [];
+  const words = (result.sentence ?? []).filter(w => w.matches.length > 0);
+  return [
+    renderSentenceBar(tokens, words),
+    h(
+      'section',
+      {class: 'words'},
+      h(
+        'h2',
+        {class: 'results-heading'},
+        'Words in this sentence',
+        h('span', {class: 'count'}, ` — ${words.length}`),
+      ),
+      words.map(w => renderSentenceWord(dict, tokens[w.token], w, actions)),
+    ),
+  ];
 }
 
 export function resultsHeading(result: SearchResult): HTMLElement {

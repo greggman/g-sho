@@ -50,6 +50,16 @@
         >
           部首
         </button>
+        <button
+          id="anki-toggle"
+          type="button"
+          class="radical-toggle"
+          title="Add words to Anki"
+          aria-expanded="false"
+          aria-controls="anki-panel"
+        >
+          Anki
+        </button>
         <button type="submit" class="search-button" aria-label="Search">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" />
@@ -60,6 +70,7 @@
     </header>
     <div id="handwriting-panel" class="radical-panel" hidden></div>
     <div id="radical-panel" class="radical-panel" hidden></div>
+    <div id="anki-panel" class="radical-panel" hidden></div>
     <main id="content" class="content" aria-live="polite">
       <noscript>This dictionary needs JavaScript to search.</noscript>
     </main>

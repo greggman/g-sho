@@ -1,4 +1,4 @@
-import {isKana, toHiragana} from '../shared/kana.ts';
+import {isAllKana, isKana, isKanji, toHiragana} from '../shared/kana.ts';
 import type {Entry, KanjiForm, ReadingForm} from '../shared/types.ts';
 
 /** Tags for spellings that shouldn't be shown as the headword. */
@@ -88,6 +88,35 @@ export function furigana(text: string, reading: string): RubyPart[] {
     const [start, end] = indices[group++]!;
     return [run, reading.slice(start, end)];
   });
+}
+
+/**
+ * Furigana for a word as it appears in text, using its dictionary entry.
+ * For an inflected word, the dictionary form's furigana is carried over as
+ * far as the two match: 食べました (base 食べる, read たべる) →
+ * [["食", "た"], ["べました"]].
+ */
+export function surfaceFurigana(
+  surface: string,
+  entry: Entry,
+  base = surface,
+): RubyPart[] {
+  if (isAllKana(surface)) return [[surface]];
+  const kanji = entry.k?.find(k => k.t === base);
+  const reading = kanji && entry.r.find(r => readingAppliesTo(r, kanji.t));
+  if (!kanji || !reading) return [[surface]];
+  const out: RubyPart[] = [];
+  let pos = 0;
+  for (const part of furigana(kanji.t, reading.t)) {
+    if (!surface.startsWith(part[0], pos)) break;
+    out.push(part);
+    pos += part[0].length;
+  }
+  const rest = surface.slice(pos);
+  // Kanji left without furigana means the forms diverged too early.
+  if (Array.from(rest).some(isKanji)) return [[surface]];
+  if (rest) out.push([rest]);
+  return out;
 }
 
 function escapeRegExp(s: string): string {

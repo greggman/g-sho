@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {furigana, headword} from '../src/client/forms.ts';
+import {furigana, headword, surfaceFurigana} from '../src/client/forms.ts';
 import type {Entry} from '../src/shared/types.ts';
 
 test('furigana over kanji only', () => {
@@ -36,4 +36,19 @@ test('headword uses the reading that applies to the kanji', () => {
     s: [{g: ['today']}],
   };
   assert.deepEqual(headword(e), {text: '今日', reading: 'きょう'});
+});
+
+test('surfaceFurigana carries furigana onto inflected forms', () => {
+  const taberu: Entry = {
+    id: 1,
+    k: [{t: '食べる'}],
+    r: [{t: 'たべる'}],
+    s: [{g: ['to eat']}],
+  };
+  assert.deepEqual(surfaceFurigana('食べました', taberu, '食べる'), [
+    ['食', 'た'],
+    ['べました'],
+  ]);
+  assert.deepEqual(surfaceFurigana('食べる', taberu), [['食', 'た'], ['べる']]);
+  assert.deepEqual(surfaceFurigana('たべた', taberu, '食べる'), [['たべた']]);
 });
