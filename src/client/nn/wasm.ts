@@ -95,6 +95,7 @@ export class WasmEngine {
     const {spec} = model;
 
     // Plan the memory layout: a bump allocator above the Rust heap base.
+    if (!e.__heap_base) throw new Error('nn.wasm must export __heap_base');
     let top = e.__heap_base.value as number;
     const pending: [number, Float32Array][] = [];
     const alloc = (floats: number, data?: Float32Array) => {

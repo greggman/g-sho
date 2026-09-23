@@ -29,6 +29,9 @@ export function buildWasm(dist: string) {
       '-Ctarget-feature=+simd128',
       '-Cpanic=abort',
       '-Cstrip=symbols',
+      // wasm.ts lays out its buffers above Rust's stack and static data,
+      // which end at __heap_base. Newer Rust no longer exports it by default.
+      '-Clink-arg=--export=__heap_base',
       '-o',
       out,
       SOURCE,
