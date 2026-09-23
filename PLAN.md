@@ -18,6 +18,7 @@ All sources are the same ones jisho.org credits, consumed through the
 | Radical decomposition (RADKFILE / KRADFILE) | EDRDG | CC BY-SA 4.0 |
 | Example sentences linked to word senses | Tatoeba (via JMdict) | CC BY 2.0 FR |
 | Stroke order | KanjiVG | CC BY-SA 3.0 |
+| Word frequencies (ranking) | wordfreq (Robyn Speer) | CC BY-SA 4.0 |
 
 Attribution for all of them is shown on an About page in the site, as the
 licenses require. Later phases may add JMnedict (names) and JLPT word lists.
@@ -83,11 +84,13 @@ One search box, `?q=` in the URL (history and shareable links).
 
 1. **Japanese input** (kana/kanji): exact matches first, then prefix matches.
    Ranked by exact/prefix, common flag, whether the matched form is the
-   entry's main spelling, and word frequency. Frequency comes from JMdict's
-   priority tags, read from the original XML (`JMdict_e.gz`, since the JSON
-   build keeps only a common flag): the ichi1 basic-word list counts most,
-   then the newspaper frequency band (nf01–nf48), with sense count as a
-   tie-breaker.
+   entry's main spelling, and word frequency. Frequency is mainly
+   wordfreq's Japanese data (subtitles, Wikipedia, web text; pinned to a
+   commit), which counts spellings: when entries share one (上 is うえ, かみ,
+   じょう), its owner — the entry whose main spelling it is, with the best
+   JMdict priority — gets full credit and the others much less. JMdict's
+   priority tags (from the original XML, since the JSON build keeps only a
+   common flag) add to it, with sense count as a tie-breaker.
 2. **Romaji input**: converted to kana (Hepburn + wāpuro spellings) and searched
    as Japanese, *and* searched as English. The better exact hit set is shown first.
 3. **English input**: each word is looked up in the English index. Short glosses

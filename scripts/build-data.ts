@@ -13,6 +13,7 @@ import {
   kanjiShard,
   shardName,
 } from '../src/shared/hash.ts';
+import {decodeMsgpack} from './msgpack.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -303,6 +304,82 @@ export function priorityScore(tags: string[] | undefined): number {
   return score;
 }
 
+/**
+ * wordfreq's Japanese frequencies: spelling → Zipf score (log10 of uses per
+ * billion words; ~6 very common, ~3 rare). Empty if not downloaded.
+ */
+function readWordfreq(): Map<string, number> {
+  const out = new Map<string, number>();
+  const current = path.join(CACHE_DIR, 'wordfreq', 'current.json');
+  if (!fs.existsSync(current)) {
+    console.warn('warning: wordfreq data missing; ranking without it');
+    return out;
+  }
+  const {commit, file} = JSON.parse(fs.readFileSync(current, 'utf8'));
+  const buckets = decodeMsgpack(
+    zlib.gunzipSync(
+      fs.readFileSync(path.join(CACHE_DIR, 'wordfreq', commit, file)),
+    ),
+  ) as unknown[];
+  // Bucket i (after the header) holds words with frequency 10^(-i/100).
+  buckets.forEach((words, i) => {
+    if (i === 0 || !Array.isArray(words)) return;
+    for (const w of words as string[]) out.set(w, 9 - i / 100);
+  });
+  return out;
+}
+
+/** The spelling a word is usually written with. */
+function mainSpelling(w: JmWord): string {
+  const usuallyKana = w.sense[0]?.misc.includes('uk') ?? false;
+  const kanji = w.kanji.find(k => !k.tags.some(t => RARE_FORM_TAGS.has(t)));
+  return kanji && !usuallyKana ? kanji.text : (w.kana[0]?.text ?? '');
+}
+
+/**
+ * How common each word is when written a given way, for ranking:
+ * 10 × the spelling's wordfreq Zipf score, plus half its JMdict priority
+ * score, plus a little for words with many senses. wordfreq counts
+ * spellings, not words, so when entries share a spelling (上 is うえ, かみ,
+ * じょう…) only its "owner" gets full credit: the entry whose main spelling
+ * it is, with the best JMdict priority. The others get 1.5 less Zipf (about
+ * a thirtieth), so かみ lists 紙 before 上 (かみ) even though 上 is common.
+ */
+function spellingPriorities(
+  dict: JmDict,
+  priorities: Priorities,
+  zipf: Map<string, number>,
+) {
+  const tagScore = (w: JmWord, spelling: string) =>
+    priorityScore(priorities.get(Number(w.id))?.get(spelling));
+  // Tie-breaker: basic words have many senses (行く, 見る), rarer words
+  // sharing their spelling or tags have few (幾, 看る).
+  const senseBonus = (w: JmWord) => Math.min(w.sense.length, 10) / 2;
+
+  const spellings = (w: JmWord) =>
+    new Set([mainSpelling(w), ...w.kanji.map(k => k.text)]);
+  const ownerRank = (w: JmWord, s: string) =>
+    (mainSpelling(w) === s ? 1000 : 0) + tagScore(w, s) + senseBonus(w);
+  const owners = new Map<string, {id: string; rank: number}>();
+  for (const w of dict.words) {
+    for (const s of spellings(w)) {
+      const rank = ownerRank(w, s);
+      const o = owners.get(s);
+      if (!o || rank > o.rank) owners.set(s, {id: w.id, rank});
+    }
+  }
+
+  return (w: JmWord, spelling: string): number => {
+    const z = zipf.get(spelling) ?? 0;
+    const shared = owners.get(spelling)?.id !== w.id;
+    return (
+      10 * Math.max(0, z - (shared ? 1.5 : 0)) +
+      tagScore(w, spelling) / 2 +
+      senseBonus(w)
+    );
+  };
+}
+
 function formScore(
   form: JmForm,
   index: number,
@@ -319,7 +396,12 @@ function formScore(
   return score;
 }
 
-function buildWords(dict: JmDict, priorities: Priorities) {
+function buildWords(
+  dict: JmDict,
+  priorities: Priorities,
+  zipf: Map<string, number>,
+) {
+  const spellingPriority = spellingPriorities(dict, priorities, zipf);
   const entryShards = new Map<number, EntryShard>();
   // key → [id, score, common]
   const jaKeys = new Map<string, [number, number, boolean][]>();
@@ -361,26 +443,15 @@ function buildWords(dict: JmDict, priorities: Priorities) {
 
     const entryCommon =
       w.kanji.some(k => k.common) || w.kana.some(k => k.common);
-    const pri = priorities.get(entry.id);
-    const formPriority = (text: string) => priorityScore(pri?.get(text));
-    // How common the word itself is: its main spelling's rank, unless it's
-    // usually written in kana. A reading's tags pool every spelling of the
-    // entry (かえる in 替える/換える/代える), so they overstate it.
-    const usuallyKana = w.sense[0]?.misc.includes('uk') ?? false;
-    // Tie-breaker: basic words have many senses (行く, 見る), rarer words
-    // sharing their tags have few (幾, 看る).
-    const senseBonus = Math.min(w.sense.length, 10) / 2;
-    const entryPriority =
-      senseBonus +
-      (w.kanji.length > 0 && !usuallyKana
-        ? formPriority(w.kanji[0].text)
-        : formPriority(w.kana[0]?.text ?? ''));
+    // Readings rank by the word's main spelling: a reading's own tags pool
+    // every spelling of the entry (かえる in 替える/換える/代える).
+    const entryPriority = spellingPriority(w, mainSpelling(w));
 
     w.kanji.forEach((k, i) =>
       addJa(
         normalizeJa(k.text),
         entry.id,
-        formScore(k, i, entryCommon, formPriority(k.text)),
+        formScore(k, i, entryCommon, spellingPriority(w, k.text)),
         k.common,
       ),
     );
@@ -400,6 +471,9 @@ function buildWords(dict: JmDict, priorities: Priorities) {
         const core = glossCore(g.text);
         const words = tokenizeEn(core).filter(t => !EN_STOP_WORDS.has(t));
         let base = 10 - Math.min(si, 8) * 3 - Math.min(gi, 5);
+        // A match in the first sense is what the word primarily means:
+        // "ice cream" is アイスクリーム before アイス (ice; ice cream).
+        if (si === 0) base += 10;
         if (entryCommon) base += 30;
         // More frequent words first, but never above an exact gloss match (+50).
         base += Math.round(entryPriority / 2);
@@ -547,7 +621,7 @@ function main() {
 
   const version = readJson<{version: string}>('version.json').version;
   const dict = readJson<JmDict>('jmdict.json');
-  const entryCount = buildWords(dict, readPriorities());
+  const entryCount = buildWords(dict, readPriorities(), readWordfreq());
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
   buildStrokes();

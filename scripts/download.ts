@@ -6,8 +6,9 @@
  *
  * Also downloads the handwriting recognition model into .cache/handwriting/,
  * pinned to a Hugging Face revision, the latest KanjiVG stroke data into
- * .cache/kanjivg/, and EDRDG's JMdict XML (.cache/JMdict_e.gz), which has the
- * word frequency ranks the JSON version leaves out.
+ * .cache/kanjivg/, EDRDG's JMdict XML (.cache/JMdict_e.gz), which has the
+ * word frequency ranks the JSON version leaves out, and wordfreq's Japanese
+ * word frequencies (.cache/wordfreq/), pinned to a commit.
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -130,6 +131,33 @@ async function downloadJmdictXml() {
   if (newEtag) fs.writeFileSync(etagFile, newEtag);
 }
 
+/**
+ * wordfreq's Japanese word frequencies (subtitles, Wikipedia, web text, …),
+ * a broader frequency signal than JMdict's newspaper-based tags.
+ * CC BY-SA 4.0: https://github.com/rspeer/wordfreq
+ */
+const WORDFREQ = {
+  commit: '912caf64b657478d1dff1138efdc078947d54bb1',
+  file: 'large_ja.msgpack.gz',
+};
+
+async function downloadWordfreq() {
+  const dir = path.join(CACHE_DIR, 'wordfreq', WORDFREQ.commit);
+  const out = path.join(dir, WORDFREQ.file);
+  if (fs.existsSync(out)) return;
+  console.log(`downloading wordfreq ${WORDFREQ.file}`);
+  const res = await fetchOk(
+    `https://raw.githubusercontent.com/rspeer/wordfreq/${WORDFREQ.commit}/wordfreq/data/${WORDFREQ.file}`,
+  );
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  fs.writeFileSync(
+    path.join(CACHE_DIR, 'wordfreq', 'current.json'),
+    JSON.stringify({commit: WORDFREQ.commit, file: WORDFREQ.file}, null, 2) +
+      '\n',
+  );
+}
+
 async function downloadDictionary() {
   const release = await latestRelease(REPO);
 
@@ -185,6 +213,7 @@ async function downloadDictionary() {
 await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),
+  downloadWordfreq(),
   downloadHandwritingModel(),
   downloadKanjiVG(),
 ]);

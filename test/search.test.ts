@@ -52,6 +52,8 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     assert.equal(await first('いく'), '行く'); // not 幾
     assert.equal(await first('みる'), '見る'); // not 看る
     assert.equal(await first('go'), '行く'); // not 碁
+    assert.equal(await first('かえる'), '帰る'); // not 替える
+    assert.ok(['橋', '箸'].includes(await first('はし'))); // not 端
     const book = await search(dict, 'book');
     assert.ok(
       book.words.slice(0, 2).some(w => headword(w.entry).text === '本'),
