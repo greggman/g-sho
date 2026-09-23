@@ -82,8 +82,12 @@ sentence about 20.
 One search box, `?q=` in the URL (history and shareable links).
 
 1. **Japanese input** (kana/kanji): exact matches first, then prefix matches.
-   Ranked by exact/prefix, common flag, and whether the matched form is the
-   entry's primary form.
+   Ranked by exact/prefix, common flag, whether the matched form is the
+   entry's main spelling, and word frequency. Frequency comes from JMdict's
+   priority tags, read from the original XML (`JMdict_e.gz`, since the JSON
+   build keeps only a common flag): the ichi1 basic-word list counts most,
+   then the newspaper frequency band (nf01–nf48), with sense count as a
+   tie-breaker.
 2. **Romaji input**: converted to kana (Hepburn + wāpuro spellings) and searched
    as Japanese, *and* searched as English. The better exact hit set is shown first.
 3. **English input**: each word is looked up in the English index. Short glosses

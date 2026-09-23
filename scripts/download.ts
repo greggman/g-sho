@@ -5,8 +5,9 @@
  * Skips the download when .cache/version.json already matches the latest release.
  *
  * Also downloads the handwriting recognition model into .cache/handwriting/,
- * pinned to a Hugging Face revision, and the latest KanjiVG stroke data into
- * .cache/kanjivg/.
+ * pinned to a Hugging Face revision, the latest KanjiVG stroke data into
+ * .cache/kanjivg/, and EDRDG's JMdict XML (.cache/JMdict_e.gz), which has the
+ * word frequency ranks the JSON version leaves out.
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -104,6 +105,31 @@ async function downloadKanjiVG() {
   );
 }
 
+/**
+ * The original JMdict XML, for its priority tags (newspaper frequency bands
+ * nf01–nf48 and the ichi/spec/gai lists). Skipped when the ETag is unchanged.
+ */
+async function downloadJmdictXml() {
+  const url = 'https://www.edrdg.org/pub/Nihongo/JMdict_e.gz';
+  const out = path.join(CACHE_DIR, 'JMdict_e.gz');
+  const etagFile = `${out}.etag`;
+  const etag =
+    fs.existsSync(etagFile) && fs.existsSync(out)
+      ? fs.readFileSync(etagFile, 'utf8')
+      : undefined;
+  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
+  if (res.status === 304) {
+    console.log('JMdict XML already downloaded');
+    return;
+  }
+  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+  console.log('downloading JMdict_e.gz');
+  fs.mkdirSync(CACHE_DIR, {recursive: true});
+  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  const newEtag = res.headers.get('etag');
+  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+}
+
 async function downloadDictionary() {
   const release = await latestRelease(REPO);
 
@@ -158,6 +184,7 @@ async function downloadDictionary() {
 
 await Promise.all([
   downloadDictionary(),
+  downloadJmdictXml(),
   downloadHandwritingModel(),
   downloadKanjiVG(),
 ]);

@@ -42,6 +42,22 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     assert.equal(e.k?.[0].t, '書');
   });
 
+  test('more frequent words first', async () => {
+    const first = async (q: string) => {
+      const {e} = await firstWord(q);
+      return headword(e).text;
+    };
+    // All four かみ are "common"; frequency ranks 紙, 神, 髪 above 加味 and 上.
+    assert.ok(['紙', '神', '髪'].includes(await first('かみ')));
+    assert.equal(await first('いく'), '行く'); // not 幾
+    assert.equal(await first('みる'), '見る'); // not 看る
+    assert.equal(await first('go'), '行く'); // not 碁
+    const book = await search(dict, 'book');
+    assert.ok(
+      book.words.slice(0, 2).some(w => headword(w.entry).text === '本'),
+    );
+  });
+
   test('katakana', async () => {
     assert.equal((await firstWord('ラーメン')).text, 'ラーメン');
   });

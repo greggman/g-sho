@@ -5,6 +5,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
 import {
   enShard,
   entryShard,
@@ -238,8 +239,77 @@ function convertWord(w: JmWord): Entry {
 }
 
 /** How well a form represents its entry; higher is better. */
-function formScore(form: JmForm, index: number, entryCommon: boolean): number {
+// ---- word frequency (priority tags from the JMdict XML) ----
+
+/** entry id → spelling or reading → its priority tags ("news1", "nf03", …) */
+type Priorities = Map<number, Map<string, string[]>>;
+
+/**
+ * Reads the priority tags from .cache/JMdict_e.gz. jmdict-simplified keeps
+ * only a common/not-common flag; the tags rank words by frequency. Returns
+ * an empty map if the file hasn't been downloaded.
+ */
+function readPriorities(): Priorities {
+  const file = path.join(CACHE_DIR, 'JMdict_e.gz');
+  const out: Priorities = new Map();
+  if (!fs.existsSync(file)) {
+    console.warn('warning: JMdict_e.gz missing; ranking without frequencies');
+    return out;
+  }
+  const xml = zlib.gunzipSync(fs.readFileSync(file)).toString('utf8');
+  const entryRe = /<ent_seq>(\d+)<\/ent_seq>([\s\S]*?)<\/entry>/g;
+  const formRe =
+    /<(?:k_ele|r_ele)>\s*<(?:keb|reb)>([^<]+)<\/(?:keb|reb)>([\s\S]*?)<\/(?:k_ele|r_ele)>/g;
+  const priRe = /<(?:ke|re)_pri>([^<]+)</g;
+  for (const [, id, body] of xml.matchAll(entryRe)) {
+    let forms: Map<string, string[]> | undefined;
+    for (const [, text, rest] of body.matchAll(formRe)) {
+      const pri = [...rest.matchAll(priRe)].map(m => m[1]);
+      if (pri.length === 0) continue;
+      forms ??= new Map();
+      forms.set(text, pri);
+    }
+    if (forms) out.set(Number(id), forms);
+  }
+  return out;
+}
+
+/**
+ * How common a word is, from its priority tags. The newspaper frequency
+ * bands (nf01 = top 500 words … nf48) order words, and being on the ichi1
+ * list of basic words counts a lot. The news list misses many basic words
+ * (行く, 家 and 下 (した) have no band), so an ichi1 word without a band is
+ * given band 10 (tuned on a set of common queries). news1/news2 add
+ * nothing: the band already says it.
+ */
+export function priorityScore(tags: string[] | undefined): number {
+  const WEIGHTS: Record<string, number> = {
+    ichi1: 35,
+    ichi2: 10,
+    spec1: 10,
+    spec2: 3,
+    gai1: 10,
+    gai2: 3,
+  };
   let score = 0;
+  let band: number | undefined;
+  for (const t of tags ?? []) {
+    const nf = /^nf(\d+)$/.exec(t);
+    if (nf) band = Number(nf[1]);
+    else score += WEIGHTS[t] ?? 0;
+  }
+  if (band === undefined && tags?.includes('ichi1')) band = 10;
+  if (band !== undefined) score += (48 - band) / 2;
+  return score;
+}
+
+function formScore(
+  form: JmForm,
+  index: number,
+  entryCommon: boolean,
+  priority: number,
+): number {
+  let score = priority;
   if (form.common) score += 100;
   if (entryCommon) score += 10;
   // An entry's main spelling beats another entry's alternative spelling,
@@ -249,7 +319,7 @@ function formScore(form: JmForm, index: number, entryCommon: boolean): number {
   return score;
 }
 
-function buildWords(dict: JmDict) {
+function buildWords(dict: JmDict, priorities: Priorities) {
   const entryShards = new Map<number, EntryShard>();
   // key → [id, score, common]
   const jaKeys = new Map<string, [number, number, boolean][]>();
@@ -291,12 +361,26 @@ function buildWords(dict: JmDict) {
 
     const entryCommon =
       w.kanji.some(k => k.common) || w.kana.some(k => k.common);
+    const pri = priorities.get(entry.id);
+    const formPriority = (text: string) => priorityScore(pri?.get(text));
+    // How common the word itself is: its main spelling's rank, unless it's
+    // usually written in kana. A reading's tags pool every spelling of the
+    // entry (かえる in 替える/換える/代える), so they overstate it.
+    const usuallyKana = w.sense[0]?.misc.includes('uk') ?? false;
+    // Tie-breaker: basic words have many senses (行く, 見る), rarer words
+    // sharing their tags have few (幾, 看る).
+    const senseBonus = Math.min(w.sense.length, 10) / 2;
+    const entryPriority =
+      senseBonus +
+      (w.kanji.length > 0 && !usuallyKana
+        ? formPriority(w.kanji[0].text)
+        : formPriority(w.kana[0]?.text ?? ''));
 
     w.kanji.forEach((k, i) =>
       addJa(
         normalizeJa(k.text),
         entry.id,
-        formScore(k, i, entryCommon),
+        formScore(k, i, entryCommon, formPriority(k.text)),
         k.common,
       ),
     );
@@ -306,7 +390,7 @@ function buildWords(dict: JmDict) {
       addJa(
         normalizeJa(k.text),
         entry.id,
-        formScore(k, i, entryCommon) - 1,
+        formScore(k, i, entryCommon, entryPriority) - 1,
         k.common,
       ),
     );
@@ -317,6 +401,8 @@ function buildWords(dict: JmDict) {
         const words = tokenizeEn(core).filter(t => !EN_STOP_WORDS.has(t));
         let base = 10 - Math.min(si, 8) * 3 - Math.min(gi, 5);
         if (entryCommon) base += 30;
+        // More frequent words first, but never above an exact gloss match (+50).
+        base += Math.round(entryPriority / 2);
         if (s.misc.some(m => MARKED_SENSE_TAGS.has(m))) base -= 15;
         for (const t of new Set(words)) {
           // Shorter glosses are a better match for a single word:
@@ -461,7 +547,7 @@ function main() {
 
   const version = readJson<{version: string}>('version.json').version;
   const dict = readJson<JmDict>('jmdict.json');
-  const entryCount = buildWords(dict);
+  const entryCount = buildWords(dict, readPriorities());
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
   buildStrokes();
