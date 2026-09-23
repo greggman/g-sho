@@ -82,14 +82,13 @@ export class HandwritingPanel {
     );
   }
 
+  /**
+   * Clears the status line (it's only for loading and errors). Which engine
+   * is running is kept out of sight, in data-engine, for debugging.
+   */
   private showStatus() {
-    this.status.textContent = this.recognizers
-      .map(
-        r =>
-          `${this.recognizers.length > 1 ? `${r.name}: ` : ''}${r.engine}` +
-          (r.lastMs ? ` · ${r.lastMs.toFixed(0)} ms` : ''),
-      )
-      .join(' — ');
+    this.status.textContent = '';
+    this.element.dataset.engine = this.recognizers.map(r => r.engine).join(',');
   }
 
   private resize() {

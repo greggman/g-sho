@@ -14,4 +14,4 @@ export type ToWorker =
 export type FromWorker =
   | {type: 'ready'; engine: string}
   | {type: 'error'; message: string; id?: number}
-  | {type: 'result'; id: number; candidates: Candidate[]; ms: number};
+  | {type: 'result'; id: number; candidates: Candidate[]};

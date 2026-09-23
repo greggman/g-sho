@@ -102,19 +102,13 @@ onmessage = async (e: MessageEvent<ToWorker>) => {
   }
   try {
     const {run, labels} = await ready!;
-    const start = performance.now();
     const pixels = rasterize(msg.strokes, DRAW_SIZE, LINE_WIDTH, SOURCE_SIZE);
     const probs = softmax(await run(preprocess(pixels)));
     const candidates: Candidate[] = topK(probs, msg.count).map(i => ({
       char: labels[i],
       score: probs[i],
     }));
-    post({
-      type: 'result',
-      id: msg.id,
-      candidates,
-      ms: performance.now() - start,
-    });
+    post({type: 'result', id: msg.id, candidates});
   } catch (err) {
     post({type: 'error', message: String(err), id: msg.id});
   }

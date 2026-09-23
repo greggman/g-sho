@@ -6,8 +6,6 @@ export class WorkerRecognizer implements Recognizer {
   readonly name: string;
   /** which engine the worker picked ("WebGPU", …), once loaded */
   engine = '';
-  /** how long the last recognition took, in ms */
-  lastMs = 0;
   readonly ready: Promise<void>;
   private readonly worker: Worker;
   private nextId = 1;
@@ -29,7 +27,6 @@ export class WorkerRecognizer implements Recognizer {
           this.engine = msg.engine;
           resolve();
         } else if (msg.type === 'result') {
-          this.lastMs = msg.ms;
           this.pending.get(msg.id)?.resolve(msg.candidates);
           this.pending.delete(msg.id);
         } else if (msg.id !== undefined) {
