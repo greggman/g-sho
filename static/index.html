@@ -29,6 +29,17 @@
           autofocus
         />
         <button
+          id="handwriting-toggle"
+          type="button"
+          class="radical-toggle"
+          title="Draw a character"
+          aria-expanded="false"
+          aria-controls="handwriting-panel"
+          lang="ja"
+        >
+          手書き
+        </button>
+        <button
           id="radical-toggle"
           type="button"
           class="radical-toggle"
@@ -47,6 +58,7 @@
         </button>
       </form>
     </header>
+    <div id="handwriting-panel" class="radical-panel" hidden></div>
     <div id="radical-panel" class="radical-panel" hidden></div>
     <main id="content" class="content" aria-live="polite">
       <noscript>This dictionary needs JavaScript to search.</noscript>

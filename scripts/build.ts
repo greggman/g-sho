@@ -10,6 +10,8 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {buildHandwriting} from './build-handwriting.ts';
+import {buildWasm} from './build-wasm.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -18,8 +20,16 @@ const STATIC = path.join(ROOT, 'static');
 const watch = process.argv.includes('--watch');
 const serve = process.argv.includes('--serve');
 
+/**
+ * Copies the files served as-is (static/, the handwriting model) and builds
+ * the WebAssembly kernels.
+ */
 function copyStatic() {
   fs.cpSync(STATIC, DIST, {recursive: true});
+  buildWasm(DIST);
+  if (!buildHandwriting(DIST)) {
+    console.warn('warning: handwriting model missing; run `npm run download`');
+  }
 }
 
 /** Copies static/ again after every rebuild, so edits to it show up in watch mode. */
@@ -33,8 +43,15 @@ const copyStaticPlugin: esbuild.Plugin = {
 };
 
 const options: esbuild.BuildOptions = {
-  entryPoints: [path.join(ROOT, 'src/client/main.ts')],
-  outfile: path.join(DIST, 'app.js'),
+  entryPoints: {
+    app: path.join(ROOT, 'src/client/main.ts'),
+    'handwriting-worker': path.join(ROOT, 'src/client/handwriting/worker.ts'),
+  },
+  outdir: DIST,
+  // Code that's only needed later (handwriting recognition) goes in chunks
+  // loaded by dynamic import().
+  splitting: true,
+  chunkNames: 'chunks/[name]-[hash]',
   bundle: true,
   format: 'esm',
   target: ['es2022', 'chrome100', 'firefox100', 'safari15'],

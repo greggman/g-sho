@@ -31,6 +31,8 @@ const form = $<HTMLFormElement>('search-form');
 const input = $<HTMLInputElement>('q');
 const radicalToggle = $<HTMLButtonElement>('radical-toggle');
 const radicalPanel = $<HTMLElement>('radical-panel');
+const handwritingToggle = $<HTMLButtonElement>('handwriting-toggle');
+const handwritingPanel = $<HTMLElement>('handwriting-panel');
 const content = $<HTMLElement>('content');
 const dataInfo = $<HTMLElement>('data-info');
 
@@ -199,22 +201,66 @@ function navigate(dict: Dict, url: string, scroll = true) {
   void route(dict);
 }
 
-function setupRadicals(dict: Dict) {
-  let picker: RadicalPicker | undefined;
-  radicalToggle.addEventListener('click', async () => {
-    const open = radicalPanel.hidden;
-    radicalPanel.hidden = !open;
-    radicalToggle.setAttribute('aria-expanded', String(open));
-    if (open && !picker) {
-      radicalPanel.replaceChildren(h('p', null, 'Loading…'));
-      picker = new RadicalPicker(await dict.radicals(), kanji => {
-        const start = input.selectionStart ?? input.value.length;
-        const end = input.selectionEnd ?? start;
-        input.setRangeText(kanji, start, end, 'end');
-        input.focus();
-      });
-      radicalPanel.replaceChildren(picker.element);
+/** Inserts text at the search box's cursor. */
+function insertAtCursor(text: string) {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? start;
+  input.setRangeText(text, start, end, 'end');
+  input.focus();
+}
+
+/**
+ * Makes a button toggle a panel, creating the panel's content the first
+ * time it opens. Opening one panel closes the others.
+ */
+function setupPanel(
+  toggle: HTMLButtonElement,
+  panel: HTMLElement,
+  create: () => Promise<HTMLElement>,
+) {
+  let created = false;
+  toggle.addEventListener('click', async () => {
+    const open = panel.hidden;
+    for (const [t, p] of panels) {
+      p.hidden = true;
+      t.setAttribute('aria-expanded', 'false');
     }
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open && !created) {
+      created = true;
+      panel.replaceChildren(h('p', {class: 'panel-loading'}, 'Loading…'));
+      try {
+        panel.replaceChildren(await create());
+      } catch (e) {
+        created = false;
+        console.error(e);
+        panel.replaceChildren(
+          h('p', {class: 'error'}, 'Couldn’t load this panel.'),
+        );
+      }
+    }
+  });
+}
+
+const panels: [HTMLButtonElement, HTMLElement][] = [
+  [radicalToggle, radicalPanel],
+  [handwritingToggle, handwritingPanel],
+];
+
+function setupPanels(dict: Dict) {
+  setupPanel(radicalToggle, radicalPanel, async () => {
+    const picker = new RadicalPicker(await dict.radicals(), insertAtCursor);
+    return picker.element;
+  });
+  setupPanel(handwritingToggle, handwritingPanel, async () => {
+    // Loaded on demand: the recognizer and its model aren't needed until now.
+    const {createHandwritingPanel} = await import('./handwriting/panel.ts');
+    const hw = createHandwritingPanel(char => {
+      insertAtCursor(char);
+      hw.clear();
+    });
+    return hw.element;
   });
 }
 
@@ -256,7 +302,7 @@ async function main() {
   });
 
   window.addEventListener('popstate', () => void route(dict));
-  setupRadicals(dict);
+  setupPanels(dict);
   await route(dict);
 }
 

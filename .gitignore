@@ -3,3 +3,5 @@ dist/
 .cache/
 *.log
 .DS_Store
+ml/.venv/
+__pycache__/

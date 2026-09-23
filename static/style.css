@@ -257,6 +257,118 @@ a:hover {
   padding: 0 8px;
 }
 
+/* ---- handwriting ---- */
+
+.handwriting-panel {
+  display: flex;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.handwriting-left {
+  flex: none;
+  width: min(300px, 100%);
+}
+
+.handwriting-pad-frame {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  /* dashed center guides, like practice paper */
+  background:
+    linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat,
+    linear-gradient(var(--border), var(--border)) center / 1px 100% no-repeat,
+    var(--bg);
+}
+
+.handwriting-pad {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--text);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.handwriting-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.handwriting-buttons button {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px;
+  cursor: pointer;
+}
+
+.handwriting-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.handwriting-hint,
+.handwriting-status {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+
+.candidate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.candidate-source {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.candidate {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.6rem;
+  cursor: pointer;
+}
+
+.candidate:first-of-type {
+  border-color: var(--accent);
+}
+
+.candidate:hover {
+  background: var(--accent-soft);
+}
+
+.panel-loading {
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .handwriting-panel {
+    flex-direction: column;
+  }
+
+  .handwriting-left {
+    width: 100%;
+  }
+}
+
 /* ---- results ---- */
 
 .content {

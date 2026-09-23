@@ -69,6 +69,20 @@
               <a href="https://creativecommons.org/licenses/by/2.0/fr/">CC BY 2.0 FR</a>
             </td>
           </tr>
+          <tr>
+            <td>Handwriting recognition model</td>
+            <td>
+              <a href="https://huggingface.co/LT8/japanese-handwriting-onnx"
+                >LT8/japanese-handwriting-onnx</a
+              >, trained on the
+              <a href="https://etlcdb.db.aist.go.jp/?lang=en">ETL Character Database</a>
+              (Electrotechnical Laboratory, Japanese Technical Committee for Optical Character
+              Recognition, ETL Character Database, 1973–1984)
+            </td>
+            <td>
+              <a href="https://etlcdb.db.aist.go.jp/?lang=en">ETL Character Database terms</a>
+            </td>
+          </tr>
         </tbody>
       </table>
       <p>
@@ -84,6 +98,11 @@
           their dictionary form with a set of conjugation rules.
         </li>
         <li>Romaji is converted to kana and searched alongside English.</li>
+        <li>
+          Handwriting is recognized from the picture of what you draw, by a neural network running
+          in your browser (WebGPU, or WebAssembly where WebGPU isn't available). Stroke count, order
+          and direction don't matter.
+        </li>
         <li>
           Sentences are split into words by finding the longest dictionary word at each position.
           This is simpler than the morphological analyzers some dictionaries use, so it

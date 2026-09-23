@@ -31,14 +31,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
 
-      - name: Download dictionary data
+      - name: Download dictionary data and handwriting model
         run: npm run download
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # For the WebAssembly kernels (src/wasm/nn.rs).
+      - run: rustup target add wasm32-unknown-unknown
+
       - run: npm run build:data
-      - run: npm test
       - run: npm run build
+      - run: npm test
 
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'

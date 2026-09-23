@@ -103,6 +103,48 @@ One search box, `?q=` in the URL (history and shareable links).
    senses with part of speech, tags/notes, other forms, and Tatoeba example
    sentences where JMdict links them.
 
+## Handwriting input
+
+Draw a character to look it up. Recognition is image-based: the strokes are
+rasterized and a neural network classifies the picture, so stroke count, order
+and direction don't matter (unlike stroke-matching recognizers such as the one
+jisho.org uses).
+
+- **Recognizer interface** (`src/client/handwriting/`): the drawing pad records
+  strokes as point lists in normalized [0, 1] coordinates and hands them to a
+  `Recognizer`, which returns ranked candidate characters. Recognizers are
+  swappable, so different models can be compared on the same drawing.
+- **Model A — LT8/japanese-handwriting-onnx** (Hugging Face): a ResNet trained
+  on the ETL Character Database (real handwriting from ~4,000 writers). It covers
+  3,082 classes: JIS level 1 kanji, hiragana and katakana. It reports 99.7% top-1
+  on canvas drawings. We use the fp16 weights; the int8 weights misrank
+  confusable pairs on hand-drawn input. They are downloaded in CI, pinned to a
+  Hugging Face revision, and not committed.
+  License caveat: ETL's terms require citation and forbid redistributing the
+  data; they don't address trained models.
+- **Our own inference, no runtime library**: at build time a small TypeScript
+  ONNX reader converts the network (Conv, ReLU, Add, BatchNorm, global average
+  pool, Gemm) to `model.json` plus fp16 `weights.bin` (15 MB). The graph's
+  preprocessing (contrast stretch, ink bounding box, square crop, bilinear
+  resize to 96×96) is reimplemented in `lt8-preprocess.ts`. Engines, all in a
+  worker:
+  - WebGPU compute shaders: ~20 ms per recognition.
+  - WebAssembly SIMD kernels written in Rust (a 4 KB module): ~50 ms.
+  - Plain JavaScript reference: seconds; used for testing.
+  All three are tested against ONNX Runtime's output on the real model
+  (`ml/lt8_reference.py` → `test/fixtures/lt8-vectors.json`).
+- **Model B — our own, license-clean** (next): a CNN trained on synthetic
+  handwriting. Strokes from KanjiVG (CC BY-SA 3.0) are rendered with random
+  per-stroke jitter, slant, thickness, and occasionally joined strokes, mixed
+  with glyphs from OFL-licensed handwriting fonts. It is trained locally with
+  PyTorch (MPS) and covers ~6,400 kanji plus kana. The two models are then
+  compared side by side on real drawings before choosing one.
+- **Loading**: nothing handwriting-related loads until the panel is opened;
+  then the worker, the 4 KB WASM module (if needed) and the 15 MB model load.
+- **UI**: a pad with Undo and Clear. It recognizes after each stroke and shows
+  candidates as buttons; picking one inserts it into the search box, the same
+  way the radical picker does.
+
 ## Phases
 
 **Phase 1 (done)**: scaffolding (package.json, gts, tsconfig, esbuild),

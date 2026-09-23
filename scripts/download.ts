@@ -2,8 +2,10 @@
  * Downloads the latest jmdict-simplified release (JMdict with examples,
  * KANJIDIC2, RADKFILE, KRADFILE) into .cache/ and extracts it to stable
  * file names: .cache/jmdict.json, kanjidic.json, radkfile.json, kradfile.json.
- *
  * Skips the download when .cache/version.json already matches the latest release.
+ *
+ * Also downloads the handwriting recognition model into .cache/handwriting/,
+ * pinned to a Hugging Face revision.
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -20,6 +22,13 @@ const ASSETS: Record<string, string> = {
   'kradfile-': 'kradfile.json',
 };
 
+/** LT8/japanese-handwriting-onnx, pinned so a model update can't change results unnoticed. */
+const HANDWRITING_MODEL = {
+  repo: 'LT8/japanese-handwriting-onnx',
+  revision: '7e4fa1096b1fd4dc1afb9f8ffc5b9d936adb2839',
+  files: ['model.fp16.onnx', 'labels.json'],
+};
+
 interface Release {
   tag_name: string;
   assets: {name: string; browser_download_url: string}[];
@@ -33,7 +42,26 @@ async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
   return res;
 }
 
-async function main() {
+async function downloadHandwritingModel() {
+  const {repo, revision, files} = HANDWRITING_MODEL;
+  const dir = path.join(CACHE_DIR, 'handwriting', revision);
+  fs.mkdirSync(dir, {recursive: true});
+  for (const file of files) {
+    const out = path.join(dir, file);
+    if (fs.existsSync(out)) continue;
+    console.log(`downloading ${repo}/${file}`);
+    const res = await fetchOk(
+      `https://huggingface.co/${repo}/resolve/${revision}/${file}`,
+    );
+    fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  }
+  fs.writeFileSync(
+    path.join(CACHE_DIR, 'handwriting', 'current.json'),
+    JSON.stringify({repo, revision}, null, 2) + '\n',
+  );
+}
+
+async function downloadDictionary() {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
   };
@@ -95,4 +123,4 @@ async function main() {
   console.log(`downloaded ${release.tag_name}`);
 }
 
-await main();
+await Promise.all([downloadDictionary(), downloadHandwritingModel()]);

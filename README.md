@@ -11,11 +11,12 @@ design.
 
 ## Development
 
-Requires Node 24 or newer.
+Requires Node 24 or newer, and Rust with the WebAssembly target for the
+handwriting recognizer's kernels (`rustup target add wasm32-unknown-unknown`).
 
 ```sh
 npm install
-npm run download     # fetch the latest dictionary data into .cache/
+npm run download     # fetch the dictionary data and handwriting model into .cache/
 npm run build:data   # build the data shards into dist/data/
 npm run dev          # build the app, watch for changes, serve at http://localhost:8000
 ```
@@ -29,6 +30,22 @@ Other scripts:
 | `npm test` | Unit tests, plus end-to-end search tests if `dist/data` is built |
 | `npm run lint` / `npm run fix` | gts lint / auto-fix |
 | `npm run check` | Typecheck, lint, and test |
+
+## Handwriting recognition
+
+Drawn characters are recognized by a neural network that runs in the browser
+on our own inference code (no ML runtime library):
+
+- `scripts/onnx.ts` / `scripts/convert-onnx.ts` convert the ONNX model to our
+  format (`model.json` + fp16 `weights.bin`) at build time.
+- `src/client/nn/` runs it: WebGPU compute shaders (`webgpu.ts`), with a
+  WebAssembly SIMD fallback (`wasm.ts` + `src/wasm/nn.rs`) and a plain
+  JavaScript reference (`cpu.ts`), all in a worker.
+- `ml/` holds the Python tools used to check our implementation against ONNX
+  Runtime (`lt8_reference.py` writes `test/fixtures/lt8-vectors.json`).
+  Set it up with `uv venv ml/.venv && uv pip install --python ml/.venv/bin/python onnx onnxruntime numpy pillow svgpathtools`.
+
+Add `?engine=wasm` or `?engine=js` to the URL to force an engine.
 
 ## Deploying
 
@@ -44,5 +61,8 @@ Dictionary data comes from [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-
 [Electronic Dictionary Research and Development Group](https://www.edrdg.org/)
 (CC BY-SA 4.0), with example sentences from [Tatoeba](https://tatoeba.org/)
 (CC BY 2.0 FR), via [jmdict-simplified](https://github.com/scriptin/jmdict-simplified).
+The handwriting model is [LT8/japanese-handwriting-onnx](https://huggingface.co/LT8/japanese-handwriting-onnx),
+trained on the [ETL Character Database](https://etlcdb.db.aist.go.jp/?lang=en)
+and subject to its terms; it is downloaded at build time, not stored in this repository.
 The generated data files are derived works under the same licenses. The site's
 about page carries the attribution.
