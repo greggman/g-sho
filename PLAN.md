@@ -162,10 +162,13 @@ jisho.org uses).
 ## History, settings, undo
 
 - **History**: every search is kept in localStorage (newest first, repeats
-  move to the top, up to 10,000) with a snapshot of its top result, and
-  listed on the home page: the word with furigana, then its meaning. The
-  list is virtual (only the rows in view exist), so thousands scroll
-  smoothly. Rows can be removed one by one or all at once.
+  move to the top, up to 10,000) with a snapshot of its top result: the word
+  with furigana, then its meaning. On wide screens (≥1180px) it's a sticky
+  column beside every page, with the word on screen highlighted, so earlier
+  lookups are one click away while reading; picking one doesn't move it to
+  the top, so the list doesn't reshuffle. On narrower screens it's on the
+  home page. The list is virtual (only the rows in view exist), so thousands
+  scroll smoothly. Rows can be removed one by one or all at once.
 - **Settings** (gear button): turn off English meanings (blurred; tap one to
   reveal it, for practice), furigana (shown on hover), example sentences,
   kanji details, stroke order, and the home-page history. Applied as

@@ -28,7 +28,7 @@ export const SETTING_LABELS: Record<keyof DisplaySettings, [string, string]> = {
     'The panel with each kanji’s readings and meanings.',
   ],
   strokeOrder: ['Stroke order', ''],
-  history: ['History on the home page', ''],
+  history: ['History', 'The words you’ve looked up.'],
 };
 
 const DEFAULTS: DisplaySettings = {

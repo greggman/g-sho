@@ -3,19 +3,12 @@ import {loadSettings, type AnkiSettings} from './anki/settings.ts';
 import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
-import {
-  addToHistory,
-  clearHistory,
-  loadHistory,
-  removeFromHistory,
-  type HistoryItem,
-} from './history.ts';
+import {HistoryStore, HistoryView} from './history-view.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
   renderEntry,
   renderKanji,
   renderSentence,
-  rubyWord,
   type EntryActions,
   resultsHeading,
 } from './render.ts';
@@ -26,7 +19,6 @@ import {
   loadDisplaySettings,
 } from './settings.ts';
 import {attachUndo} from './undo.ts';
-import {VirtualList} from './virtual-list.ts';
 
 /** Most kanji shown in the sidebar. */
 const MAX_SIDEBAR_KANJI = 10;
@@ -56,7 +48,13 @@ const content = $<HTMLElement>('content');
 const dataInfo = $<HTMLElement>('data-info');
 const undo = attachUndo(input);
 let display = loadDisplaySettings();
-let historyItems = loadHistory();
+const historyStore = new HistoryStore();
+/**
+ * The history column beside the page, on screens wide enough for it (CSS
+ * shows it there and shows the home page's copy otherwise).
+ */
+const historyColumn = new HistoryView(historyStore, true);
+$<HTMLElement>('history-column').append(historyColumn.element);
 
 let dataVersion = '';
 const dataBase = new URL('data/', document.baseURI);
@@ -80,91 +78,12 @@ function searchUrl(
   return `?${params}`;
 }
 
-/** Height of a history row: the word with furigana, then its meaning. */
-const HISTORY_ROW_HEIGHT = 64;
-
-function renderHistory(): HTMLElement | undefined {
-  if (!display.history || historyItems.length === 0) return undefined;
-  const count = h('span', {class: 'count'});
-  const list = new VirtualList<HistoryItem>(
-    HISTORY_ROW_HEIGHT,
-    item =>
-      h(
-        'div',
-        {class: 'history-row'},
-        h(
-          'a',
-          {class: 'history-link', href: searchUrl(item.q)},
-          h(
-            'span',
-            {class: 'history-word'},
-            item.word ? rubyWord(item.word) : h('span', {lang: 'ja'}, item.q),
-            item.word &&
-              item.word.text !== item.q &&
-              h('span', {class: 'history-query'}, item.q),
-          ),
-          h(
-            'span',
-            {class: 'history-meaning'},
-            item.word?.meaning ?? 'Sentence',
-          ),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            class: 'history-remove',
-            title: `Remove ${item.q} from history`,
-            'aria-label': `Remove ${item.q} from history`,
-            onclick: () => {
-              historyItems = removeFromHistory(historyItems, item.q);
-              update();
-            },
-          },
-          '×',
-        ),
-      ),
-    'history-list',
-  );
-  const update = () => {
-    count.textContent = ` — ${historyItems.length.toLocaleString()}`;
-    list.setItems(historyItems);
-    if (historyItems.length === 0) section.remove();
-  };
-  const section = h(
-    'section',
-    {class: 'history'},
-    h(
-      'div',
-      {class: 'history-head'},
-      h('h2', {class: 'results-heading'}, 'History', count),
-      h(
-        'button',
-        {
-          type: 'button',
-          class: 'history-clear',
-          onclick: () => {
-            if (confirm('Clear your whole history?')) {
-              historyItems = clearHistory();
-              update();
-            }
-          },
-        },
-        'Clear',
-      ),
-    ),
-    list.element,
-  );
-  update();
-  return section;
-}
-
 /** Remembers a search in the history, with a snapshot of its top result. */
 function recordHistory(query: string, result: SearchResult) {
   const top = result.words[0];
   if (!top && !result.sentence) return;
   const word = top && headword(top.entry);
-  historyItems = addToHistory(historyItems, {
+  historyStore.add({
     q: query,
     t: Date.now(),
     ...(word && {
@@ -181,7 +100,8 @@ function renderHome(): HTMLElement {
   return h(
     'div',
     {class: 'home'},
-    renderHistory(),
+    // For narrow screens, where there's no history column.
+    display.history && new HistoryView(historyStore).element,
     h(
       'p',
       {class: 'intro'},
@@ -295,6 +215,7 @@ async function route(dict: Dict, record = false) {
   const pages = Math.max(1, Number(params.get('p') ?? 1) || 1);
   // An undo step, so what was typed before the search can be brought back.
   undo.set(query);
+  historyColumn.setCurrent(query);
   document.title = query ? `${query} - g-sho` : 'g-sho — Japanese dictionary';
 
   if (!query) {
@@ -309,6 +230,7 @@ async function route(dict: Dict, record = false) {
     if (id !== currentSearch) return;
     content.replaceChildren(view);
     if (record && pages === 1) recordHistory(query, result);
+    historyColumn.setCurrent(query);
   } catch (e) {
     if (id !== currentSearch) return;
     console.error(e);
@@ -324,10 +246,10 @@ async function route(dict: Dict, record = false) {
   }
 }
 
-function navigate(dict: Dict, url: string, scroll = true) {
+function navigate(dict: Dict, url: string, scroll = true, record = true) {
   history.pushState(null, '', url);
   if (scroll) window.scrollTo(0, 0);
-  void route(dict, true);
+  void route(dict, record);
 }
 
 /** Inserts text at the search box's cursor, as its own undo step. */
@@ -404,6 +326,10 @@ function setupPanels(dict: Dict) {
         const historyChanged = settings.history !== display.history;
         display = settings;
         applyDisplaySettings(display);
+        document.documentElement.classList.toggle(
+          'hide-history',
+          !settings.history,
+        );
         if (historyChanged && !location.search) void route(dict);
       },
       async () => {
@@ -419,6 +345,7 @@ function setupPanels(dict: Dict) {
 
 async function main() {
   applyDisplaySettings(display);
+  document.documentElement.classList.toggle('hide-history', !display.history);
   const dict = await Dict.open(loadJson);
   dataVersion = dict.meta.version;
   dataInfo.textContent = `JMdict ${dict.meta.dictDate} · ${dict.meta.entryCount.toLocaleString()} words · ${dict.meta.kanjiCount.toLocaleString()} kanji`;
@@ -454,7 +381,14 @@ async function main() {
     }
     e.preventDefault();
     // "More words" appends results below, so stay where the reader is.
-    navigate(dict, a.search, !a.classList.contains('more-words'));
+    // Picking a word from the history doesn't move it to the top: the list
+    // shouldn't reshuffle under you while you look back at earlier words.
+    navigate(
+      dict,
+      a.search,
+      !a.classList.contains('more-words'),
+      !a.closest('.history'),
+    );
   });
 
   // With meanings hidden (for practice), tapping one reveals it.

@@ -102,12 +102,17 @@
         </button>
       </form>
     </header>
-    <div id="handwriting-panel" class="radical-panel" hidden></div>
-    <div id="radical-panel" class="radical-panel" hidden></div>
-    <div id="settings-panel" class="radical-panel" hidden></div>
-    <main id="content" class="content" aria-live="polite">
-      <noscript>This dictionary needs JavaScript to search.</noscript>
-    </main>
+    <div class="layout">
+      <aside id="history-column" class="history-column"></aside>
+      <div class="main-column">
+        <div id="handwriting-panel" class="radical-panel" hidden></div>
+        <div id="radical-panel" class="radical-panel" hidden></div>
+        <div id="settings-panel" class="radical-panel" hidden></div>
+        <main id="content" class="content" aria-live="polite">
+          <noscript>This dictionary needs JavaScript to search.</noscript>
+        </main>
+      </div>
+    </div>
     <footer class="site-footer">
       <p>
         Dictionary data from

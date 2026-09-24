@@ -710,6 +710,85 @@ a:hover {
   background: var(--accent-soft);
 }
 
+/* The history column: beside the page on wide screens, where it stays in
+   view while reading results. Elsewhere the home page shows the history. */
+.history-column {
+  display: none;
+}
+
+.history-row.current .history-link {
+  background: var(--accent-soft);
+}
+
+.history-row.current {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (min-width: 1180px) {
+  .site-header,
+  .layout {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 0 28px;
+    max-width: 1440px;
+  }
+
+  .layout {
+    margin: 0 auto;
+    padding-left: 16px;
+  }
+
+  .history-column {
+    display: block;
+    position: sticky;
+    top: 8px;
+    align-self: start;
+    height: calc(100vh - 16px);
+  }
+
+  .history-column .history {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin: 0;
+  }
+
+  .history-column .history-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .main-column > * {
+    margin-left: 0;
+  }
+
+  .home .history {
+    display: none;
+  }
+
+  /* Without the history, the page goes back to one column. */
+  .hide-history .layout,
+  .hide-history .site-header {
+    display: flex;
+    max-width: 1100px;
+    padding-left: 0;
+  }
+
+  .hide-history .main-column {
+    flex: 1;
+  }
+
+  .hide-history .main-column > * {
+    margin-left: auto;
+  }
+}
+
+.hide-history .history-column,
+.hide-history .home .history {
+  display: none;
+}
+
 /* ---- results ---- */
 
 .content {
