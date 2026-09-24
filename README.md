@@ -4,6 +4,19 @@ A Japanese–English dictionary website inspired by [jisho.org](https://jisho.or
 Search in English, Japanese, or romaji, paste a sentence to see its words, or
 find kanji by radical.
 
+## Why?
+
+The number one reason probably boils
+down to jisho.org is not open source. For me the issue is frictions. I needed to quickly look up a kanji in a book. There are lots of ways to do this including taking a picture of the book and have it let me select the character. But, sometimes that seems a longer path than sketching a single kanji into an app. So I sketched it into jisho. Unfortunately, just guessing, like many Japanese input systems, it’s stroke count, order, and direction sensitive. Get one wrong and it won’t find the character. Which, is arguably bad for a person trying to learn since it requires them to already know what they are trying to look up.
+
+g-sho uses image based neural network style lookup, so even if you don’t know the count, order, or direction it will hopefully find the character you were looking for.
+
+Another issue I ran into. I use a couple of dictionaries on my phone. I can paste a whole sentence into them and they’ll look up all the words in a scrolling list, one line per word. This makes it much MUCH faster to work though a sentence. jisho puts up the sentence but only looks up the first word, the you have to click each word to look that one up. This small friction adds to the learning effort. g-sho gives you the list.
+
+g-sho also integrates with Anki Connect. I’m not entirely sure if that’s useful given Yomitan does that to but it was easy too add
+
+Maybe the biggest take away is how easy it is in September 2026. The data is all public and open source so I asked Claude to use jisho as inspiration. I asked it to make it work as a static site and shared the dictionary. Less than a hour later it was ready to use. Another hour added the handwriting, strokes, Anki and definition order
+
 It's a fully static site. At build time the dictionary is split into small
 JSON shards; the browser fetches only the shards a search needs, so it can be
 hosted on GitHub Pages or any static file server. See [PLAN.md](PLAN.md) for the
