@@ -134,6 +134,12 @@ a:hover {
   font-size: 1rem;
 }
 
+.search .icon-button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 10px;
+}
+
 .search button:hover,
 .radical-toggle[aria-expanded='true'] {
   color: var(--accent-strong);
@@ -1036,17 +1042,23 @@ mark {
 }
 
 @media (max-width: 560px) {
+  /* Just the mark, on the same row as the search box. */
   .site-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    gap: 10px;
+    padding: 12px 16px 8px;
+  }
+
+  .logo-text {
+    display: none;
   }
 
   .search input {
     font-size: 1.1rem;
+    padding: 8px 10px;
   }
 
-  .search button {
-    padding: 0 10px;
+  .search button,
+  .search .icon-button {
+    padding: 0 7px;
   }
 }
