@@ -159,9 +159,28 @@ jisho.org uses).
   candidates as buttons; picking one inserts it into the search box, the same
   way the radical picker does.
 
+## History, settings, undo
+
+- **History**: every search is kept in localStorage (newest first, repeats
+  move to the top, up to 10,000) with a snapshot of its top result, and
+  listed on the home page: the word with furigana, then its meaning. The
+  list is virtual (only the rows in view exist), so thousands scroll
+  smoothly. Rows can be removed one by one or all at once.
+- **Settings** (gear button): turn off English meanings (blurred; tap one to
+  reveal it, for practice), furigana (shown on hover), example sentences,
+  kanji details, stroke order, and the home-page history. Applied as
+  `hide-*` classes on `<html>`, so no re-render. The Anki settings are here
+  too.
+- **Undo** for the search box: our own undo history covers what the
+  browser's misses (text inserted by the handwriting and radical pickers,
+  the query replaced when a search loads). Typing and deleting group into
+  steps like an editor; handles Ctrl/Cmd+Z, redo, and the browser's own
+  undo commands (historyUndo input events, e.g. shake to undo).
+
 ## Anki
 
-A [+] on every entry adds the word to Anki; ✓ means it's already there and
+Connect from the Anki section of Settings. A [+] on every entry then adds
+the word to Anki; ✓ means it's already there and
 opens "Update in Anki" (overwrite the note) and "Show in Anki".
 
 - **Transport**: the page talks directly to the AnkiConnect add-on on
@@ -170,7 +189,7 @@ opens "Update in Anki" (overwrite the note) and "Show in Anki".
   yes adds our origin to its allow list. It also answers Private/Local Network
   Access preflights. Browsers may additionally ask the user to allow access to
   local network devices.
-- **Nothing contacts Anki until the user clicks Connect** in the Anki panel,
+- **Nothing contacts Anki until the user clicks Connect** in Settings,
   so visitors without Anki never see a prompt.
 - **Defaults that just work**: a `g-sho` deck and a `g-sho (Japanese)` note
   type (Word, Reading, Furigana, Meaning, PartOfSpeech, Example, JMdictId,

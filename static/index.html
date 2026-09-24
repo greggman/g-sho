@@ -76,14 +76,23 @@
           </svg>
         </button>
         <button
-          id="anki-toggle"
+          id="settings-toggle"
           type="button"
-          class="radical-toggle"
-          title="Add words to Anki"
+          class="radical-toggle icon-button"
+          title="Settings"
+          aria-label="Settings"
           aria-expanded="false"
-          aria-controls="anki-panel"
+          aria-controls="settings-panel"
         >
-          Anki
+          <!-- a gear -->
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+              />
+            </g>
+          </svg>
         </button>
         <button type="submit" class="search-button" aria-label="Search">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -95,7 +104,7 @@
     </header>
     <div id="handwriting-panel" class="radical-panel" hidden></div>
     <div id="radical-panel" class="radical-panel" hidden></div>
-    <div id="anki-panel" class="radical-panel" hidden></div>
+    <div id="settings-panel" class="radical-panel" hidden></div>
     <main id="content" class="content" aria-live="polite">
       <noscript>This dictionary needs JavaScript to search.</noscript>
     </main>

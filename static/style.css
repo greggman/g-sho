@@ -542,6 +542,174 @@ a:hover {
   margin: 8px 0 0;
 }
 
+/* ---- settings ---- */
+
+.settings-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 16px;
+  max-width: 640px;
+}
+
+.settings-toggles {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.setting {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.settings-anki .anki-panel {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 0 0;
+}
+
+/* What the settings hide. Meanings are blurred rather than removed, so
+   they can be revealed one at a time (click adds .revealed). */
+.hide-meanings
+  :is(.glosses, .compact-gloss, .kanji-meanings, .example-en, .history-meaning):not(
+    .revealed
+  ) {
+  filter: blur(5px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.hide-furigana rt {
+  visibility: hidden;
+}
+
+.hide-furigana ruby:hover rt {
+  visibility: visible;
+}
+
+.hide-examples .examples,
+.hide-strokes .stroke-order,
+.hide-kanji .kanji-sidebar {
+  display: none;
+}
+
+.hide-kanji .columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- history ---- */
+
+.history {
+  margin-bottom: 24px;
+}
+
+.history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-head .results-heading {
+  flex: 1;
+}
+
+.history-clear {
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0 0 6px;
+  cursor: pointer;
+}
+
+.history-list {
+  position: relative;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-bottom: 1px solid var(--border);
+}
+
+.virtual-spacer {
+  position: relative;
+}
+
+.virtual-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 0 4px;
+  color: var(--text);
+}
+
+.history-link:hover {
+  text-decoration: none;
+  background: var(--accent-soft);
+}
+
+.history-word {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-query {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.history-meaning {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-remove {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.history-remove:hover {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
 /* ---- results ---- */
 
 .content {

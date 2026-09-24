@@ -64,7 +64,7 @@ Add `?engine=wasm` or `?engine=js` to the URL to force an engine.
 
 ## Anki
 
-Click **Anki** in the header and connect: with the Anki app running and the
+Open **Settings** (the gear) and connect in the Anki section: with the Anki app running and the
 [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on installed,
 Anki asks whether to allow the site. Then every entry has a [+] to add it.
 See PLAN.md for details.

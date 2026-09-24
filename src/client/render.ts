@@ -490,7 +490,7 @@ function renderSentenceWord(
       null,
       pos && pos !== prevPos && h('span', {class: 'pos'}, pos),
       h('span', {class: 'sense-num'}, `${i + 1}. `),
-      s.g.join('; '),
+      h('span', {class: 'compact-gloss'}, s.g.join('; ')),
     );
     prevPos = pos;
     return el;
