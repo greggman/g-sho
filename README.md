@@ -17,12 +17,14 @@ Another issue I ran into. I use a couple of dictionaries on my phone. I can past
 
 g-sho also integrates with Anki Connect. I’m not entirely sure if that’s useful given Yomitan does that to but it was easy too add
 
-Maybe the biggest take away is how easy it is in September 2026. The data is all public and open source so I asked Claude to use jisho as inspiration. I asked it to make it work as a static site and shard the dictionary. Less than a hour later it was ready to use. Another hour added the handwriting, strokes, Anki and definition order
+Maybe the biggest take away is how easy it is in September 2026. The data is all public and open source so I asked Claude to use jisho as inspiration. I asked it to make it work as a static site and shard the dictionary. Less than a hour later it was ready to use. Another hour added the handwriting, strokes, Anki and definition order. A few minutes more added options and history.
 
 It's a fully static site. At build time the dictionary is split into small
 JSON shards; the browser fetches only the shards a search needs, so it can be
 hosted on GitHub Pages or any static file server. See [PLAN.md](PLAN.md) for the
-design.
+design. This also means less server cost. There is no database being queried.
+The shards are cached by your browser so as you look up words, more and more of
+the dictionary is local, making it faster.
 
 ## Development
 
