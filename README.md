@@ -9,9 +9,32 @@ find kanji by radical.
 The number one reason probably boils
 down to jisho.org is not open source. if it was I would have made a pull request.
 
-For me the issue is frictions. I needed to quickly look up a kanji in a book. There are lots of ways to do this including taking a picture of the book and have my phone let me select the character. But, sometimes that seems a longer path than sketching a single kanji into an app. So I sketched it into jisho. Unfortunately, just guessing, like many Japanese input systems, it’s stroke count, order, and direction sensitive. Get one wrong and it won’t find the character. Which, is arguably bad for a person trying to learn since it requires them to already know what they are trying to look up.
+For me the issue is frictions. I needed to quickly look up a kanji in a book. There are lots of ways to do this including taking a picture of the book and have my phone let me select the character. But, sometimes that seems a longer path than sketching a single kanji into an app. So I sketched it into jisho.org. Unfortunately, just guessing, like many Japanese input systems, it’s stroke count, order, and direction sensitive. Get one wrong and it won’t find the character. Which, is arguably bad for a person trying to learn since it requires them to already know what they are trying to look up.
+
+You can see here me trying to look up a character and jisho.org shows nothing close
+
+<img src="screenshots/jisho-handwriting-01.png" width="678">
+
+Note that my eyes are bad so when I was trying to look up there character from a book,
+I could not see there was a supposed to be line in that upper right part.
+
+But, even adding that line, jisho.org does not find the character
+
+<img src="screenshots/jisho-handwriting-02.png" width="679">
+
+I'm guessing, it's because it's using stroke order.
 
 g-sho uses image based neural network style lookup, so even if you don’t know the count, order, or direction it will hopefully find the character you were looking for.
+
+Trying the example above it finds it easily
+
+<img src="screenshots/g-sho-handwriting-01.png" width="664">
+
+In fact, maybe this is just luck, but it gets there pretty quick
+
+<img src="screenshots/g-sho-handwriting-02.png" width="842">
+
+It would be great if jisho.org could add this.
 
 Another issue I ran into. I use a couple of dictionaries on my phone. I can paste a whole sentence into them and they’ll look up all the words in a scrolling list, one line per word. This makes it much MUCH faster to work though a sentence. jisho puts up the sentence but only looks up the first word, the you have to click each word to look that one up. This small friction adds to the learning effort. g-sho gives you the list.
 
