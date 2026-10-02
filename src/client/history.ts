@@ -10,6 +10,8 @@ export type HistoryItem = Omit<Fields<HistoryRow>, 'id'>;
 
 /** Oldest items are dropped past this many. */
 const MAX_ITEMS = 10000;
+/** Longer searches (pasted paragraphs) aren't kept. Matches the server. */
+const MAX_QUERY = 2000;
 
 export function historyItems(table: Table<HistoryRow>): HistoryItem[] {
   return table.all().sort((a, b) => b.t - a.t);
@@ -17,6 +19,7 @@ export function historyItems(table: Table<HistoryRow>): HistoryItem[] {
 
 /** Adds (or moves to the top) a search. */
 export function addToHistory(table: Table<HistoryRow>, item: HistoryItem) {
+  if (item.q.length > MAX_QUERY) return;
   table.put({...item, id: item.q});
   const items = table.all();
   if (items.length > MAX_ITEMS) {

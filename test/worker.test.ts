@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {handle, type Env} from '../src/server/worker.ts';
-import {createTestDb} from './d1-shim.ts';
+import {createTestDb, testUserStores} from './d1-shim.ts';
 
 const env: Env = {
   ASSETS: {fetch: async () => new Response('static')},
   DB: createTestDb(),
+  USER_STORE: testUserStores(),
   GITHUB_CLIENT_ID: 'id',
   GITHUB_CLIENT_SECRET: 'secret',
 };

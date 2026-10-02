@@ -144,15 +144,24 @@ needs them.
   BroadcastChannel to reload tables. Tombstones are never purged yet. Purge
   synced ones, and all of them when not signed in.
 
-## Phase 4 — Sync
+## Phase 4 — Sync — built, not yet deployed
 
-- `UserStore` Durable Object (SQLite): schema versioning, apply-push /
-  pull-since logic, caps, and `seq`. `/api/sync` routes there. Account
-  deletion clears it.
-- Client sync loop: on startup, after changes (debounced), on visibility
-  change, and when back online. First sign-in merges local data. Plus a sync
-  status indicator.
-- Tests: two simulated devices, offline edits, deletes, clock skew, paging.
+- `UserStore` Durable Object (SQLite; `src/server/user-store.ts`) with the
+  sync logic in `user-data.ts` and per-table schemas in `schema.ts`.
+  `/api/sync`; `/api/export` includes the synced data; deleting the account
+  erases the Durable Object. **(done)**
+- Client `src/client/sync.ts`: rounds of push + pull, triggered on start,
+  after changes, on visibility, when back online, and every 5 minutes. A Web
+  Lock is shared between tabs. First sign-in (or a different account) sends
+  all local data. Status is shown in Settings → Account. **(done)**
+- Tabs share changes through a BroadcastChannel (`Table.refresh`). **(done)**
+- Tests: `test/sync.test.ts`, with server rules plus two simulated devices
+  through the Worker. Checked in two browser profiles against `wrangler dev`.
+  **(done)**
+- Deploying adds the Durable Object class (the `migrations` entry in
+  `wrangler.jsonc`). No setup is needed.
+- Still to do: an option to clear this browser's data on sign-out, and
+  purging old tombstones.
 
 ## Phase 5 — Study
 

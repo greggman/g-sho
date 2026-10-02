@@ -22,6 +22,8 @@ import {
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
+import {loadAccount} from './account.ts';
+import {Sync} from './sync.ts';
 import {attachUndo} from './undo.ts';
 
 /** Most kanji shown in the sidebar. */
@@ -54,6 +56,23 @@ const undo = attachUndo(input);
 /** Defaults until the store is open. */
 let display = loadDisplaySettings(undefined);
 let store: Store | undefined;
+/** Running while signed in. */
+let sync: Sync | undefined;
+
+function stopSync() {
+  sync?.stop();
+  sync = undefined;
+}
+
+/** Starts syncing if signed in. In the background: nothing waits for it. */
+async function startSync(opened: Store) {
+  if (!opened.persistent) return;
+  const account = await loadAccount();
+  if (account.kind !== 'signed-in') return;
+  sync = new Sync(opened, account.account.id);
+  sync.onSignedOut = () => (sync = undefined);
+  await sync.start();
+}
 const historyStore = new HistoryStore();
 /**
  * The history column beside the page, on screens wide enough for it (CSS
@@ -350,7 +369,11 @@ function setupPanels(dict: Dict) {
           void route(dict);
         });
       },
-      async () => (await import('./account-panel.ts')).createAccountPanel(),
+      async () =>
+        (await import('./account-panel.ts')).createAccountPanel(
+          () => sync,
+          stopSync,
+        ),
     );
   });
 }
@@ -380,6 +403,7 @@ async function main() {
   showDisplaySettings(undefined, loadDisplaySettings(opened.settings));
   historyStore.attach(opened.history);
   wordTools = new WordTools(opened);
+  void startSync(opened);
   const dict = await Dict.open(loadJson);
   // Including changes synced from another device.
   opened.settings.onChange(() =>

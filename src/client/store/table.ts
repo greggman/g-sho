@@ -60,6 +60,8 @@ export class Table<T extends Row> {
   private readonly listeners = new Set<() => void>();
   /** for tests: lets a clock be supplied */
   now = () => Date.now();
+  /** Called after changes are saved (to tell other tabs). */
+  onSaved?: () => void;
 
   constructor(name: string, backend: Backend) {
     this.name = name;
@@ -146,6 +148,35 @@ export class Table<T extends Row> {
     return accepted.length > 0;
   }
 
+  /**
+   * Marks every row as changed, so the next sync sends them all: when this
+   * browser's data joins an account it hasn't synced with before.
+   */
+  async markAllDirty() {
+    const rows = [...this.rows.values()].map(r => ({...r, dirty: 1}) as T);
+    if (rows.length) await this.commit(rows, false);
+  }
+
+  /**
+   * Picks up changes another tab saved: each saved row replaces ours if
+   * it's a later change (or the same change, now synced).
+   */
+  async refresh() {
+    let changed = false;
+    for (const r of (await this.backend.load(this.name)) as T[]) {
+      const local = this.rows.get(r.id);
+      if (
+        !local ||
+        r.mtime > local.mtime ||
+        (r.mtime === local.mtime && local.dirty && !r.dirty)
+      ) {
+        this.rows.set(r.id, r);
+        changed = true;
+      }
+    }
+    if (changed) for (const fn of this.listeners) fn();
+  }
+
   /** Calls fn after every change; returns a function that stops it. */
   onChange(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -160,7 +191,10 @@ export class Table<T extends Row> {
   private commit(rows: T[], notify = true): Promise<void> {
     for (const r of rows) this.rows.set(r.id, r);
     const saved = this.backend.write(this.name, rows);
-    saved.catch(e => console.error(`couldn't save ${this.name}`, e));
+    saved.then(
+      () => this.onSaved?.(),
+      e => console.error(`couldn't save ${this.name}`, e),
+    );
     if (notify) for (const fn of this.listeners) fn();
     return saved;
   }

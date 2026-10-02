@@ -44,6 +44,11 @@
       "simple": {"limit": 300, "period": 60},
     },
   ],
+  // One UserStore per user, with that user's synced data in its own SQLite.
+  "durable_objects": {
+    "bindings": [{"name": "USER_STORE", "class_name": "UserStore"}],
+  },
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["UserStore"]}],
   "env": {
     // `npm run dev:worker`: the Worker handles /api and passes everything
     // else to `npm run dev:server` on :8000. (Watching dist/'s ~12,500 files makes
@@ -71,6 +76,9 @@
           "migrations_dir": "migrations",
         },
       ],
+      "durable_objects": {
+        "bindings": [{"name": "USER_STORE", "class_name": "UserStore"}],
+      },
       "ratelimits": [
         {
           "name": "AUTH_LIMIT",

@@ -35,8 +35,20 @@ async function me(env: Env, session: Session) {
   };
 }
 
+/** The user's Durable Object, with their synced data. */
+function userStore(env: Env, userId: string) {
+  return env.USER_STORE.get(env.USER_STORE.idFromName(userId));
+}
+
+/** Largest /api/sync request body. */
+const MAX_SYNC_BYTES = 5 * 1024 * 1024;
+
 /** Deletes the account and everything stored for it. */
 async function deleteAccount(env: Env, userId: string) {
+  const res = await userStore(env, userId).fetch(
+    new Request('https://user-store/delete', {method: 'POST'}),
+  );
+  if (!res.ok) throw new Error(`deleting user data: ${res.status}`);
   await env.DB.batch(
     ['sessions', 'identities']
       .map(table =>
@@ -123,13 +135,36 @@ async function api(
       );
     }
   }
+  if (path === '/api/sync' && method === 'POST') {
+    const length = Number(request.headers.get('content-length') ?? NaN);
+    if (!(length <= MAX_SYNC_BYTES)) return error(413, 'request too large');
+    const res = await userStore(env, session.user.id).fetch(
+      new Request('https://user-store/sync', {
+        method: 'POST',
+        body: await request.text(),
+      }),
+    );
+    // A Durable Object's response has read-only headers: copy it.
+    const out = new Response(res.body, res);
+    for (const [k, v] of headers) out.headers.append(k, v);
+    out.headers.set('cache-control', 'no-store');
+    return out;
+  }
   if (path === '/api/export' && method === 'GET') {
+    const data = await userStore(env, session.user.id).fetch(
+      new Request('https://user-store/export'),
+    );
+    if (!data.ok) throw new Error(`exporting user data: ${data.status}`);
     headers.set(
       'content-disposition',
       'attachment; filename="g-sho-export.json"',
     );
     return json(
-      {exportedAt: new Date().toISOString(), account: await me(env, session)},
+      {
+        exportedAt: new Date().toISOString(),
+        account: await me(env, session),
+        data: await data.json(),
+      },
       {headers},
     );
   }
@@ -157,5 +192,7 @@ export async function handle(
   }
   return env.ASSETS.fetch(request);
 }
+
+export {UserStore} from './user-store.ts';
 
 export default {fetch: handle};

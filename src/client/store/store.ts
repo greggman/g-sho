@@ -75,7 +75,26 @@ export async function openStore(storage: Storage | undefined): Promise<Store> {
     return createStore(new MemoryBackend(), false);
   }
   if (storage) await migrateLocalStorage(store, storage);
+  shareBetweenTabs(store);
   return store;
+}
+
+/** Tables in this tab pick up what other tabs save. */
+function shareBetweenTabs(store: Store) {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const channel = new BroadcastChannel('g-sho-store');
+  for (const name of TABLES) {
+    store[name].onSaved = () => channel.postMessage(name);
+  }
+  channel.onmessage = e => {
+    const name = e.data as (typeof TABLES)[number];
+    if (TABLES.includes(name)) void store[name].refresh();
+  };
+}
+
+/** The tables, for code that handles them all alike (sync). */
+export function tables(store: Store): Table<Row>[] {
+  return TABLES.map(t => store[t] as unknown as Table<Row>);
 }
 
 const OLD_HISTORY = 'g-sho.history';

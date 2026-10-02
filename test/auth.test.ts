@@ -3,7 +3,7 @@ import {afterEach, beforeEach, describe, test} from 'node:test';
 import {SESSION_LIFETIME} from '../src/server/auth.ts';
 import {safeReturnPath} from '../src/server/http.ts';
 import {handle, type Env} from '../src/server/worker.ts';
-import {createTestDb} from './d1-shim.ts';
+import {createTestDb, testUserStores} from './d1-shim.ts';
 
 const ORIGIN = 'https://g-sho.org';
 
@@ -17,6 +17,7 @@ beforeEach(() => {
   env = {
     ASSETS: {fetch: async () => new Response('static')},
     DB: createTestDb(),
+    USER_STORE: testUserStores(),
     GITHUB_CLIENT_ID: 'client-id',
     GITHUB_CLIENT_SECRET: 'client-secret',
   };

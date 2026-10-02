@@ -218,3 +218,43 @@ describe('moving from localStorage', () => {
     );
   });
 });
+
+describe('sync helpers', () => {
+  test('markAllDirty queues every row to send again', async () => {
+    const {t} = table();
+    t.put({id: '1', wordId: 1, text: 'a'});
+    t.delete('1');
+    t.put({id: '2', wordId: 2, text: 'b'});
+    t.markClean(t.dirty());
+    assert.equal(t.dirty().length, 0);
+    await t.markAllDirty();
+    assert.deepEqual(
+      t
+        .dirty()
+        .map(r => r.id)
+        .sort(),
+      ['1', '2'],
+    );
+  });
+
+  test('refresh picks up what another tab saved', async () => {
+    const backend = new MemoryBackend();
+    const tab1 = new Table<NoteRow>('notes', backend);
+    const tab2 = new Table<NoteRow>('notes', backend);
+    let changes = 0;
+    tab2.onChange(() => changes++);
+    tab1.put({id: '1', wordId: 1, text: 'from tab 1'});
+    await settle();
+    await tab2.refresh();
+    assert.equal(tab2.get('1')?.text, 'from tab 1');
+    assert.equal(changes, 1);
+    // Nothing new: no change event.
+    await tab2.refresh();
+    assert.equal(changes, 1);
+    // Synced in tab 1: tab 2 sees it's no longer dirty.
+    tab1.markClean(tab1.dirty());
+    await settle();
+    await tab2.refresh();
+    assert.equal(tab2.dirty().length, 0);
+  });
+});

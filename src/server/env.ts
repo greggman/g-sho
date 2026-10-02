@@ -26,9 +26,17 @@ export interface RateLimit {
   limit(options: {key: string}): Promise<{success: boolean}>;
 }
 
+/** A Durable Object namespace: one object per name. */
+export interface DurableObjectNamespace {
+  idFromName(name: string): unknown;
+  get(id: unknown): {fetch(request: Request): Promise<Response>};
+}
+
 export interface Env {
   ASSETS: {fetch(request: Request): Promise<Response>};
   DB: D1Database;
+  /** UserStore: each user's synced data */
+  USER_STORE: DurableObjectNamespace;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   /** sign-in endpoints, per IP */
