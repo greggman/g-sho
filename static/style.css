@@ -566,6 +566,51 @@ a:hover {
   cursor: pointer;
 }
 
+.settings-account {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.account-panel p {
+  margin: 0 0 10px;
+}
+
+.account-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.account-panel .button,
+.account-panel button {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.account-panel > .button.primary {
+  margin-bottom: 10px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.account-panel button.danger {
+  color: #c0392b;
+}
+
+.account-status.error {
+  color: #c0392b;
+}
+
 .settings-anki .anki-panel {
   border: 0;
   border-top: 1px solid var(--border);

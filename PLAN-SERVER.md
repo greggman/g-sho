@@ -104,16 +104,26 @@ needs them.
   turn off Pages, and redirect www with a Cloudflare Redirect Rule.
   **(done)**
 
-## Phase 2 — Accounts
+## Phase 2 — Accounts — built, not yet deployed
 
-- D1 database `g-sho-accounts` with migrations: `users`, `identities`,
-  `sessions`.
-- GitHub OAuth (state cookie), session cookie,
-  logout, `/api/me`, `DELETE /api/me`, `/api/export`.
-- Origin checks on writes, a rate-limit binding, and a dev-only sign-in
-  shortcut that works only under `wrangler dev`.
-- Client: a Sign in / account menu in Settings, hidden when `/api/me` is missing.
-- `static/privacy.html`.
+- D1 database `g-sho-accounts` (binding `DB`), `migrations/0001_accounts.sql`:
+  `users`, `identities`, `sessions`. Migrations are applied by `npm run dev`
+  (locally) and by CI before each deploy. **(done)**
+- `src/server/auth.ts`: GitHub OAuth (state cookie, no scopes, GitHub's token
+  revoked right after reading the profile), sessions (`__Host-session`
+  cookie, SHA-256 stored, 90 days, extended when used after 30).
+  `src/server/worker.ts`: `/api/me` (GET, DELETE), `/api/export`,
+  `/api/auth/logout`, Origin checks on writes, rate limits (`AUTH_LIMIT` per
+  IP, `API_LIMIT` per user). **(done)**
+- Dev-only sign-in shortcut: `/api/auth/dev/start?name=amy` (only when
+  `DEV_LOGIN=1`, which only `env.dev` sets). **(done)**
+- Client: Account section in Settings (`account.ts`, `account-panel.ts`),
+  hidden when there's no `/api`. `static/privacy.html`, linked from the
+  footers. **(done)**
+- Tests: `test/auth.test.ts` on `node:sqlite` (`test/d1-shim.ts`). **(done)**
+- To deploy: create the production D1 database and put its ID in
+  `wrangler.jsonc` (replacing `TODO`), set `GITHUB_CLIENT_SECRET` with
+  `wrangler secret put`, and subscribe to Workers Paid.
 
 ## Phase 3 — Local-first store in the client
 

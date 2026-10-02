@@ -61,6 +61,12 @@ npm run build:data   # build the data shards into dist/data/
 npm run dev          # build the app, watch for changes, serve at http://localhost:8787
 ```
 
+Signing in locally: the local database lives in `.wrangler/`. "Sign in with
+GitHub" needs the app's secret in a gitignored `.dev.vars` file
+(`GITHUB_CLIENT_SECRET=…`). Without GitHub, open
+http://localhost:8787/api/auth/dev/start?name=amy to sign in as a made-up
+user. That works only in local dev.
+
 Other scripts:
 
 | Script | What it does |

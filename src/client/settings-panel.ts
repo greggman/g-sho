@@ -6,13 +6,15 @@ import {
 } from './settings.ts';
 
 /**
- * The settings panel: display toggles, then the Anki section (loaded on
- * demand, since it talks to Anki).
+ * The settings panel: display toggles, then the account and Anki sections
+ * (each loaded on demand, since they talk to the server and to Anki).
  */
 export function createSettingsPanel(
   initial: DisplaySettings,
   onChange: (settings: DisplaySettings) => void,
   anki: () => Promise<HTMLElement>,
+  /** null when the site has no account server */
+  account: () => Promise<HTMLElement | null>,
 ): HTMLElement {
   let settings = {...initial};
   const toggles = (
@@ -47,11 +49,22 @@ export function createSettingsPanel(
         h('p', {class: 'error'}, 'Couldn’t load the Anki settings.'),
       ),
   );
+  // Shown only once we know there's an account server.
+  const accountSection = h('div', {class: 'settings-account', hidden: true});
+  void account().then(
+    el => {
+      if (!el) return;
+      accountSection.replaceChildren(el);
+      accountSection.hidden = false;
+    },
+    () => {},
+  );
   return h(
     'div',
     {class: 'settings-panel'},
     h('h2', {class: 'panel-title'}, 'Show'),
     h('div', {class: 'settings-toggles'}, toggles),
+    accountSection,
     ankiSection,
   );
 }

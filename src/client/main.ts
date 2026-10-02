@@ -339,6 +339,7 @@ function setupPanels(dict: Dict) {
           void route(dict);
         });
       },
+      async () => (await import('./account-panel.ts')).createAccountPanel(),
     );
   });
 }

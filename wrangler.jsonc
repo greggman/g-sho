@@ -20,11 +20,38 @@
   "vars": {
     "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
   },
+  // GITHUB_CLIENT_SECRET is a secret: `wrangler secret put`, and .dev.vars
+  // locally.
+  //
+  // Bindings aren't inherited by environments, so env.dev repeats these.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "g-sho-accounts",
+      "database_id": "TODO",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMIT",
+      "namespace_id": "1001",
+      "simple": {"limit": 20, "period": 60},
+    },
+    {
+      "name": "API_LIMIT",
+      "namespace_id": "1002",
+      "simple": {"limit": 300, "period": 60},
+    },
+  ],
   "env": {
     // `npm run dev:worker`: the Worker handles /api and passes everything
     // else to `npm run dev:server` on :8000. (Watching dist/'s ~12,500 files makes
     // wrangler dev fail on macOS, and this keeps esbuild's fast rebuilds.)
     "dev": {
+      // Without this, the production route is inherited and wrangler dev
+      // rewrites request URLs to http://g-sho.org.
+      "routes": [],
       "assets": {
         "directory": "static",
         "binding": "ASSETS",
@@ -33,7 +60,29 @@
       "vars": {
         "STATIC_ORIGIN": "http://localhost:8000",
         "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
+        // /api/auth/dev/start?name=amy signs in as a made-up user.
+        "DEV_LOGIN": "1",
       },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "g-sho-accounts",
+          "database_id": "local",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "ratelimits": [
+        {
+          "name": "AUTH_LIMIT",
+          "namespace_id": "1001",
+          "simple": {"limit": 20, "period": 60},
+        },
+        {
+          "name": "API_LIMIT",
+          "namespace_id": "1002",
+          "simple": {"limit": 300, "period": 60},
+        },
+      ],
     },
   },
 }

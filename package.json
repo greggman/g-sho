@@ -19,7 +19,7 @@
     "lint": "gts lint",
     "fix": "gts fix",
     "check": "npm run typecheck && npm run lint && npm test",
-    "dev:worker": "wrangler dev --env dev",
+    "dev:worker": "wrangler d1 migrations apply DB --local --env dev && wrangler dev --env dev",
     "deploy": "wrangler deploy",
     "dev:server": "node scripts/build.ts --watch --serve"
   },
