@@ -72,7 +72,7 @@ needs them.
      GITHUB_CLIENT_SECRET=...
      ```
    - Production: after the first deploy, run
-     `npx wrangler secret put GITHUB_CLIENT_SECRET` and paste the value at
+     `npx wrangler secret put GITHUB_CLIENT_SECRET --env=""` and paste the value at
      the prompt. That uses the token in `.env`.
 7. **Later: Turnstile**, only if bot sign-ups appear: *Turnstile → Add widget*
    for g-sho.org. Site key → config, secret → `wrangler secret put`.

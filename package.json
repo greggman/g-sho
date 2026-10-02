@@ -20,7 +20,7 @@
     "fix": "gts fix",
     "check": "npm run typecheck && npm run lint && npm test",
     "dev:worker": "wrangler d1 migrations apply DB --local --env dev && wrangler dev --env dev",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env=\"\"",
     "dev:server": "node scripts/build.ts --watch --serve"
   },
   "devDependencies": {
