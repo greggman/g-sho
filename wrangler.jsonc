@@ -28,7 +28,7 @@
     {
       "binding": "DB",
       "database_name": "g-sho-accounts",
-      "database_id": "TODO",
+      "database_id": "ddc1560d-09df-4247-9ce1-3eaaa712a148",
       "migrations_dir": "migrations",
     },
   ],
