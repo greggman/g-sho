@@ -1,9 +1,5 @@
 import {h} from './dom.ts';
-import {
-  SETTING_LABELS,
-  saveDisplaySettings,
-  type DisplaySettings,
-} from './settings.ts';
+import {SETTING_LABELS, type DisplaySettings} from './settings.ts';
 
 /**
  * The settings panel: display toggles, then the account and Anki sections
@@ -26,7 +22,6 @@ export function createSettingsPanel(
       checked: settings[key],
       onchange: () => {
         settings = {...settings, [key]: box.checked};
-        saveDisplaySettings(settings);
         onChange(settings);
       },
     });

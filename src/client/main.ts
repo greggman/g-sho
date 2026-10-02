@@ -17,7 +17,11 @@ import {
   MEANING_SELECTOR,
   applyDisplaySettings,
   loadDisplaySettings,
+  saveDisplaySettings,
+  type DisplaySettings,
 } from './settings.ts';
+import {openStore, type Store} from './store/store.ts';
+import {WordTools} from './word-tools.ts';
 import {attachUndo} from './undo.ts';
 
 /** Most kanji shown in the sidebar. */
@@ -47,7 +51,9 @@ const settingsPanel = $<HTMLElement>('settings-panel');
 const content = $<HTMLElement>('content');
 const dataInfo = $<HTMLElement>('data-info');
 const undo = attachUndo(input);
-let display = loadDisplaySettings();
+/** Defaults until the store is open. */
+let display = loadDisplaySettings(undefined);
+let store: Store | undefined;
 const historyStore = new HistoryStore();
 /**
  * The history column beside the page, on screens wide enough for it (CSS
@@ -200,8 +206,19 @@ async function renderResults(
   );
 }
 
-/** Controls added to every entry; set when Anki is connected. */
-let entryActions: EntryActions | undefined;
+/** Star / known / note controls; set once the store is open. */
+let wordTools: WordTools | undefined;
+/** The add-to-Anki control; set when Anki is connected. */
+let ankiActions: EntryActions | undefined;
+
+/** Controls added to every entry. */
+const entryActions: EntryActions = entry =>
+  h(
+    'div',
+    {class: 'word-actions'},
+    ankiActions?.(entry),
+    wordTools?.actions(entry),
+  );
 
 let currentSearch = 0;
 
@@ -299,7 +316,7 @@ const panels: [HTMLButtonElement, HTMLElement][] = [
 
 /** Turns the add-to-Anki buttons on or off for the settings. */
 async function applyAnki(dict: Dict, settings: AnkiSettings) {
-  entryActions = settings.enabled
+  ankiActions = settings.enabled
     ? (await import('./anki/controller.ts')).createAnkiActions(settings, dict)
     : undefined;
 }
@@ -323,14 +340,8 @@ function setupPanels(dict: Dict) {
     return createSettingsPanel(
       display,
       settings => {
-        const historyChanged = settings.history !== display.history;
-        display = settings;
-        applyDisplaySettings(display);
-        document.documentElement.classList.toggle(
-          'hide-history',
-          !settings.history,
-        );
-        if (historyChanged && !location.search) void route(dict);
+        if (store) saveDisplaySettings(store.settings, settings);
+        showDisplaySettings(dict, settings);
       },
       async () => {
         const {createAnkiPanel} = await import('./anki/panel.ts');
@@ -344,10 +355,36 @@ function setupPanels(dict: Dict) {
   });
 }
 
-async function main() {
+function showDisplaySettings(
+  dict: Dict | undefined,
+  settings: DisplaySettings,
+) {
+  const historyChanged = settings.history !== display.history;
+  display = settings;
   applyDisplaySettings(display);
   document.documentElement.classList.toggle('hide-history', !display.history);
+  if (dict && historyChanged && !location.search) void route(dict);
+}
+
+function storage(): Storage | undefined {
+  try {
+    return localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+async function main() {
+  const opened = await openStore(storage());
+  store = opened;
+  showDisplaySettings(undefined, loadDisplaySettings(opened.settings));
+  historyStore.attach(opened.history);
+  wordTools = new WordTools(opened);
   const dict = await Dict.open(loadJson);
+  // Including changes synced from another device.
+  opened.settings.onChange(() =>
+    showDisplaySettings(dict, loadDisplaySettings(opened.settings)),
+  );
   dataVersion = dict.meta.version;
   dataInfo.textContent = `JMdict ${dict.meta.dictDate} · ${dict.meta.entryCount.toLocaleString()} words · ${dict.meta.kanjiCount.toLocaleString()} kanji`;
 

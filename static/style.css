@@ -537,9 +537,95 @@ a:hover {
   background: var(--accent-soft);
 }
 
-.entry-head .anki {
-  display: block;
-  margin: 8px 0 0;
+/* ---- per-word controls: Anki, star, known, note ---- */
+
+.word-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.entry-head .word-actions {
+  margin-top: 8px;
+}
+
+.word-actions .anki {
+  margin: 0;
+}
+
+.word-tools {
+  display: contents;
+}
+
+.word-tool {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.word-tool:hover {
+  border-color: var(--accent);
+}
+
+.word-tool.star {
+  font-size: 1rem;
+}
+
+.word-tool.star[aria-pressed='true'] {
+  color: #e0a100;
+  border-color: #e0a100;
+}
+
+.word-tool.known[aria-pressed='true'],
+.word-tool.note-button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.word-note,
+.word-note-edit {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+}
+
+.word-note {
+  padding: 4px 8px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.word-note-edit {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+/* In a sentence's word cards, a note gets the card's full width. */
+.sentence-word-head .word-actions:has(.word-note, .word-note-edit) {
+  flex-basis: 100%;
 }
 
 /* ---- settings ---- */

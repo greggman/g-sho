@@ -124,12 +124,25 @@ needs them.
 - Production: D1 database created, `GITHUB_CLIENT_SECRET` set, Workers
   Paid, deployed, and sign-in tested on g-sho.org. **(done)**
 
-## Phase 3 — Local-first store in the client
+## Phase 3 — Local-first store in the client — done
 
-- A small IndexedDB wrapper (no dependency) with the synced tables from the
-  design, plus dirty tracking.
-- Move history and settings from localStorage into it (migrating existing
-  data once). Add word marks (star / known) and word notes to entries.
+- `src/client/store/`: `Table` keeps rows in memory (synchronous reads) and
+  writes through to IndexedDB (`idb.ts`). If IndexedDB isn't available, a
+  memory backend is used and nothing is saved. Each row has `mtime`, `dirty`
+  and tombstones, plus `markClean` / `applyRemote` (last change wins) ready
+  for sync. **(done)**
+- Tables: `history`, `settings` (display settings only; Anki settings stay
+  in localStorage because they're per device), `marks` (star / known), and
+  `notes`. Decks and cards are added in Phase 5 (bump `DB_VERSION`).
+  **(done)**
+- History and display settings are moved from localStorage once, then
+  removed there; each search's time becomes its change time. **(done)**
+- Per-word controls on entries and sentence cards: ☆ star, "known", and ✎
+  note (saved as you type, max 2,000 characters). **(done)**
+- Tests: `test/store.test.ts` (memory backend). **(done)**
+- For Phase 4: other open tabs don't see changes until reloaded. Use a
+  BroadcastChannel to reload tables. Tombstones are never purged yet. Purge
+  synced ones, and all of them when not signed in.
 
 ## Phase 4 — Sync
 

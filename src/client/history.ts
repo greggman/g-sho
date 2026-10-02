@@ -1,60 +1,34 @@
 /**
- * The words you've looked up, kept in this browser's localStorage, newest
- * first. Each item is a search and a snapshot of its top result, so the
- * list can be drawn without loading the dictionary.
+ * The words you've looked up, newest first: the store's history table
+ * (synced when signed in). Each item is a search and a snapshot of its top
+ * result, so the list can be drawn without loading the dictionary.
  */
+import type {HistoryRow} from './store/store.ts';
+import type {Fields, Table} from './store/table.ts';
 
-export interface HistoryItem {
-  /** the search */
-  q: string;
-  /** when it was last searched (ms since epoch) */
-  t: number;
-  /** the top result: how it's written, its reading, and a short meaning */
-  word?: {text: string; reading?: string; meaning: string};
-}
+export type HistoryItem = Omit<Fields<HistoryRow>, 'id'>;
 
-const KEY = 'g-sho.history';
 /** Oldest items are dropped past this many. */
 const MAX_ITEMS = 10000;
 
-export function loadHistory(): HistoryItem[] {
-  try {
-    const saved = localStorage.getItem(KEY);
-    if (saved) return JSON.parse(saved) as HistoryItem[];
-  } catch {
-    // Storage unavailable (private mode) or corrupt.
-  }
-  return [];
-}
-
-function save(items: HistoryItem[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(items));
-  } catch {
-    // Storage unavailable or full: history just isn't kept.
-  }
+export function historyItems(table: Table<HistoryRow>): HistoryItem[] {
+  return table.all().sort((a, b) => b.t - a.t);
 }
 
 /** Adds (or moves to the top) a search. */
-export function addToHistory(
-  items: HistoryItem[],
-  item: HistoryItem,
-): HistoryItem[] {
-  const out = [item, ...items.filter(i => i.q !== item.q)].slice(0, MAX_ITEMS);
-  save(out);
-  return out;
+export function addToHistory(table: Table<HistoryRow>, item: HistoryItem) {
+  table.put({...item, id: item.q});
+  const items = table.all();
+  if (items.length > MAX_ITEMS) {
+    items.sort((a, b) => b.t - a.t);
+    table.delete(...items.slice(MAX_ITEMS).map(i => i.id));
+  }
 }
 
-export function removeFromHistory(
-  items: HistoryItem[],
-  q: string,
-): HistoryItem[] {
-  const out = items.filter(i => i.q !== q);
-  save(out);
-  return out;
+export function removeFromHistory(table: Table<HistoryRow>, q: string) {
+  table.delete(q);
 }
 
-export function clearHistory(): HistoryItem[] {
-  save([]);
-  return [];
+export function clearHistory(table: Table<HistoryRow>) {
+  table.delete(...table.all().map(i => i.id));
 }

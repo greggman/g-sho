@@ -6,6 +6,8 @@
  * Settings are applied as classes on <html> (hide-meanings, …), so toggling
  * one doesn't need a re-render.
  */
+import type {SettingsRow} from './store/store.ts';
+import type {Table} from './store/table.ts';
 
 export interface DisplaySettings {
   meanings: boolean;
@@ -40,24 +42,20 @@ const DEFAULTS: DisplaySettings = {
   history: true,
 };
 
-const KEY = 'g-sho.settings';
-
-export function loadDisplaySettings(): DisplaySettings {
-  try {
-    const saved = localStorage.getItem(KEY);
-    if (saved) return {...DEFAULTS, ...JSON.parse(saved)};
-  } catch {
-    // Storage unavailable or corrupt: defaults.
-  }
-  return {...DEFAULTS};
+/** The display settings saved in the store (synced when signed in). */
+export function loadDisplaySettings(
+  table: Table<SettingsRow> | undefined,
+): DisplaySettings {
+  const saved = table?.get('display')?.value as
+    Partial<DisplaySettings> | undefined;
+  return {...DEFAULTS, ...saved};
 }
 
-export function saveDisplaySettings(settings: DisplaySettings) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(settings));
-  } catch {
-    // Storage unavailable: settings last until the page is closed.
-  }
+export function saveDisplaySettings(
+  table: Table<SettingsRow>,
+  settings: DisplaySettings,
+) {
+  table.put({id: 'display', value: settings});
 }
 
 /** Sets hide-* classes on <html> for the settings that are off. */

@@ -2,11 +2,13 @@ import {h} from './dom.ts';
 import {
   addToHistory,
   clearHistory,
-  loadHistory,
+  historyItems,
   removeFromHistory,
   type HistoryItem,
 } from './history.ts';
 import {rubyWord} from './render.ts';
+import type {HistoryRow} from './store/store.ts';
+import type {Table} from './store/table.ts';
 import {VirtualList} from './virtual-list.ts';
 
 /** Height of a history row: the word with furigana, then its meaning. */
@@ -21,22 +23,32 @@ function searchUrl(q: string): string {
  * page): changes are saved and every view updates.
  */
 export class HistoryStore {
-  items: HistoryItem[] = loadHistory();
+  items: HistoryItem[] = [];
+  private table?: Table<HistoryRow>;
   private readonly views = new Set<HistoryView>();
 
+  /** Shows the store's history; called once the store is open. */
+  attach(table: Table<HistoryRow>) {
+    this.table = table;
+    const load = () => {
+      this.items = historyItems(table);
+      this.changed();
+    };
+    // Every change, including ones synced from another device.
+    table.onChange(load);
+    load();
+  }
+
   add(item: HistoryItem) {
-    this.items = addToHistory(this.items, item);
-    this.changed();
+    if (this.table) addToHistory(this.table, item);
   }
 
   remove(q: string) {
-    this.items = removeFromHistory(this.items, q);
-    this.changed();
+    if (this.table) removeFromHistory(this.table, q);
   }
 
   clear() {
-    this.items = clearHistory();
-    this.changed();
+    if (this.table) clearHistory(this.table);
   }
 
   watch(view: HistoryView) {
