@@ -104,7 +104,7 @@ needs them.
   turn off Pages, and redirect www with a Cloudflare Redirect Rule.
   **(done)**
 
-## Phase 2 — Accounts — built, not yet deployed
+## Phase 2 — Accounts — done
 
 - D1 database `g-sho-accounts` (binding `DB`), `migrations/0001_accounts.sql`:
   `users`, `identities`, `sessions`. Migrations are applied by `npm run dev`
@@ -121,9 +121,8 @@ needs them.
   hidden when there's no `/api`. `static/privacy.html`, linked from the
   footers. **(done)**
 - Tests: `test/auth.test.ts` on `node:sqlite` (`test/d1-shim.ts`). **(done)**
-- To deploy: create the production D1 database and put its ID in
-  `wrangler.jsonc` (replacing `TODO`), set `GITHUB_CLIENT_SECRET` with
-  `wrangler secret put`, and subscribe to Workers Paid.
+- Production: D1 database created, `GITHUB_CLIENT_SECRET` set, Workers
+  Paid, deployed, and sign-in tested on g-sho.org. **(done)**
 
 ## Phase 3 — Local-first store in the client
 
