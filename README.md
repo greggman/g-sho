@@ -58,7 +58,7 @@ handwriting recognizer's kernels (`rustup target add wasm32-unknown-unknown`).
 npm install
 npm run download     # fetch the dictionary data and handwriting model into .cache/
 npm run build:data   # build the data shards into dist/data/
-npm run dev          # build the app, watch for changes, serve at http://localhost:8000
+npm run dev          # build the app, watch for changes, serve at http://localhost:8787
 ```
 
 Other scripts:
@@ -67,6 +67,8 @@ Other scripts:
 | --- | --- |
 | `npm run build` | Production build of the app into `dist/` |
 | `npm run serve` | Build once and serve `dist/` |
+| `npm run dev:server` | Just the static site: build, watch, serve at http://localhost:8000 (no `/api`) |
+| `npm run dev:worker` | Just the Worker at http://localhost:8787 (`/api`, proxies the rest to :8000) |
 | `npm test` | Unit tests, plus end-to-end search tests if `dist/data` is built |
 | `npm run lint` / `npm run fix` | gts lint / auto-fix |
 | `npm run check` | Typecheck, lint, and test |
@@ -96,9 +98,13 @@ See PLAN.md for details.
 
 ## Deploying
 
-`.github/workflows/deploy.yml` builds the data and the app and deploys `dist/`
-to GitHub Pages on every push to `main`, and weekly to pick up dictionary
-updates. In the repository settings, set **Pages → Source** to **GitHub Actions**.
+`.github/workflows/deploy.yml` builds the data and the app, then deploys `dist/`
+and the Worker (`src/server/`, the `/api` endpoints) to Cloudflare with
+`wrangler deploy`. It runs on every push to `main`, and weekly to pick up
+dictionary updates. Pull requests only build and test. The deploy job uses the
+GitHub environment `production`, whose secret `CLOUDFLARE_API_TOKEN` is
+limited to the `main` branch. See [PLAN-SERVER.md](PLAN-SERVER.md) for the
+Cloudflare setup.
 
 ## Data and licenses
 

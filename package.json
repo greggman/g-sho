@@ -13,17 +13,21 @@
     "build": "node scripts/build.ts",
     "build:all": "npm run download && npm run build:data && npm run build",
     "serve": "node scripts/build.ts --serve",
-    "dev": "node scripts/build.ts --watch --serve",
+    "dev": "node scripts/dev.ts",
     "test": "node --test 'test/**/*.test.ts'",
     "typecheck": "tsc --noEmit",
     "lint": "gts lint",
     "fix": "gts fix",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "dev:worker": "wrangler dev --env dev",
+    "deploy": "wrangler deploy",
+    "dev:server": "node scripts/build.ts --watch --serve"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
     "esbuild": "^0.28.2",
     "gts": "^7.0.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "wrangler": "^4.144.0"
   }
 }

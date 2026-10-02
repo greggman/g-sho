@@ -5,3 +5,6 @@ dist/
 .DS_Store
 ml/.venv/
 __pycache__/
+.wrangler/
+.dev.vars
+.env

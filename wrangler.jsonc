@@ -1,0 +1,39 @@
+// Cloudflare Worker config. See DESIGN-SERVER.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "g-sho",
+  // The g-sho Cloudflare account (not a secret).
+  "account_id": "59f65c7c3586d1a06e65104486465213",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    // /api/* runs the Worker; everything else is a static file.
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "404-page",
+  },
+  // Served on g-sho.org. www.g-sho.org redirects here with a Cloudflare
+  // Redirect Rule (dashboard), not the Worker.
+  "routes": [{"pattern": "g-sho.org", "custom_domain": true}],
+  "observability": {"enabled": true},
+  "vars": {
+    "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
+  },
+  "env": {
+    // `npm run dev:worker`: the Worker handles /api and passes everything
+    // else to `npm run dev:server` on :8000. (Watching dist/'s ~12,500 files makes
+    // wrangler dev fail on macOS, and this keeps esbuild's fast rebuilds.)
+    "dev": {
+      "assets": {
+        "directory": "static",
+        "binding": "ASSETS",
+        "run_worker_first": true,
+      },
+      "vars": {
+        "STATIC_ORIGIN": "http://localhost:8000",
+        "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
+      },
+    },
+  },
+}

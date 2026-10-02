@@ -31,7 +31,8 @@ licenses require. Later phases may add JMnedict (names) and JLPT word lists.
 - Node 24 runs the build scripts `.ts` directly (native type stripping) and
   runs the tests with `node --test`
 - GitHub Actions: lint, test, download data, build shards, bundle, deploy to
-  GitHub Pages. The dictionary files are generated in CI and are not committed.
+  Cloudflare (originally GitHub Pages; see PLAN-SERVER.md). The dictionary
+  files are generated in CI and are not committed.
 
 ## Layout
 

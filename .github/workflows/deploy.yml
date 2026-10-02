@@ -43,22 +43,43 @@ jobs:
       - run: npm run build
       - run: npm test
 
-      - uses: actions/upload-pages-artifact@v5
+      # One tarball uploads much faster than ~12,500 separate files.
+      - name: Pack the site
+        if: github.event_name != 'pull_request'
+        run: tar -czf site.tgz dist
+
+      - uses: actions/upload-artifact@v7
         if: github.event_name != 'pull_request'
         with:
-          path: dist
+          name: site
+          path: site.tgz
+          retention-days: 1
 
+  # Uploads the site and the Worker (src/server) to Cloudflare. Only main
+  # gets the production environment, and only it can read the API token.
   deploy:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: https://g-sho.org
     steps:
-      - uses: actions/configure-pages@v6
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+
+      - run: tar -xzf site.tgz
+
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

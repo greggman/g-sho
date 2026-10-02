@@ -1,0 +1,4 @@
+# Cache headers for Cloudflare Workers Static Assets. Matches what GitHub
+# Pages sent: browsers reuse files for 10 minutes before revalidating.
+/*
+  Cache-Control: public, max-age=600
