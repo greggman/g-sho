@@ -79,7 +79,7 @@ needs them.
 8. **At cutover (end of Phase 1): turn off GitHub Pages** in the repo settings,
    once g-sho.org is served by the Worker.
 
-## Phase 1 — Worker hosting (no user-visible change)
+## Phase 1 — Worker hosting (no user-visible change) — done
 
 - Add `wrangler` (dev dependency), `wrangler.jsonc`, and `src/server/worker.ts`
   with `/api/health`. Static assets are served from `dist/`, and `/api/*` goes
@@ -100,9 +100,9 @@ needs them.
 - `static/_headers` keeps GitHub Pages' `Cache-Control: max-age=600`.
   **(done)**
 - Cutover: add g-sho.org as the Worker's custom domain (config `routes`
-  with `custom_domain: true`) **(done)**. Delete the GitHub Pages DNS records,
-  push, check the site, then turn off Pages. Redirect www with a Cloudflare
-  Redirect Rule.
+  with `custom_domain: true`), delete the GitHub Pages DNS records, deploy,
+  turn off Pages, and redirect www with a Cloudflare Redirect Rule.
+  **(done)**
 
 ## Phase 2 — Accounts
 
