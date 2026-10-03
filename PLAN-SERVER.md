@@ -182,8 +182,8 @@ needs them.
   shown. **(done)**
 - Tests: `test/study.test.ts`. A browser run added words, studied, and
   checked the badge and stored reviews. **(done)**
-- Later: undo the last answer, a card browser, suspending from the
-  session, production cards (meaning → word), and stats.
+- Later: undo the last answer, suspending from the session, and
+  production cards (meaning → word) for dictionary words.
 
 ## Phase 6 — Export to Anki — done
 
@@ -236,7 +236,7 @@ needs them.
 - Later: exporting imported note types (export reports them as left out),
   media sync (R2), and `[sound:]` autoplay.
 
-## Phase 8 — Duplicates and known words — built, not yet deployed
+## Phase 8 — Duplicates and known words — done
 
 - `study/duplicates.ts`: each card's direction (recognition / production /
   listening / other), from which fields its front template shows, is stored
@@ -257,6 +257,22 @@ needs them.
   duplicate plus 2 known cards. **(done)**
 - Not done: reading known words from your own Anki collection over
   AnkiConnect.
+
+## Card browser and stats — built, not yet deployed
+
+- `?study=browse` (`study/browse.ts`): every card in a virtual list, with
+  search (fields and tags), deck, state (due, new, learning, review,
+  suspended, duplicates) and sort. A card opens in a dialog with its fields,
+  schedule, review history, and actions: move deck, suspend / unsuspend,
+  forget, look up, delete. **(done)**
+- `?study=stats` (`study/stats-data.ts`, `stats.ts`, `chart.ts`): tiles for
+  today (reviews, minutes, new cards), streak, 30-day retention, and card
+  counts (new / learning / young / mature / suspended). Column charts for
+  reviews per day (30 days, 90 days, a year) and what's due in the next 30
+  days, with hover/focus tooltips and a table view. All decks or one.
+  **(done)**
+- Tests: `test/stats.test.ts`. Checked in a browser, light and dark.
+  **(done)**
 
 ## Later
 

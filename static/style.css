@@ -1815,3 +1815,345 @@ html.dropping body::after {
   gap: 6px;
   margin: 6px 0 10px;
 }
+
+/* ---- card browser ---- */
+
+.study-head {
+  flex-wrap: wrap;
+}
+
+.browse-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.browse-filters input,
+.browse-filters select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.browse-search {
+  flex: 1 1 180px;
+}
+
+.browse-count {
+  margin: 6px 0;
+}
+
+.browse-list {
+  position: relative;
+  height: min(65vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.study-page .browse-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: minmax(5em, 1fr) minmax(0, 2fr) minmax(0, 1fr) 9em;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-page .browse-row:hover,
+.study-page .browse-row:focus-visible {
+  background: var(--accent-soft);
+}
+
+.browse-row > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.browse-front {
+  font-size: 1.15rem;
+}
+
+.browse-back {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.browse-state {
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.state-new {
+  color: #3b82c4;
+}
+
+.state-learning {
+  color: #d9534f;
+}
+
+.state-review {
+  color: var(--accent-strong);
+}
+
+.state-suspended {
+  color: var(--muted);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .study-page .browse-row {
+    grid-template-columns: minmax(4em, 1fr) minmax(0, 2fr) 6.5em;
+  }
+
+  .browse-deck {
+    display: none;
+  }
+}
+
+.card-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.card-dialog::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.card-dialog-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-dialog-head h2 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
+.card-dialog-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card-fields,
+.card-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+}
+
+.card-fields dt,
+.card-facts dt {
+  color: var(--muted);
+}
+
+.card-fields dd,
+.card-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.card-facts select {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.card-reviews {
+  margin: 10px 0;
+  font-size: 0.85rem;
+}
+
+.card-reviews summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.card-reviews table,
+.chart-table table {
+  border-collapse: collapse;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-reviews td,
+.card-reviews th,
+.chart-table td {
+  padding: 2px 12px 2px 0;
+  text-align: left;
+}
+
+.card-dialog .button,
+.card-dialog button:not(.card-dialog-close) {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.card-dialog .danger {
+  color: #c0392b;
+}
+
+/* ---- stats ---- */
+
+.stats-heading {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.stat-tile {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.stat-note {
+  font-size: 0.75rem;
+}
+
+.chart {
+  margin: 24px 0 0;
+}
+
+.chart figcaption {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.chart-plot {
+  position: relative;
+  width: 100%;
+  min-height: 180px;
+}
+
+.chart-plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart-grid,
+.chart-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-bar {
+  fill: var(--accent);
+}
+
+.chart-hit {
+  fill: transparent;
+}
+
+.chart-col {
+  outline: none;
+  cursor: default;
+}
+
+.chart-col:hover .chart-bar,
+.chart-col:focus .chart-bar {
+  fill: var(--accent-strong);
+}
+
+.chart-col:focus-visible .chart-hit {
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  gap: 1px;
+  width: 140px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.chart-tip strong {
+  font-size: 0.95rem;
+}
+
+.chart-tip[hidden] {
+  display: none;
+}
+
+.chart-table summary {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}

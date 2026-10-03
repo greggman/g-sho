@@ -59,6 +59,8 @@ export function renderDecks(store: Store, dict: Dict): HTMLElement {
         h(
           'div',
           {class: 'deck-option-buttons'},
+          h('a', {class: 'button', href: '?study=browse'}, 'Cards'),
+          h('a', {class: 'button', href: '?study=stats'}, 'Stats'),
           h('a', {class: 'button', href: '?import'}, 'Import'),
           total.cards.length > 0 &&
             h(

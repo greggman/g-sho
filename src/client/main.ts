@@ -269,6 +269,14 @@ async function route(dict: Dict, record = false) {
   if (study !== null && store) {
     document.title = 'Study - g-sho';
     const id = ++currentSearch;
+    if (study === 'browse' || study === 'stats') {
+      const page =
+        study === 'browse'
+          ? (await import('./study/browse.ts')).renderBrowser(store)
+          : (await import('./study/stats.ts')).renderStats(store);
+      if (id === currentSearch) content.replaceChildren(page);
+      return;
+    }
     const view = await import('./study/view.ts');
     if (id !== currentSearch) return;
     content.replaceChildren(
