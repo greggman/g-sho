@@ -16,6 +16,10 @@
   // Served on g-sho.org. www.g-sho.org redirects here with a Cloudflare
   // Redirect Rule (dashboard), not the Worker.
   "routes": [{"pattern": "g-sho.org", "custom_domain": true}],
+  // Durable Objects need the account to have a workers.dev subdomain, but
+  // the site shouldn't also be served there (or at preview URLs).
+  "workers_dev": false,
+  "preview_urls": false,
   "observability": {"enabled": true},
   "vars": {
     "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
