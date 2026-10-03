@@ -12,6 +12,11 @@ import {renderEntry, rubyWord} from '../render.ts';
 import type {CardRow, DeckRow, Store} from '../store/store.ts';
 import {fieldsOf} from '../store/table.ts';
 import {
+  applyDeckDuplicates,
+  deckDuplicates,
+  type DuplicateChoice,
+} from './duplicates.ts';
+import {
   DECK_DEFAULTS,
   NOTE_TYPE,
   addToDeck,
@@ -209,6 +214,7 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
         ),
     ),
   );
+  options.append(duplicatesSection(store, deck, redraw));
   options.append(exportSection(store, dict, deck, size));
   return h(
     'li',
@@ -223,6 +229,98 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
         h('a', {class: 'button', href: studyUrl(deck.id)}, 'Study'),
     ),
     options,
+  );
+}
+
+/**
+ * "Find words you already know": the deck's unstudied cards for words you
+ * study elsewhere or marked known, and what to do with them.
+ */
+function duplicatesSection(store: Store, deck: DeckRow, redraw: () => void) {
+  const body = h('div', null);
+  const find = () => {
+    const report = deckDuplicates(store, deck.id);
+    const n = report.studied.size + report.known.size;
+    if (!n) {
+      body.replaceChildren(
+        h(
+          'p',
+          {class: 'hint'},
+          'None of this deck’s new cards are words you already study or marked known.',
+        ),
+      );
+      return;
+    }
+    let dupChoice: DuplicateChoice = 'copy';
+    const choice = (value: DuplicateChoice, label: string) =>
+      h(
+        'label',
+        {class: 'setting'},
+        h('input', {
+          type: 'radio',
+          name: `dups-${deck.id}`,
+          checked: value === dupChoice,
+          onchange: () => (dupChoice = value),
+        }),
+        h('span', null, label),
+      );
+    body.replaceChildren(
+      h(
+        'p',
+        null,
+        [
+          report.studied.size &&
+            `${report.studied.size} new card${report.studied.size === 1 ? ' is a word' : 's are words'} you study in other cards`,
+          report.known.size &&
+            `${report.known.size} ${report.known.size === 1 ? 'is a word' : 'are words'} you marked known`,
+        ]
+          .filter(Boolean)
+          .join(', and ') + '.',
+      ),
+      report.studied.size > 0
+        ? h(
+            'div',
+            {class: 'import-choices'},
+            choice('copy', 'Give them your schedule for the word'),
+            choice('suspend', 'Suspend them'),
+          )
+        : '',
+      report.known.size > 0
+        ? h('p', {class: 'hint'}, 'Words marked known are suspended.')
+        : '',
+      h(
+        'button',
+        {
+          type: 'button',
+          onclick: () => {
+            const changed = applyDeckDuplicates(
+              store,
+              report,
+              dupChoice,
+              'suspend',
+            );
+            redraw();
+            body.replaceChildren(
+              h(
+                'p',
+                {class: 'hint'},
+                `Done: ${changed} card${changed === 1 ? '' : 's'} changed.`,
+              ),
+            );
+          },
+        },
+        'Apply',
+      ),
+    );
+  };
+  body.append(
+    h('button', {type: 'button', onclick: find}, 'Find words you already know'),
+  );
+  return h(
+    'div',
+    {class: 'deck-duplicates'},
+    h('h3', null, 'Duplicates'),
+    body,
   );
 }
 

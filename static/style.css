@@ -1804,3 +1804,14 @@ html.dropping body::after {
 .card-word-link {
   text-align: center;
 }
+
+.deck-duplicates h3 {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+}
+
+.import-choices {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 10px;
+}

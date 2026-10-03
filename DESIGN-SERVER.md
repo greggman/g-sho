@@ -263,28 +263,36 @@ the user's review progress.
 ## Duplicates and known words
 
 There's nothing worse than a deck that wastes your time on words you already
-know. A card's **direction** says what it tests. It's inferred from the template:
-the word on the front is `recognition`, the meaning on the front is
-`production`, and only audio on the front is `listening`. Two cards are
-duplicates when they have the same `word_id` and the same direction.
+know. A card's **direction** says what it asks:
 
-A word counts as **known** if it's marked known, or if one of its cards in
-that direction is mature (stability of 21 days or more, which is Anki's
-"mature"). Optionally, known words can also be read from the user's own
-Anki collection over AnkiConnect (`findCards` + `cardsInfo`).
+- recognition: the word is on the front,
+- production: the meaning is on the front,
+- listening: only a sound is on the front,
+- other: anything else, such as cloze sentences.
 
-At import, and on demand for any deck ("Find duplicates"), each duplicate
-gets one of these, chosen per import with a preview of the counts:
+The direction is worked out at import from which fields the front template
+shows, and stored on the card. Two cards are duplicates when they have the
+same `wordId` and the same direction (not "other").
 
-- **Copy schedule** (the default): the new card takes the existing card's
-  FSRS state and due date. So a word you know doesn't show up for a long time,
-  but you still study it in the new deck's format.
-- **Suspend**: `dup_of` points at the existing card and the new card is
-  suspended. This saves the most time and can be undone.
+A word counts as **known** if it's marked known. Marking a word known also
+keeps its new cards out of study sessions. A word you study elsewhere is
+matched through your most stable studied card for it in that direction.
+
+At import (a second step after linking, before anything is saved) and on
+demand for any deck ("Find words you already know", which looks at its
+unsuspended new cards), each duplicate gets one of these:
+
+- **Copy schedule** (the default): the new card takes the studied card's FSRS
+  state and due date. So it comes up when you'd see the word anyway, in the new
+  deck's format.
+- **Suspend**: the card is suspended, with `dupOf` pointing at the studied
+  card. This saves the most time and can be undone.
 - **Keep as new**: do nothing.
 
-Words marked known with no card get "suspend" or "keep".
-Duplicates *within* one deck (the same word twice) are listed for review.
+Cards for words marked known are suspended (the default) or kept. Repeats of
+the same word and direction within the imported deck are counted and shown.
+Reading known words from your own Anki collection over AnkiConnect is a
+possible later addition.
 
 ## Anki export
 

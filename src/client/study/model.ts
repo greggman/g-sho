@@ -122,7 +122,7 @@ export function addWord(
     wordId: entry.id,
   };
   store.facts.put(fact);
-  store.cards.put(newCard(id, deck.id, 0, now));
+  store.cards.put({...newCard(id, deck.id, 0, now), direction: 'recognition'});
 }
 
 /** Stops studying a word: its fact and cards go (its reviews stay). */
@@ -183,6 +183,18 @@ export function buildQueue(
     }
   }
 
+  // New cards for words marked known aren't studied.
+  const known = new Set(
+    store.marks
+      .all()
+      .filter(m => m.kind === 'known')
+      .map(m => m.wordId),
+  );
+  const isKnown = (c: CardRow) => {
+    const wordId = store.facts.get(c.factId)?.wordId;
+    return wordId !== undefined && known.has(wordId);
+  };
+
   const learning: CardRow[] = [];
   const review: CardRow[] = [];
   const fresh: CardRow[] = [];
@@ -196,7 +208,7 @@ export function buildQueue(
     let d = perDeck.get(c.deckId);
     if (!d) perDeck.set(c.deckId, (d = {review: [], fresh: []}));
     if (c.state === CardState.Review && c.due <= now) d.review.push(c);
-    else if (c.state === CardState.New) d.fresh.push(c);
+    else if (c.state === CardState.New && !isKnown(c)) d.fresh.push(c);
   }
   for (const [deckId, d] of perDeck) {
     const deck = decks.get(deckId)!;

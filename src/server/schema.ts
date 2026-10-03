@@ -168,6 +168,12 @@ export const LIMITS: Record<string, TableSchema> = {
       lastReview: optional(time),
       added: time,
       suspended: optional(v => v === 1),
+      direction: optional(v =>
+        ['recognition', 'production', 'listening', 'other'].includes(
+          v as string,
+        ),
+      ),
+      dupOf: optional(str(200)),
     },
     id: r => r.id === `${String(r.factId)}:${String(r.ord)}`,
   },

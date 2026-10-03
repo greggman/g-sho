@@ -5,7 +5,15 @@
  */
 import type {Dict} from '../dict.ts';
 import {h} from '../dom.ts';
-import {importCollection} from '../anki/import/apply.ts';
+import {
+  DEFAULT_CHOICES,
+  commitImport,
+  prepareImport,
+  type DuplicateChoices,
+  type ImportOptions,
+  type PreparedImport,
+} from '../anki/import/apply.ts';
+import type {DuplicateChoice, KnownChoice} from './duplicates.ts';
 import {
   guessLinkFields,
   noteWord,
@@ -248,7 +256,141 @@ export function renderImport(
           type: 'button',
           class: 'primary',
           onclick: () =>
-            void run(col, {keepScheduling: keep.checked, linkFields}),
+            void prepare(col, {keepScheduling: keep.checked, linkFields}),
+        },
+        'Continue',
+      ),
+      status,
+    );
+  };
+
+  /** Links the notes and finds duplicates, then asks what to do with them. */
+  const prepare = async (col: AnkiCollection, options: ImportOptions) => {
+    page.replaceChildren(h('h1', null, 'Import'), status);
+    status.classList.remove('error');
+    try {
+      const prepared = await prepareImport(store, dict, col, options, text => {
+        status.textContent = text;
+      });
+      status.textContent = '';
+      chooseDuplicates(prepared);
+    } catch (e) {
+      console.error(e);
+      status.textContent = `The import failed: ${(e as Error).message}`;
+      status.classList.add('error');
+    }
+  };
+
+  const radios = <T extends string>(
+    name: string,
+    options: [T, string][],
+    initial: T,
+    onChange: (v: T) => void,
+  ) =>
+    h(
+      'div',
+      {class: 'import-choices'},
+      options.map(([value, label]) =>
+        h(
+          'label',
+          {class: 'setting'},
+          h('input', {
+            type: 'radio',
+            name,
+            value,
+            checked: value === initial,
+            onchange: () => onChange(value),
+          }),
+          h('span', null, label),
+        ),
+      ),
+    );
+
+  const chooseDuplicates = (prepared: PreparedImport) => {
+    const {summary: r, duplicates: d} = prepared;
+    const choices: DuplicateChoices = {...DEFAULT_CHOICES};
+    const total = r.added + r.updated;
+    page.replaceChildren(
+      h(
+        'div',
+        {class: 'study-head'},
+        h('h1', null, 'Import'),
+        h('a', {href: '?import'}, 'Cancel'),
+      ),
+      h(
+        'p',
+        null,
+        `${r.added} new notes` +
+          (r.updated
+            ? ` and ${r.updated} already here (they’ll be updated)`
+            : '') +
+          `, ${r.cards} new cards. ${r.linked} of ${total} notes are linked to dictionary words.`,
+      ),
+      h('h3', null, 'Words you already know'),
+      d.studied.size === 0 && d.known.size === 0
+        ? h(
+            'p',
+            null,
+            'None of the new cards are words you already study or marked known.',
+          )
+        : '',
+      d.studied.size > 0
+        ? h(
+            'div',
+            null,
+            h(
+              'p',
+              null,
+              `${d.studied.size} new card${d.studied.size === 1 ? ' is a word' : 's are words'} you already study (asked the same way):`,
+            ),
+            radios<DuplicateChoice>(
+              'dups',
+              [
+                [
+                  'copy',
+                  'Give them your schedule for the word, so they come up when you’d review it anyway',
+                ],
+                ['suspend', 'Suspend them (you can unsuspend later)'],
+                ['keep', 'Study them as new'],
+              ],
+              choices.duplicates,
+              v => (choices.duplicates = v),
+            ),
+          )
+        : '',
+      d.known.size > 0
+        ? h(
+            'div',
+            null,
+            h(
+              'p',
+              null,
+              `${d.known.size} new card${d.known.size === 1 ? ' is a word' : 's are words'} you marked known:`,
+            ),
+            radios<KnownChoice>(
+              'known',
+              [
+                ['suspend', 'Suspend them'],
+                ['keep', 'Study them anyway'],
+              ],
+              choices.known,
+              v => (choices.known = v),
+            ),
+          )
+        : '',
+      d.repeats > 0
+        ? h(
+            'p',
+            {class: 'hint'},
+            `${d.repeats} card${d.repeats === 1 ? ' repeats a word' : 's repeat words'} that come earlier in this deck.`,
+          )
+        : '',
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'primary',
+          onclick: () => void commit(prepared, choices),
         },
         'Import',
       ),
@@ -256,17 +398,19 @@ export function renderImport(
     );
   };
 
-  const run = async (
-    col: AnkiCollection,
-    options: Parameters<typeof importCollection>[3],
+  const commit = async (
+    prepared: PreparedImport,
+    choices: DuplicateChoices,
   ) => {
     page.replaceChildren(h('h1', null, 'Import'), status);
     status.classList.remove('error');
     try {
-      const r = await importCollection(store, dict, col, options, text => {
+      const r = await commitImport(store, prepared, choices, text => {
         status.textContent = text;
       });
       const first = store.decks.all().find(d => d.name === r.decks[0]);
+      const handled =
+        prepared.duplicates.studied.size + prepared.duplicates.known.size;
       page.replaceChildren(
         h('h1', null, 'Imported'),
         h(
@@ -276,23 +420,26 @@ export function renderImport(
             (r.updated ? ` and ${r.updated} updated` : '') +
             `, ${r.cards} new cards, in ${r.decks.join(', ')}.`,
         ),
-        h(
-          'p',
-          null,
-          `${r.linked} of ${r.added + r.updated} notes are linked to dictionary words.`,
-        ),
+        handled
+          ? h(
+              'p',
+              null,
+              `${handled} card${handled === 1 ? ' was a word' : 's were words'} you already know.`,
+            )
+          : '',
         h(
           'div',
           {class: 'deck-option-buttons'},
-          first &&
-            h(
-              'a',
-              {
-                class: 'button primary',
-                href: `?${new URLSearchParams({study: first.id})}`,
-              },
-              'Study it',
-            ),
+          first
+            ? h(
+                'a',
+                {
+                  class: 'button primary',
+                  href: `?${new URLSearchParams({study: first.id})}`,
+                },
+                'Study it',
+              )
+            : '',
           h('a', {class: 'button', href: '?study'}, 'All decks'),
           h('a', {class: 'button', href: '?import'}, 'Import another'),
         ),

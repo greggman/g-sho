@@ -110,7 +110,18 @@ export interface CardRow extends Row {
   /** when it was added (orders new cards) */
   added: number;
   suspended?: 1;
+  /** what the card tests, for finding duplicates (see study/duplicates.ts) */
+  direction?: CardDirection;
+  /** suspended as a duplicate of this card */
+  dupOf?: string;
 }
+
+/**
+ * What a card asks: the word (recognition), its meaning (production), its
+ * sound (listening), or something else (cloze sentences and the like).
+ */
+export type CardDirection =
+  'recognition' | 'production' | 'listening' | 'other';
 
 /** One review of a card, never changed: the history its schedule came from. */
 export interface ReviewRow extends Row {

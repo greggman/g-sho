@@ -206,7 +206,7 @@ needs them.
   your real collection). Dropped: the plain-text (TSV) export; the .apkg
   covers it.
 
-## Phase 7 — Import from Anki — built, not yet deployed
+## Phase 7 — Import from Anki — done
 
 - `anki/import/read.ts`: reads `.apkg` / `.colpkg` in every format (schema
   11 `collection.anki2` / `.anki21`, and schema 18 `collection.anki21b` with
@@ -236,12 +236,27 @@ needs them.
 - Later: exporting imported note types (export reports them as left out),
   media sync (R2), and `[sound:]` autoplay.
 
-## Phase 8 — Duplicates and known words
+## Phase 8 — Duplicates and known words — built, not yet deployed
 
-- Card direction inference, and known-word detection (plus, optionally,
-  reading known words from Anki via AnkiConnect).
-- A duplicates step in the import preview (copy schedule / suspend / keep, with
-  counts), and "Find duplicates" for existing decks.
+- `study/duplicates.ts`: each card's direction (recognition / production /
+  listening / other), from which fields its front template shows, is stored
+  on the card at import. Word cards are recognition, cloze cards "other".
+  A new card duplicates a studied card with the same word and direction. A
+  word marked known matches whichever way the card asks. **(done)**
+- The import is now two steps (`prepareImport` links and finds duplicates
+  without saving; `commitImport` saves). The second step shows the counts
+  and the choices: give duplicates your schedule (default), suspend them
+  (with `dupOf`), or keep them new; suspend known words (default) or keep
+  them. Repeats within the deck are counted. **(done)**
+- Deck options → "Find words you already know": the same for a deck's
+  unstudied cards, any time. **(done)**
+- New cards for words marked known are left out of study sessions.
+  **(done)**
+- Tests: `test/duplicates.test.ts` (checked that breaking the copy makes it
+  fail). In a browser: studied 猫, marked ありがとう known, imported, and saw 1
+  duplicate plus 2 known cards. **(done)**
+- Not done: reading known words from your own Anki collection over
+  AnkiConnect.
 
 ## Later
 
