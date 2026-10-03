@@ -84,7 +84,16 @@ export class UserData {
     );
   }
 
+  /**
+   * How many rows (not deleted) a table has. Kept in meta, since counting
+   * a big table (the review log) on every sync would be slow; counted once
+   * when missing.
+   */
   private count(table: string): number {
+    const [kept] = this.sql
+      .exec('SELECT value FROM meta WHERE key = ?', `count:${table}`)
+      .toArray();
+    if (kept) return Number(kept.value);
     const [row] = this.sql
       .exec(
         'SELECT COUNT(*) AS n FROM rows WHERE tbl = ? AND deleted = 0',
@@ -92,6 +101,14 @@ export class UserData {
       )
       .toArray();
     return Number(row.n);
+  }
+
+  private setCount(table: string, n: number) {
+    this.sql.exec(
+      'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+      `count:${table}`,
+      n,
+    );
   }
 
   sync(request: SyncRequest, now = Date.now()): SyncResponse {
@@ -127,16 +144,19 @@ export class UserData {
     this.storage.transactionSync(() => {
       let seq = this.seq;
       for (const [table, rows] of Object.entries(push)) {
+        let count = this.count(table);
         for (const row of rows) {
           const mtime = Math.min(row.mtime, now + MAX_FUTURE_MS);
           const [existing] = this.sql
             .exec(
-              'SELECT mtime FROM rows WHERE tbl = ? AND id = ?',
+              'SELECT mtime, deleted FROM rows WHERE tbl = ? AND id = ?',
               table,
               row.id,
             )
             .toArray();
           if (existing && Number(existing.mtime) >= mtime) continue;
+          count +=
+            (row.deleted ? 0 : 1) - (existing && !existing.deleted ? 1 : 0);
           const {id, deleted} = row;
           const fields: Record<string, unknown> = {...row};
           delete fields.id;
@@ -154,10 +174,11 @@ export class UserData {
             deleted ? null : JSON.stringify(fields),
           );
         }
-        if (this.count(table) > LIMITS[table].maxRows) {
+        if (count > LIMITS[table].maxRows) {
           // Rolls back the whole request.
           throw new SyncError(`${table}: too many rows`, 413);
         }
+        this.setCount(table, count);
       }
       this.seq = seq;
     });

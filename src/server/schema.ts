@@ -41,6 +41,25 @@ const object =
     Object.entries(fields).every(([k, check]) =>
       check((v as Record<string, unknown>)[k]),
     );
+const num =
+  (min: number, max: number): Check =>
+  v =>
+    typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+const int =
+  (min: number, max: number): Check =>
+  v =>
+    Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
+const strings =
+  (maxItems: number, maxTotal: number): Check =>
+  v =>
+    Array.isArray(v) &&
+    v.length <= maxItems &&
+    v.every(s => typeof s === 'string') &&
+    v.reduce((n: number, s: string) => n + s.length, 0) <= maxTotal;
+const cardState = int(0, 3);
+const simpleId = (max: number) => (r: SyncRow) =>
+  new RegExp(`^[\\w:.-]{1,${max}}$`).test(r.id);
+
 /** Any JSON object, up to `max` characters as JSON. */
 const jsonObject =
   (max: number): Check =>
@@ -88,6 +107,65 @@ export const LIMITS: Record<string, TableSchema> = {
     maxRows: 50_000,
     fields: {wordId, text: str(2000)},
     id: r => r.id === String(r.wordId),
+  },
+  decks: {
+    maxRows: 1000,
+    fields: {
+      name: str(200),
+      newPerDay: int(0, 9999),
+      reviewsPerDay: int(0, 99_999),
+      retention: num(0.7, 0.99),
+    },
+    id: simpleId(64),
+  },
+  // Anki's notes: what cards are made from.
+  facts: {
+    maxRows: 100_000,
+    fields: {
+      noteType: str(100),
+      fields: strings(64, 32_000),
+      tags: strings(100, 5000),
+      guid: str(100),
+      wordId: optional(wordId),
+    },
+    id: simpleId(100),
+  },
+  cards: {
+    maxRows: 200_000,
+    fields: {
+      factId: str(100),
+      deckId: str(64),
+      ord: int(0, 999),
+      due: time,
+      stability: num(0, 1e6),
+      difficulty: num(0, 100),
+      elapsedDays: num(0, 1e6),
+      scheduledDays: num(0, 1e6),
+      learningSteps: int(0, 1000),
+      reps: int(0, 1e6),
+      lapses: int(0, 1e6),
+      state: cardState,
+      lastReview: optional(time),
+      added: time,
+      suspended: optional(v => v === 1),
+    },
+    id: r => r.id === `${String(r.factId)}:${String(r.ord)}`,
+  },
+  // The review log: rows are only ever added.
+  reviews: {
+    maxRows: 2_000_000,
+    fields: {
+      cardId: str(200),
+      t: time,
+      rating: int(1, 4),
+      durationMs: int(0, 600_000),
+      state: cardState,
+      stability: num(0, 1e6),
+      difficulty: num(0, 100),
+      elapsedDays: num(0, 1e6),
+      scheduledDays: num(0, 1e6),
+    },
+    id: simpleId(64),
   },
 };
 

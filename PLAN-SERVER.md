@@ -144,7 +144,7 @@ needs them.
   BroadcastChannel to reload tables. Tombstones are never purged yet. Purge
   synced ones, and all of them when not signed in.
 
-## Phase 4 — Sync — built, not yet deployed
+## Phase 4 — Sync — done
 
 - `UserStore` Durable Object (SQLite; `src/server/user-store.ts`) with the
   sync logic in `user-data.ts` and per-table schemas in `schema.ts`.
@@ -158,17 +158,32 @@ needs them.
 - Tests: `test/sync.test.ts`, with server rules plus two simulated devices
   through the Worker. Checked in two browser profiles against `wrangler dev`.
   **(done)**
-- Deploying adds the Durable Object class (the `migrations` entry in
-  `wrangler.jsonc`). No setup is needed.
+- Deployed. It needed the account's workers.dev subdomain (Durable Objects
+  require one). The site isn't served there (`workers_dev: false`).
+  **(done)**
 - Still to do: an option to clear this browser's data on sign-out, and
   purging old tombstones.
 
-## Phase 5 — Study
+## Phase 5 — Study — built, not yet deployed
 
-- `ts-fsrs`, decks with options, the built-in `g-sho (Japanese)` note type,
-  "Add to deck" on entries (next to the Anki +), and a review screen
-  (show → reveal → Again/Hard/Good/Easy) that respects the display settings.
-- A due count on the home page and simple deck stats.
+- Tables `decks`, `facts`, `cards`, `reviews` on both sides (client
+  `DB_VERSION` 2; server schemas with limits; per-table row counts kept in
+  the Durable Object's meta, so syncing a big review log stays fast).
+  **(done)**
+- `study/model.ts`: the default deck, adding and removing words, and the
+  queue (learning cards due within 20 minutes, then due reviews, then new
+  cards, within each deck's daily limits; days start at 4 am).
+  `study/scheduler.ts`: FSRS via ts-fsrs, loaded only with the study page.
+  **(done)**
+- A "+ study" button on entries. The header Study button shows the number
+  due. `?study` lists decks (counts, options, new deck, rename, delete, which
+  deck words go to). `?study=<deck>` / `?study=all` is a session: Space shows
+  the answer (the full entry), 1–4 or the buttons answer, with intervals
+  shown. **(done)**
+- Tests: `test/study.test.ts`. A browser run added words, studied, and
+  checked the badge and stored reviews. **(done)**
+- Later: undo the last answer, a card browser, suspending from the
+  session, production cards (meaning → word), and stats.
 
 ## Phase 6 — Export to Anki
 

@@ -1,6 +1,6 @@
 /**
- * Controls on each entry for your own data about the word: star it, mark it
- * known (so study decks can skip it later), and keep a note on it. Saved in
+ * Controls on each entry for your own data about the word: study it (add
+ * it to a deck), star it, mark it known, and keep a note on it. Saved in
  * the store, so they sync when signed in.
  *
  * Every control on the page is refreshed when the store changes, so a word
@@ -8,6 +8,8 @@
  */
 import type {Entry} from '../shared/types.ts';
 import {h} from './dom.ts';
+import {headword} from './forms.ts';
+import {addToDeck, addWord, removeWord, studyingIn} from './study/model.ts';
 import {NOTE_MAX_LENGTH, type MarkKind, type Store} from './store/store.ts';
 
 const markId = (kind: MarkKind, wordId: number) => `${kind}:${wordId}`;
@@ -15,19 +17,38 @@ const markId = (kind: MarkKind, wordId: number) => `${kind}:${wordId}`;
 export class WordTools {
   private readonly store: Store;
 
+  /** entries on the page, for adding them to a deck */
+  private readonly entries = new Map<number, Entry>();
+
   constructor(store: Store) {
     this.store = store;
     const refresh = () => this.refreshAll();
     store.marks.onChange(refresh);
     store.notes.onChange(refresh);
+    store.cards.onChange(refresh);
   }
 
   /** The controls for an entry: buttons, then its note (if any). */
   readonly actions = (entry: Entry): Node => {
+    this.entries.set(entry.id, entry);
     const el = h('div', {class: 'word-tools', 'data-word': entry.id});
     this.render(el, entry.id);
     return el;
   };
+
+  toggleStudy(wordId: number) {
+    const deck = studyingIn(this.store, wordId);
+    if (deck) {
+      const word = this.entries.get(wordId);
+      const name = word ? headword(word).text : 'this word';
+      if (confirm(`Stop studying ${name}? Its review history is kept.`)) {
+        removeWord(this.store, wordId);
+      }
+    } else {
+      const entry = this.entries.get(wordId);
+      if (entry) addWord(this.store, entry);
+    }
+  }
 
   isMarked(kind: MarkKind, wordId: number): boolean {
     return !!this.store.marks.get(markId(kind, wordId));
@@ -65,7 +86,21 @@ export class WordTools {
     const starred = this.isMarked('star', wordId);
     const known = this.isMarked('known', wordId);
     const note = this.note(wordId);
+    const deck = studyingIn(this.store, wordId);
     el.replaceChildren(
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'word-tool study',
+          'aria-pressed': String(!!deck),
+          title: deck
+            ? `In your “${deck.name}” deck. Click to stop studying it.`
+            : `Study this word (adds it to “${addToDeck(this.store).name}”)`,
+          onclick: () => this.toggleStudy(wordId),
+        },
+        deck ? '✓ study' : '+ study',
+      ),
       h(
         'button',
         {

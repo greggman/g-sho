@@ -1,0 +1,377 @@
+/**
+ * The study pages: the deck list (?study) and a review session
+ * (?study=<deck id>, or ?study=all). Loaded on demand with ts-fsrs.
+ */
+import type {Grade} from 'ts-fsrs';
+import type {Dict} from '../dict.ts';
+import {h} from '../dom.ts';
+import {renderEntry, rubyWord} from '../render.ts';
+import type {CardRow, DeckRow, Store} from '../store/store.ts';
+import {fieldsOf} from '../store/table.ts';
+import {
+  DECK_DEFAULTS,
+  addToDeck,
+  buildQueue,
+  defaultDeck,
+  randomId,
+  setAddToDeck,
+  type DeckCounts,
+} from './model.ts';
+import {RATINGS, answer, formatInterval, preview} from './scheduler.ts';
+
+const studyUrl = (deck: string) => `?${new URLSearchParams({study: deck})}`;
+
+function counts(c: DeckCounts) {
+  return h(
+    'span',
+    {class: 'study-counts', title: 'New · learning · to review'},
+    h('span', {class: 'count-new'}, String(c.new)),
+    h('span', {class: 'count-learning'}, String(c.learning)),
+    h('span', {class: 'count-review'}, String(c.review)),
+  );
+}
+
+// ---- deck list ----
+
+export function renderDecks(store: Store): HTMLElement {
+  defaultDeck(store);
+  const page = h('div', {class: 'study-page'});
+  const draw = () => {
+    const decks = store.decks
+      .all()
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const total = buildQueue(store);
+    const target = addToDeck(store);
+    page.replaceChildren(
+      h(
+        'div',
+        {class: 'study-head'},
+        h('h1', null, 'Study'),
+        total.cards.length > 0 &&
+          h('a', {class: 'button primary', href: studyUrl('all')}, 'Study all'),
+      ),
+      h(
+        'p',
+        {class: 'hint'},
+        'Add words with the “study” button on any entry. ',
+        'Cards are scheduled with FSRS, the algorithm modern Anki uses.',
+      ),
+      h(
+        'ul',
+        {class: 'deck-list'},
+        decks.map(d => deckRow(store, d, draw)),
+      ),
+      h(
+        'div',
+        {class: 'deck-tools'},
+        h(
+          'label',
+          null,
+          'Add new words to ',
+          h(
+            'select',
+            {
+              onchange: (e: Event) =>
+                setAddToDeck(store, (e.target as HTMLSelectElement).value),
+            },
+            decks.map(d =>
+              h('option', {value: d.id, selected: d.id === target.id}, d.name),
+            ),
+          ),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            onclick: () => {
+              const name = prompt('Name of the new deck?')?.trim();
+              if (name) {
+                store.decks.put({id: randomId(), name, ...DECK_DEFAULTS});
+                draw();
+              }
+            },
+          },
+          'New deck',
+        ),
+      ),
+    );
+  };
+  draw();
+  return page;
+}
+
+function deckRow(store: Store, deck: DeckRow, redraw: () => void) {
+  const q = buildQueue(store, [deck.id]);
+  const size = store.cards.all().filter(c => c.deckId === deck.id).length;
+  const options = h('details', {class: 'deck-options'});
+  const number = (
+    label: string,
+    key: 'newPerDay' | 'reviewsPerDay',
+    max: number,
+  ) =>
+    h(
+      'label',
+      null,
+      label,
+      h('input', {
+        type: 'number',
+        min: 0,
+        max,
+        value: deck[key],
+        onchange: (e: Event) => {
+          const v = Math.round(Number((e.target as HTMLInputElement).value));
+          if (v >= 0 && v <= max)
+            store.decks.put({...fieldsOf(deck), [key]: v});
+          redraw();
+        },
+      }),
+    );
+  options.append(
+    h('summary', null, 'Options'),
+    number('New cards per day ', 'newPerDay', 9999),
+    number('Most reviews per day ', 'reviewsPerDay', 99999),
+    h(
+      'label',
+      null,
+      'Desired retention ',
+      h('input', {
+        type: 'number',
+        min: 0.7,
+        max: 0.99,
+        step: 0.01,
+        value: deck.retention,
+        onchange: (e: Event) => {
+          const v = Number((e.target as HTMLInputElement).value);
+          if (v >= 0.7 && v <= 0.99) {
+            store.decks.put({...fieldsOf(deck), retention: v});
+          }
+          redraw();
+        },
+      }),
+      h(
+        'span',
+        {class: 'hint'},
+        ' How likely you are to remember a card when it comes up. Higher means more reviews.',
+      ),
+    ),
+    h(
+      'div',
+      {class: 'deck-option-buttons'},
+      h(
+        'button',
+        {
+          type: 'button',
+          onclick: () => {
+            const name = prompt('Rename the deck', deck.name)?.trim();
+            if (name) store.decks.put({...fieldsOf(deck), name});
+            redraw();
+          },
+        },
+        'Rename',
+      ),
+      deck.id !== 'default' &&
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'danger',
+            onclick: () => {
+              if (
+                !confirm(
+                  `Delete “${deck.name}” and its ${size} cards? Their review history is kept.`,
+                )
+              ) {
+                return;
+              }
+              const cards = store.cards.all().filter(c => c.deckId === deck.id);
+              store.facts.delete(...new Set(cards.map(c => c.factId)));
+              store.cards.delete(...cards.map(c => c.id));
+              store.decks.delete(deck.id);
+              if (addToDeck(store).id === deck.id)
+                setAddToDeck(store, 'default');
+              redraw();
+            },
+          },
+          'Delete deck',
+        ),
+    ),
+  );
+  return h(
+    'li',
+    {class: 'deck'},
+    h(
+      'div',
+      {class: 'deck-main'},
+      h('a', {class: 'deck-name', href: studyUrl(deck.id)}, deck.name),
+      h('span', {class: 'hint'}, ` ${size} card${size === 1 ? '' : 's'}`),
+      counts(q),
+      q.cards.length > 0 &&
+        h('a', {class: 'button', href: studyUrl(deck.id)}, 'Study'),
+    ),
+    options,
+  );
+}
+
+// ---- a session ----
+
+/** Reviews the due cards of a deck (or all decks) until none are left. */
+export function renderSession(
+  store: Store,
+  dict: Dict,
+  deck: string,
+): HTMLElement {
+  const deckIds = deck === 'all' ? undefined : [deck];
+  const deckName =
+    deck === 'all' ? 'All decks' : (store.decks.get(deck)?.name ?? 'Deck');
+  const page = h('div', {class: 'study-session'});
+  let last: string | undefined;
+  /** what the keyboard does now */
+  let keys: (e: KeyboardEvent) => void = () => {};
+
+  const onKey = (e: KeyboardEvent) => {
+    if (!page.isConnected) {
+      document.removeEventListener('keydown', onKey);
+      return;
+    }
+    const t = e.target as HTMLElement;
+    if (
+      t.closest('input, textarea, select') ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.altKey
+    ) {
+      return;
+    }
+    keys(e);
+  };
+  document.addEventListener('keydown', onKey);
+  // The search box has focus on load; keys are for the cards here.
+  (document.activeElement as HTMLElement | null)?.blur();
+
+  const next = () => {
+    const now = Date.now();
+    const q = buildQueue(store, deckIds, now);
+    // Don't show the card just answered again if there's another.
+    const card =
+      q.cards.find(c => c.id !== last && c.due <= now + 1000) ??
+      q.cards.find(c => c.id !== last) ??
+      q.cards[0];
+    if (!card) {
+      done();
+      return;
+    }
+    void show(card, q);
+  };
+
+  const header = (q: DeckCounts) =>
+    h(
+      'div',
+      {class: 'session-head'},
+      h('a', {href: '?study', class: 'session-back'}, '← Decks'),
+      h('span', {class: 'session-deck'}, deckName),
+      counts(q),
+    );
+
+  const show = async (card: CardRow, q: DeckCounts) => {
+    const fact = store.facts.get(card.factId);
+    const entry = fact?.wordId ? await dict.entry(fact.wordId) : undefined;
+    const word = fact?.fields[0] ?? '?';
+    const reading = fact?.fields[1] || undefined;
+    const shownAt = Date.now();
+
+    const front = h('div', {class: 'card-front', lang: 'ja'}, word);
+    const reveal = () => {
+      const now = Date.now();
+      const due = preview(card, store.decks.get(card.deckId), now);
+      const rate = (grade: Grade) => {
+        answer(store, card, grade, Date.now(), Date.now() - shownAt);
+        last = card.id;
+        next();
+      };
+      keys = e => {
+        const r = RATINGS.find(r => r.key === e.key);
+        if (r) rate(r.grade);
+        else if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          rate(3 as Grade);
+        }
+      };
+      face.replaceChildren(
+        h(
+          'div',
+          {class: 'card-front revealed'},
+          rubyWord({text: word, ...(reading && {reading})}),
+        ),
+        h(
+          'div',
+          {class: 'card-back'},
+          entry
+            ? renderEntry(dict, {entry})
+            : h('p', {class: 'card-meaning'}, fact?.fields[2] ?? ''),
+        ),
+      );
+      buttons.replaceChildren(
+        ...RATINGS.map(r =>
+          h(
+            'button',
+            {
+              type: 'button',
+              class: `rate rate-${r.label.toLowerCase()}`,
+              onclick: () => rate(r.grade),
+              title: `${r.label} (${r.key})`,
+            },
+            h(
+              'span',
+              {class: 'rate-interval'},
+              formatInterval(due.get(r.grade)! - now),
+            ),
+            h('span', {class: 'rate-label'}, r.label),
+          ),
+        ),
+      );
+    };
+    keys = e => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        reveal();
+      }
+    };
+    const face = h('div', {class: 'card-face'}, front);
+    const buttons = h(
+      'div',
+      {class: 'card-buttons'},
+      h(
+        'button',
+        {type: 'button', class: 'primary show-answer', onclick: reveal},
+        'Show answer',
+      ),
+    );
+    page.replaceChildren(header(q), face, buttons);
+  };
+
+  const done = () => {
+    keys = () => {};
+    const upcoming = store.cards
+      .all()
+      .filter(c => (!deckIds || deckIds.includes(c.deckId)) && c.reps > 0)
+      .sort((a, b) => a.due - b.due)[0];
+    page.replaceChildren(
+      header({new: 0, learning: 0, review: 0}),
+      h(
+        'div',
+        {class: 'session-done'},
+        h('h2', null, 'All done for now'),
+        upcoming &&
+          h(
+            'p',
+            null,
+            `The next card is due in ${formatInterval(Math.max(0, upcoming.due - Date.now()))}.`,
+          ),
+        h('a', {class: 'button', href: '?study'}, 'Back to decks'),
+      ),
+    );
+  };
+
+  next();
+  return page;
+}

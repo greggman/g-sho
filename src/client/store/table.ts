@@ -19,6 +19,15 @@ export interface Row {
 /** A row's own fields, as given to put(). */
 export type Fields<T extends Row> = Omit<T, 'mtime' | 'deleted' | 'dirty'>;
 
+/** A row's own fields, to put() back with changes. */
+export function fieldsOf<T extends Row>(row: T): Fields<T> {
+  const out: Partial<T> = {...row};
+  delete out.mtime;
+  delete out.deleted;
+  delete out.dirty;
+  return out as Fields<T>;
+}
+
 export interface Backend {
   /** every row of the table, tombstones included */
   load(table: string): Promise<Row[]>;

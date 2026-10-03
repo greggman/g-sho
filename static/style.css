@@ -1440,3 +1440,266 @@ mark {
     padding: 0 7px;
   }
 }
+
+/* ---- study ---- */
+
+.study-link {
+  position: relative;
+}
+
+.study-due {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #d9534f;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.study-due[hidden] {
+  display: none;
+}
+
+.word-tool.study[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.study-page,
+.study-session {
+  max-width: 720px;
+  padding: 8px 0 40px;
+}
+
+.study-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.study-head h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.study-page .button,
+.study-page button,
+.study-session .button,
+.study-session button {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.study-page .primary,
+.study-session .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.study-page .danger {
+  color: #c0392b;
+}
+
+.study-counts {
+  display: inline-flex;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.count-new {
+  color: #3b82c4;
+}
+
+.count-learning {
+  color: #d9534f;
+}
+
+.count-review {
+  color: var(--accent-strong);
+}
+
+.deck-list {
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.deck {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.deck-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.deck-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.deck-main .study-counts {
+  margin-left: auto;
+}
+
+.deck-options summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.deck-options label {
+  display: block;
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+
+.deck-options input {
+  width: 6em;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.deck-option-buttons,
+.deck-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.deck-tools select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.session-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-deck {
+  font-weight: 600;
+}
+
+.session-head .study-counts {
+  margin-left: auto;
+}
+
+.card-face {
+  min-height: 40vh;
+}
+
+.card-front {
+  padding: 48px 0 24px;
+  font-size: 3.2rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.card-front.revealed {
+  padding: 24px 0 8px;
+}
+
+.card-front ruby rt {
+  font-size: 0.4em;
+}
+
+.card-back .entry {
+  grid-template-columns: minmax(0, 1fr);
+  border-bottom: 0;
+}
+
+/* The answer's own headword repeats the card's: hide it. */
+.card-back .entry-head .headword,
+.card-back .entry-head .word-actions {
+  display: none;
+}
+
+.card-buttons {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0;
+  background: var(--bg);
+}
+
+.study-session .show-answer {
+  min-width: 50%;
+  padding: 10px 16px;
+  font-size: 1rem;
+}
+
+.study-session .rate {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  max-width: 140px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.rate-interval {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.rate-again .rate-label {
+  color: #d9534f;
+}
+
+.rate-hard .rate-label {
+  color: #c98a00;
+}
+
+.rate-good .rate-label {
+  color: var(--accent-strong);
+}
+
+.rate-easy .rate-label {
+  color: #3b82c4;
+}
+
+.session-done {
+  padding: 48px 0;
+  text-align: center;
+}

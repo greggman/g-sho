@@ -134,20 +134,26 @@ Tables:
   front, back), `css`, `kind` (standard/cloze), `anki_id` (the Anki model ID it
   came from, if any). Built in: `g-sho (Japanese)`, the same note type the
   AnkiConnect integration already creates.
-- **decks**: `name` (Anki style, `::` for subdecks), `options` (new cards per
-  day, review limit, desired retention, FSRS parameters), `source`
-  (where it was imported from and when).
-- **cards' notes** (Anki "notes"; the table needs a name that doesn't clash
-  with word notes): `note_type_id`, `fields` (array of strings, HTML), `tags`,
-  `guid` (Anki's note GUID; kept so re-importing an updated deck updates notes
-  instead of duplicating them, and exported notes update in Anki),
-  `word_id` (link to the dictionary entry, may be empty), `link_confidence`.
-- **cards**: `note_id`, `deck_id`, `ord` (which template), `direction` (see
-  duplicates), FSRS state (`due`, `stability`, `difficulty`, `reps`, `lapses`,
-  `state`, `last_review`), `queue` flags (suspended, buried), `dup_of`.
-- **reviews** (append-only): `card_id`, time, rating, duration, and the state
-  before and after. Rows are never changed, so syncing is a set union, and
-  any card's schedule can be rebuilt from its reviews.
+- **decks**: `name` (Anki style, `::` for subdecks), `newPerDay`,
+  `reviewsPerDay`, `retention` (FSRS desired retention). The default deck is
+  `default` ("My words"). Later: FSRS parameters, and `source` (where it was
+  imported from and when).
+- **facts** (Anki's "notes", renamed so they don't clash with word notes):
+  `noteType`, `fields` (array of strings, HTML), `tags`, `guid` (Anki's note
+  GUID; kept so re-importing an updated deck updates facts instead of
+  duplicating them, and exported notes update in Anki), `wordId` (link to the
+  dictionary entry, may be empty). A word added from the dictionary is
+  `w:<wordId>` with the built-in note type `g-sho` (fields: word, reading,
+  meaning), so adding it on two devices makes one fact. Later: `linkConfidence`.
+- **cards**: `factId`, `deckId`, `ord` (which template), FSRS state (`due`,
+  `stability`, `difficulty`, `elapsedDays`, `scheduledDays`, `learningSteps`,
+  `reps`, `lapses`, `state`, `lastReview`; ts-fsrs's Card with times in ms),
+  `added`, and `suspended`. Id `factId:ord`. Later: `direction` and `dupOf`
+  (see duplicates).
+- **reviews** (append-only): `cardId`, `t`, `rating`, `durationMs`, and the
+  card's state and memory before the review. Rows are never changed, so
+  syncing is a set union, and any card's schedule can be rebuilt from its
+  reviews.
 
 ## Sync protocol
 

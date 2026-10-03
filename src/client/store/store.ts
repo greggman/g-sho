@@ -36,19 +36,109 @@ export interface NoteRow extends Row {
 
 export const NOTE_MAX_LENGTH = 2000;
 
+/** A study deck; the one words are added to by default has id "default". */
+export interface DeckRow extends Row {
+  name: string;
+  /** new cards introduced per day */
+  newPerDay: number;
+  /** most reviews per day */
+  reviewsPerDay: number;
+  /** FSRS desired retention (0.7–0.99) */
+  retention: number;
+}
+
+/**
+ * What cards are made from: Anki's "note" (called a fact here, since
+ * "notes" are your notes on words). A word added from the dictionary has
+ * id `w:${wordId}` and the built-in note type.
+ */
+export interface FactRow extends Row {
+  /** "g-sho" for the built-in type: fields [word, reading, meaning] */
+  noteType: string;
+  fields: string[];
+  tags: string[];
+  /** Anki's note GUID, kept for exporting and re-importing */
+  guid: string;
+  /** the dictionary entry it's about, if known */
+  wordId?: number;
+}
+
+/** FSRS card states (the same numbers as ts-fsrs's State). */
+export const CardState = {
+  New: 0,
+  Learning: 1,
+  Review: 2,
+  Relearning: 3,
+} as const;
+export type CardState = (typeof CardState)[keyof typeof CardState];
+
+/**
+ * One thing to review, made from a fact: id `${factId}:${ord}`. The FSRS
+ * fields mirror ts-fsrs's Card, with times in ms.
+ */
+export interface CardRow extends Row {
+  factId: string;
+  deckId: string;
+  /** which card of the fact (0: recognition, word → meaning) */
+  ord: number;
+  due: number;
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  learningSteps: number;
+  reps: number;
+  lapses: number;
+  state: CardState;
+  lastReview?: number;
+  /** when it was added (orders new cards) */
+  added: number;
+  suspended?: 1;
+}
+
+/** One review of a card, never changed: the history its schedule came from. */
+export interface ReviewRow extends Row {
+  cardId: string;
+  /** when (ms) */
+  t: number;
+  /** 1 again, 2 hard, 3 good, 4 easy */
+  rating: number;
+  /** time spent on the card (ms) */
+  durationMs: number;
+  /** the card's state before this review */
+  state: CardState;
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+}
+
 export interface Store {
   history: Table<HistoryRow>;
   settings: Table<SettingsRow>;
   marks: Table<MarkRow>;
   notes: Table<NoteRow>;
+  decks: Table<DeckRow>;
+  facts: Table<FactRow>;
+  cards: Table<CardRow>;
+  reviews: Table<ReviewRow>;
   backend: Backend;
   /** false when nothing is saved (no IndexedDB) */
   persistent: boolean;
 }
 
-const TABLES = ['history', 'settings', 'marks', 'notes'] as const;
+const TABLES = [
+  'history',
+  'settings',
+  'marks',
+  'notes',
+  'decks',
+  'facts',
+  'cards',
+  'reviews',
+] as const;
 /** Bump when TABLES changes. */
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export async function createStore(backend: Backend, persistent: boolean) {
   const store = {
@@ -56,6 +146,10 @@ export async function createStore(backend: Backend, persistent: boolean) {
     settings: new Table<SettingsRow>('settings', backend),
     marks: new Table<MarkRow>('marks', backend),
     notes: new Table<NoteRow>('notes', backend),
+    decks: new Table<DeckRow>('decks', backend),
+    facts: new Table<FactRow>('facts', backend),
+    cards: new Table<CardRow>('cards', backend),
+    reviews: new Table<ReviewRow>('reviews', backend),
     backend,
     persistent,
   };

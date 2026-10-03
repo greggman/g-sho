@@ -22,6 +22,7 @@ import {
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
+import {buildQueue} from './study/model.ts';
 import {loadAccount} from './account.ts';
 import {Sync} from './sync.ts';
 import {attachUndo} from './undo.ts';
@@ -254,6 +255,17 @@ async function route(dict: Dict, record = false) {
   historyColumn.setCurrent(query);
   document.title = query ? `${query} - g-sho` : 'g-sho — Japanese dictionary';
 
+  const study = params.get('study');
+  if (study !== null && store) {
+    document.title = 'Study - g-sho';
+    const id = ++currentSearch;
+    const view = await import('./study/view.ts');
+    if (id !== currentSearch) return;
+    content.replaceChildren(
+      study ? view.renderSession(store, dict, study) : view.renderDecks(store),
+    );
+    return;
+  }
   if (!query) {
     content.replaceChildren(renderHome());
     return;
@@ -378,6 +390,29 @@ function setupPanels(dict: Dict) {
   });
 }
 
+/** The number on the Study button: cards to study now. */
+function watchDue(opened: Store) {
+  const badge = $<HTMLElement>('study-due');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const show = () => {
+    const n = buildQueue(opened).cards.length;
+    badge.hidden = n === 0;
+    badge.textContent = n > 99 ? '99+' : String(n);
+    $<HTMLElement>('study-link').title = n
+      ? `Study: ${n} card${n === 1 ? '' : 's'} to review now`
+      : 'Study';
+  };
+  const soon = () => {
+    clearTimeout(timer);
+    timer = setTimeout(show, 300);
+  };
+  for (const t of [opened.cards, opened.reviews, opened.decks])
+    t.onChange(soon);
+  // Learning cards come due by the minute.
+  setInterval(show, 60_000);
+  show();
+}
+
 function showDisplaySettings(
   dict: Dict | undefined,
   settings: DisplaySettings,
@@ -403,6 +438,7 @@ async function main() {
   showDisplaySettings(undefined, loadDisplaySettings(opened.settings));
   historyStore.attach(opened.history);
   wordTools = new WordTools(opened);
+  watchDue(opened);
   void startSync(opened);
   const dict = await Dict.open(loadJson);
   // Including changes synced from another device.

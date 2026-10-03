@@ -29,5 +29,8 @@
     "gts": "^7.0.0",
     "typescript": "~6.0.3",
     "wrangler": "^4.144.0"
+  },
+  "dependencies": {
+    "ts-fsrs": "^5.4.2"
   }
 }
