@@ -26,6 +26,11 @@ const serve = process.argv.includes('--serve');
  */
 function copyStatic() {
   fs.cpSync(STATIC, DIST, {recursive: true});
+  // SQLite for Anki packages (export and import), loaded only when used.
+  fs.copyFileSync(
+    path.join(ROOT, 'node_modules/sql.js/dist/sql-wasm-browser.wasm'),
+    path.join(DIST, 'sql-wasm.wasm'),
+  );
   buildWasm(DIST);
   if (!buildHandwriting(DIST)) {
     console.warn('warning: handwriting model missing; run `npm run download`');

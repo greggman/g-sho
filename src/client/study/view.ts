@@ -33,7 +33,7 @@ function counts(c: DeckCounts) {
 
 // ---- deck list ----
 
-export function renderDecks(store: Store): HTMLElement {
+export function renderDecks(store: Store, dict: Dict): HTMLElement {
   defaultDeck(store);
   const page = h('div', {class: 'study-page'});
   const draw = () => {
@@ -59,7 +59,7 @@ export function renderDecks(store: Store): HTMLElement {
       h(
         'ul',
         {class: 'deck-list'},
-        decks.map(d => deckRow(store, d, draw)),
+        decks.map(d => deckRow(store, dict, d, draw)),
       ),
       h(
         'div',
@@ -100,7 +100,7 @@ export function renderDecks(store: Store): HTMLElement {
   return page;
 }
 
-function deckRow(store: Store, deck: DeckRow, redraw: () => void) {
+function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
   const q = buildQueue(store, [deck.id]);
   const size = store.cards.all().filter(c => c.deckId === deck.id).length;
   const options = h('details', {class: 'deck-options'});
@@ -127,7 +127,7 @@ function deckRow(store: Store, deck: DeckRow, redraw: () => void) {
       }),
     );
   options.append(
-    h('summary', null, 'Options'),
+    h('summary', null, 'Options and export'),
     number('New cards per day ', 'newPerDay', 9999),
     number('Most reviews per day ', 'reviewsPerDay', 99999),
     h(
@@ -196,6 +196,7 @@ function deckRow(store: Store, deck: DeckRow, redraw: () => void) {
         ),
     ),
   );
+  options.append(exportSection(store, dict, deck, size));
   return h(
     'li',
     {class: 'deck'},
@@ -209,6 +210,89 @@ function deckRow(store: Store, deck: DeckRow, redraw: () => void) {
         h('a', {class: 'button', href: studyUrl(deck.id)}, 'Study'),
     ),
     options,
+  );
+}
+
+/** Download the deck as an .apkg, or send it to Anki through AnkiConnect. */
+function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
+  const status = h('p', {class: 'export-status hint'});
+  const run = async (work: () => Promise<string>) => {
+    status.classList.remove('error');
+    try {
+      status.textContent = await work();
+    } catch (e) {
+      status.textContent = (e as Error).message;
+      status.classList.add('error');
+    }
+  };
+  const fileName = `${deck.name.replace(/[\\/:*?"<>|]+/g, '_')}.apkg`;
+  return h(
+    'div',
+    {class: 'deck-export'},
+    h('h3', null, 'Export to Anki'),
+    h(
+      'div',
+      {class: 'deck-option-buttons'},
+      h(
+        'button',
+        {
+          type: 'button',
+          disabled: size === 0,
+          onclick: () =>
+            void run(async () => {
+              status.textContent = 'Making the file…';
+              const {exportApkg, download} = await import('./export.ts');
+              download(await exportApkg(store, dict, deck), fileName);
+              return `Saved ${fileName}. Open it with Anki (File → Import) to add the deck, with its schedule and review history.`;
+            }),
+        },
+        'Download .apkg',
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          disabled: size === 0,
+          onclick: () =>
+            void run(async () => {
+              const [
+                {sendToAnki},
+                {AnkiConnect, AnkiUnreachable},
+                {loadSettings},
+              ] = await Promise.all([
+                import('./export.ts'),
+                import('../anki/connect.ts'),
+                import('../anki/settings.ts'),
+              ]);
+              const settings = loadSettings();
+              const anki = new AnkiConnect(settings.url, settings.apiKey);
+              try {
+                const r = await sendToAnki(anki, store, dict, deck, text => {
+                  status.textContent = text;
+                });
+                return (
+                  `Done: ${r.added} added and ${r.updated} updated in Anki's “${deck.name}” deck` +
+                  (r.failed ? `, ${r.failed} couldn't be added.` : '.')
+                );
+              } catch (e) {
+                if (e instanceof AnkiUnreachable) {
+                  throw new Error(
+                    'Couldn’t reach Anki. Open Anki (with the AnkiConnect add-on), and connect it in Settings → Anki.',
+                  );
+                }
+                throw e;
+              }
+            }),
+        },
+        'Send to Anki',
+      ),
+    ),
+    h(
+      'p',
+      {class: 'hint'},
+      'The file keeps each card’s schedule and review history. Sending through AnkiConnect adds the words and their due dates.',
+    ),
+    status,
   );
 }
 

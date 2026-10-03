@@ -262,7 +262,9 @@ async function route(dict: Dict, record = false) {
     const view = await import('./study/view.ts');
     if (id !== currentSearch) return;
     content.replaceChildren(
-      study ? view.renderSession(store, dict, study) : view.renderDecks(store),
+      study
+        ? view.renderSession(store, dict, study)
+        : view.renderDecks(store, dict),
     );
     return;
   }

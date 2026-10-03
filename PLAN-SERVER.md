@@ -164,7 +164,7 @@ needs them.
 - Still to do: an option to clear this browser's data on sign-out, and
   purging old tombstones.
 
-## Phase 5 — Study — built, not yet deployed
+## Phase 5 — Study — done
 
 - Tables `decks`, `facts`, `cards`, `reviews` on both sides (client
   `DB_VERSION` 2; server schemas with limits; per-table row counts kept in
@@ -185,12 +185,26 @@ needs them.
 - Later: undo the last answer, a card browser, suspending from the
   session, production cards (meaning → word), and stats.
 
-## Phase 6 — Export to Anki
+## Phase 6 — Export to Anki — built, not yet deployed
 
-- AnkiConnect: whole-deck export (note types, notes, media, due dates),
-  updating notes that are already there.
-- An .apkg writer (sql.js + fflate, schema 11), plus a TSV fallback.
-- Round-trip tests: our export, read back by our importer.
+- `anki/apkg.ts`: writes a legacy `.apkg` (collection.anki2, schema 11)
+  with sql.js + fflate. FSRS state is mapped to Anki's type, queue, due and
+  interval. The FSRS memory goes in the card's `data` (`s`, `d`, `dr`), the
+  review log comes along, and note GUIDs are kept. Checked by importing into
+  real Anki 26.09 (the `anki` Python package, headless): deck, note type,
+  schedules, memory state, review log, and re-importing doesn't duplicate.
+  **(done)**
+- `study/export.ts`: a deck's words as `g-sho (Japanese)` notes with full
+  dictionary fields; "Download .apkg". "Send to Anki" over AnkiConnect adds
+  or updates notes (matched by JMdict ID), sets due dates on studied cards
+  (`setDueDate`), and suspends suspended ones. **(done)**
+- `sql-wasm.wasm` is copied into `dist/` by the build, and sql.js is loaded
+  only when exporting. **(done)**
+- Tests: `test/apkg.test.ts` reads the package back with node:sqlite.
+  **(done)**
+- Not tested here: "Send to Anki" against a running Anki (it would change
+  your real collection). Dropped: the plain-text (TSV) export; the .apkg
+  covers it.
 
 ## Phase 7 — Import from Anki
 

@@ -1703,3 +1703,21 @@ mark {
   padding: 48px 0;
   text-align: center;
 }
+
+.deck-export h3 {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+}
+
+.deck-export p {
+  margin: 6px 0;
+}
+
+.export-status.error {
+  color: #c0392b;
+}
+
+.study-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
