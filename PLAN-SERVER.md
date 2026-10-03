@@ -185,7 +185,7 @@ needs them.
 - Later: undo the last answer, a card browser, suspending from the
   session, production cards (meaning → word), and stats.
 
-## Phase 6 — Export to Anki — built, not yet deployed
+## Phase 6 — Export to Anki — done
 
 - `anki/apkg.ts`: writes a legacy `.apkg` (collection.anki2, schema 11)
   with sql.js + fflate. FSRS state is mapped to Anki's type, queue, due and
@@ -206,17 +206,35 @@ needs them.
   your real collection). Dropped: the plain-text (TSV) export; the .apkg
   covers it.
 
-## Phase 7 — Import from Anki
+## Phase 7 — Import from Anki — built, not yet deployed
 
-- An import worker: detect the format, unzip, zstd-decode, then read schema
-  11 and schema 18 (protobuf note type / template config).
-  The media map is JSON or protobuf.
-- Entry points: file picker, drop anywhere, paste a file, paste plain text.
-- A preview screen: the decks and note types found, the word/reading field
-  mapping per note type, link stats, and the scheduling that will be kept.
-- Template renderer plus the sandboxed card frame. Media is kept locally (OPFS).
-- Re-import by GUID.
-- Test fixtures: small .apkg files from old and new Anki versions, checked in.
+- `anki/import/read.ts`: reads `.apkg` / `.colpkg` in every format (schema
+  11 `collection.anki2` / `.anki21`, and schema 18 `collection.anki21b` with
+  zstd and protobuf config; JSON or protobuf media lists). It runs in a
+  worker (`import-worker.ts`: sql.js + fzstd). `read-text.ts` reads Anki's
+  plain-text export and plain tab / CSV lists. **(done)**
+- `link.ts`: furigana parsing (`食[た]べる`), word and reading fields guessed
+  from names (editable in the preview), and lookup in the Japanese index
+  ("exact" when word and reading match, "word" otherwise). **(done)**
+- `apply.ts`: note types (synced table `noteTypes`; the same name + fields
+  give the same id), decks matched by name, facts by GUID (re-import updates
+  them and never touches cards you already have), cards with their schedule
+  (FSRS memory from `cards.data`, else from interval), suspension, review
+  log, and media in a local IndexedDB store. Our own exports come back as
+  dictionary words. **(done)**
+- `template.ts`: Anki templates (fields, sections, FrontSide, special
+  fields, and the text / furigana / kana / kanji / cloze / type / hint
+  filters, sounds). `card-frame.ts`: cards in `sandbox="allow-scripts"`
+  frames, with media as data URLs, sized to their content. **(done)**
+- `?import` page: choose, drop anywhere, paste a file, or paste text; a
+  preview (decks, note types with word/reading fields and an example, keep
+  schedule); a summary. **(done)**
+- Tests: `test/import.test.ts` against packages made by real Anki 26.09
+  (`scripts/make-anki-fixtures.py`). In a browser: imported, studied all
+  11 cards (image, sound, cloze, reverse cards), drop-to-import and pasted
+  text. **(done)**
+- Later: exporting imported note types (export reports them as left out),
+  media sync (R2), and `[sound:]` autoplay.
 
 ## Phase 8 — Duplicates and known words
 

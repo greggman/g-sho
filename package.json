@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "fflate": "^0.8.3",
+    "fzstd": "^0.1.1",
     "sql.js": "^1.14.2",
     "ts-fsrs": "^5.4.2"
   }

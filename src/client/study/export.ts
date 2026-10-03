@@ -115,23 +115,27 @@ export async function deckNotes(
   };
 }
 
-/** The deck as an .apkg file. */
+/**
+ * The deck as an .apkg file. Notes from imported decks aren't included yet
+ * (`skipped` counts them).
+ */
 export async function exportApkg(
   store: Store,
   dict: Dict,
   deck: DeckRow,
-): Promise<Blob> {
+): Promise<{blob: Blob; skipped: number}> {
   const initSqlJs = (await import('sql.js')).default;
   const SQL = await initSqlJs({locateFile: () => '/sql-wasm.wasm'});
-  const {notes} = await deckNotes(store, dict, deck);
+  const {notes, skipped} = await deckNotes(store, dict, deck);
   const bytes = await writeApkg(SQL, {
     deckName: deck.name,
     noteType: apkgNoteType(),
     notes,
   });
-  return new Blob([bytes as Uint8Array<ArrayBuffer>], {
+  const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
     type: 'application/octet-stream',
   });
+  return {blob, skipped};
 }
 
 /** Saves a file with the browser's download. */
@@ -147,6 +151,8 @@ export interface SendResult {
   added: number;
   updated: number;
   failed: number;
+  /** notes from imported decks, not sent (not supported yet) */
+  skipped: number;
 }
 
 /**
@@ -168,7 +174,7 @@ export async function sendToAnki(
     await anki.invoke('createModel', ownNoteType());
   }
   await anki.invoke('createDeck', {deck: deck.name});
-  const {notes, wordIds} = await deckNotes(store, dict, deck);
+  const {notes, wordIds, skipped} = await deckNotes(store, dict, deck);
 
   progress('Looking for words already in Anki…');
   const found = await anki.invoke<{result: number[] | null}[]>('multi', {
@@ -177,7 +183,7 @@ export async function sendToAnki(
       params: {query: `"note:${DEFAULT_NOTE_TYPE}" JMdictId:${id}`},
     })),
   });
-  const result: SendResult = {added: 0, updated: 0, failed: 0};
+  const result: SendResult = {added: 0, updated: 0, failed: 0, skipped};
   const toAdd: {note: ApkgNote; index: number}[] = [];
   const noteIds: (number | null)[] = notes.map(() => null);
   for (const [i, note] of notes.entries()) {

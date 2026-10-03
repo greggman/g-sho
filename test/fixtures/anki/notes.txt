@@ -1,0 +1,12 @@
+#separator:tab
+#html:true
+#guid column:1
+#notetype column:2
+#deck column:3
+#tags column:9
+zFBP]tk-mM	Japanese (recognition)	Japanese::Core	食べる	食[た]べる	to eat			fixture jp
+Bb:,eTCx:w	Japanese (recognition)	Japanese::Core	猫	猫[ねこ]	<b>cat</b>	[sound:neko.mp3]	"<img src=""neko.png"">"	fixture jp
+J&%B$!$Pfo	Japanese (recognition)	Japanese::Core	ありがとう	ありがとう	thank you			fixture jp
+K873|3{oP{	Japanese (recognition)	Japanese::Core	日本語	日本語[にほんご]	Japanese (language)			fixture jp
+JYo=dn@A;3	Basic	Japanese	犬	dog				fixture jp
+G)3}(u51yw	Cloze	Japanese	{{c1::猫}}が{{c2::好き}}です	I like cats				fixture jp

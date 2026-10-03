@@ -102,6 +102,29 @@ Open **Settings** (the gear) and connect in the Anki section: with the Anki app 
 Anki asks whether to allow the site. Then every entry has a [+] to add it.
 See PLAN.md for details.
 
+## Study, sync, and Anki decks
+
+- **Study** (the cards button in the header): add words with "+ study" on any
+  entry, then review them with FSRS, the scheduler modern Anki uses.
+- **Import** Anki decks: drop an `.apkg` (or `.colpkg`, or Anki's plain-text
+  export) anywhere on the site, paste a copied file, or use Study → Import.
+  Notes are linked to their dictionary entries, and cards keep their
+  templates (shown in a sandboxed frame), schedule and review history.
+- **Export** a deck: Study → a deck's options → Download .apkg, or Send to
+  Anki (AnkiConnect).
+- **Sync**: sign in with GitHub (Settings → Account) to sync history, marks,
+  notes, settings and decks across devices. Imported images and sounds stay
+  on the device for now.
+
+The design is in [DESIGN-SERVER.md](DESIGN-SERVER.md), the plan in
+[PLAN-SERVER.md](PLAN-SERVER.md). The import tests use packages made by real
+Anki (`test/fixtures/anki/`); to remake them:
+
+```sh
+python3 -m venv .venv-anki && .venv-anki/bin/pip install anki
+.venv-anki/bin/python scripts/make-anki-fixtures.py
+```
+
 ## Deploying
 
 `.github/workflows/deploy.yml` builds the data and the app, then deploys `dist/`

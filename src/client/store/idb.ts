@@ -1,5 +1,8 @@
-/** The IndexedDB Backend: one object store per table, plus "meta". */
-import type {Backend, Row} from './table.ts';
+/**
+ * The IndexedDB Backend: one object store per table, plus "meta", and
+ * "media" (imported decks' images and sounds, by name; not synced).
+ */
+import type {Backend, MediaFile, Row} from './table.ts';
 
 const DB_NAME = 'g-sho';
 
@@ -35,6 +38,9 @@ export class IdbBackend implements Backend {
           db.createObjectStore(name, {keyPath: 'id'});
         }
       }
+      if (!db.objectStoreNames.contains('media')) {
+        db.createObjectStore('media', {keyPath: 'name'});
+      }
     };
     return new IdbBackend((await done(req)) as IDBDatabase);
   }
@@ -49,6 +55,20 @@ export class IdbBackend implements Backend {
     const store = tx.objectStore(table);
     for (const r of rows) store.put(r);
     await done(tx);
+  }
+
+  async putMedia(files: MediaFile[]) {
+    const tx = this.db.transaction('media', 'readwrite');
+    const store = tx.objectStore('media');
+    for (const f of files) store.put(f);
+    await done(tx);
+  }
+
+  async getMedia(name: string): Promise<Blob | undefined> {
+    const tx = this.db.transaction('media', 'readonly');
+    const row = (await done(tx.objectStore('media').get(name))) as
+      MediaFile | undefined;
+    return row?.data;
   }
 
   async getMeta<T>(key: string): Promise<T | undefined> {

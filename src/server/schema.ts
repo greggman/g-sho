@@ -127,6 +127,26 @@ export const LIMITS: Record<string, TableSchema> = {
       tags: strings(100, 5000),
       guid: str(100),
       wordId: optional(wordId),
+      linkConfidence: optional(v => v === 'exact' || v === 'word'),
+    },
+    id: simpleId(100),
+  },
+  // Anki note types (imported decks): fields and card templates.
+  noteTypes: {
+    maxRows: 500,
+    fields: {
+      name: str(200),
+      kind: v => v === 'standard' || v === 'cloze',
+      fields: strings(100, 5000),
+      templates: v =>
+        Array.isArray(v) &&
+        v.length >= 1 &&
+        v.length <= 50 &&
+        v.every(
+          object({name: str(200), front: str(64_000), back: str(64_000)}),
+        ),
+      css: str(64_000),
+      ankiId: optional(v => Number.isSafeInteger(v)),
     },
     id: simpleId(100),
   },

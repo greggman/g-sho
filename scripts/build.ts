@@ -51,6 +51,7 @@ const options: esbuild.BuildOptions = {
   entryPoints: {
     app: path.join(ROOT, 'src/client/main.ts'),
     'handwriting-worker': path.join(ROOT, 'src/client/handwriting/worker.ts'),
+    'import-worker': path.join(ROOT, 'src/client/anki/import-worker.ts'),
   },
   outdir: DIST,
   // Code that's only needed later (handwriting recognition) goes in chunks

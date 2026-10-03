@@ -5,11 +5,15 @@
 import type {Grade} from 'ts-fsrs';
 import type {Dict} from '../dict.ts';
 import {h} from '../dom.ts';
+import {cardFrame} from '../anki/card-frame.ts';
+import {renderTemplate} from '../anki/template.ts';
+import {headword} from '../forms.ts';
 import {renderEntry, rubyWord} from '../render.ts';
 import type {CardRow, DeckRow, Store} from '../store/store.ts';
 import {fieldsOf} from '../store/table.ts';
 import {
   DECK_DEFAULTS,
+  NOTE_TYPE,
   addToDeck,
   buildQueue,
   defaultDeck,
@@ -47,13 +51,22 @@ export function renderDecks(store: Store, dict: Dict): HTMLElement {
         'div',
         {class: 'study-head'},
         h('h1', null, 'Study'),
-        total.cards.length > 0 &&
-          h('a', {class: 'button primary', href: studyUrl('all')}, 'Study all'),
+        h(
+          'div',
+          {class: 'deck-option-buttons'},
+          h('a', {class: 'button', href: '?import'}, 'Import'),
+          total.cards.length > 0 &&
+            h(
+              'a',
+              {class: 'button primary', href: studyUrl('all')},
+              'Study all',
+            ),
+        ),
       ),
       h(
         'p',
         {class: 'hint'},
-        'Add words with the “study” button on any entry. ',
+        'Add words with the “study” button on any entry, or import an Anki deck. ',
         'Cards are scheduled with FSRS, the algorithm modern Anki uses.',
       ),
       h(
@@ -213,6 +226,12 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
   );
 }
 
+function skippedNote(n: number) {
+  return n
+    ? ` ${n} note${n === 1 ? '' : 's'} from imported decks ${n === 1 ? 'was' : 'were'} left out: exporting those isn’t supported yet.`
+    : '';
+}
+
 /** Download the deck as an .apkg, or send it to Anki through AnkiConnect. */
 function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
   const status = h('p', {class: 'export-status hint'});
@@ -242,8 +261,12 @@ function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
             void run(async () => {
               status.textContent = 'Making the file…';
               const {exportApkg, download} = await import('./export.ts');
-              download(await exportApkg(store, dict, deck), fileName);
-              return `Saved ${fileName}. Open it with Anki (File → Import) to add the deck, with its schedule and review history.`;
+              const {blob, skipped} = await exportApkg(store, dict, deck);
+              download(blob, fileName);
+              return (
+                `Saved ${fileName}. Open it with Anki (File → Import) to add the deck, with its schedule and review history.` +
+                skippedNote(skipped)
+              );
             }),
         },
         'Download .apkg',
@@ -272,7 +295,8 @@ function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
                 });
                 return (
                   `Done: ${r.added} added and ${r.updated} updated in Anki's “${deck.name}” deck` +
-                  (r.failed ? `, ${r.failed} couldn't be added.` : '.')
+                  (r.failed ? `, ${r.failed} couldn't be added.` : '.') +
+                  skippedNote(r.skipped)
                 );
               } catch (e) {
                 if (e instanceof AnkiUnreachable) {
@@ -356,6 +380,38 @@ export function renderSession(
       counts(q),
     );
 
+  /** An imported card's two sides, drawn from its note type's template. */
+  const importedCard = (card: CardRow) => {
+    const fact = store.facts.get(card.factId)!;
+    const nt = store.noteTypes.get(fact.noteType);
+    const tmpl = nt
+      ? nt.kind === 'cloze'
+        ? nt.templates[0]
+        : (nt.templates[card.ord] ?? nt.templates[0])
+      : undefined;
+    if (!nt || !tmpl) return undefined;
+    const ctx = {
+      fields: Object.fromEntries(
+        nt.fields.map((f, i) => [f, fact.fields[i] ?? '']),
+      ),
+      tags: fact.tags,
+      deck: store.decks.get(card.deckId)?.name ?? '',
+      noteType: nt.name,
+      cardName: tmpl.name,
+      ord: card.ord,
+    };
+    const frontHtml = renderTemplate(tmpl.front, {...ctx, side: 'front'});
+    const backHtml = renderTemplate(tmpl.back, {
+      ...ctx,
+      side: 'back',
+      frontSide: frontHtml,
+    });
+    return {
+      front: cardFrame(store, frontHtml, nt.css, card.ord),
+      back: cardFrame(store, backHtml, nt.css, card.ord),
+    };
+  };
+
   const show = async (card: CardRow, q: DeckCounts) => {
     const fact = store.facts.get(card.factId);
     const entry = fact?.wordId ? await dict.entry(fact.wordId) : undefined;
@@ -363,8 +419,49 @@ export function renderSession(
     const reading = fact?.fields[1] || undefined;
     const shownAt = Date.now();
 
-    const front = h('div', {class: 'card-front', lang: 'ja'}, word);
-    const reveal = () => {
+    // A card from an imported deck is drawn with its own template.
+    const imported =
+      fact && fact.noteType !== NOTE_TYPE ? importedCard(card) : undefined;
+    const front = imported
+      ? await imported.front
+      : h('div', {class: 'card-front', lang: 'ja'}, word);
+    const backSide = async () => {
+      if (!imported) {
+        return [
+          h(
+            'div',
+            {class: 'card-front revealed'},
+            rubyWord({text: word, ...(reading && {reading})}),
+          ),
+          h(
+            'div',
+            {class: 'card-back'},
+            entry
+              ? renderEntry(dict, {entry})
+              : h('p', {class: 'card-meaning'}, fact?.fields[2] ?? ''),
+          ),
+        ];
+      }
+      const head = entry && headword(entry);
+      return [
+        await imported.back,
+        head &&
+          h(
+            'p',
+            {class: 'card-word-link hint'},
+            'In the dictionary: ',
+            h(
+              'a',
+              {href: `?${new URLSearchParams({q: head.text})}`},
+              rubyWord(head),
+            ),
+          ),
+      ];
+    };
+    let revealing = false;
+    const reveal = async () => {
+      if (revealing) return;
+      revealing = true;
       const now = Date.now();
       const due = preview(card, store.decks.get(card.deckId), now);
       const rate = (grade: Grade) => {
@@ -380,20 +477,7 @@ export function renderSession(
           rate(3 as Grade);
         }
       };
-      face.replaceChildren(
-        h(
-          'div',
-          {class: 'card-front revealed'},
-          rubyWord({text: word, ...(reading && {reading})}),
-        ),
-        h(
-          'div',
-          {class: 'card-back'},
-          entry
-            ? renderEntry(dict, {entry})
-            : h('p', {class: 'card-meaning'}, fact?.fields[2] ?? ''),
-        ),
-      );
+      face.replaceChildren(...(await backSide()).filter(n => n !== undefined));
       buttons.replaceChildren(
         ...RATINGS.map(r =>
           h(
@@ -417,7 +501,7 @@ export function renderSession(
     keys = e => {
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
-        reveal();
+        void reveal();
       }
     };
     const face = h('div', {class: 'card-face'}, front);
@@ -426,7 +510,11 @@ export function renderSession(
       {class: 'card-buttons'},
       h(
         'button',
-        {type: 'button', class: 'primary show-answer', onclick: reveal},
+        {
+          type: 'button',
+          class: 'primary show-answer',
+          onclick: () => void reveal(),
+        },
         'Show answer',
       ),
     );

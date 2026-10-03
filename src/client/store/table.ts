@@ -28,18 +28,27 @@ export function fieldsOf<T extends Row>(row: T): Fields<T> {
   return out as Fields<T>;
 }
 
+/** An image or sound from an imported deck, kept on this device only. */
+export interface MediaFile {
+  name: string;
+  data: Blob;
+}
+
 export interface Backend {
   /** every row of the table, tombstones included */
   load(table: string): Promise<Row[]>;
   write(table: string, rows: Row[]): Promise<void>;
   getMeta<T>(key: string): Promise<T | undefined>;
   setMeta(key: string, value: unknown): Promise<void>;
+  putMedia(files: MediaFile[]): Promise<void>;
+  getMedia(name: string): Promise<Blob | undefined>;
 }
 
 /** A Backend that keeps nothing: when IndexedDB isn't available, and in tests. */
 export class MemoryBackend implements Backend {
   readonly tables = new Map<string, Map<string, Row>>();
   readonly meta = new Map<string, unknown>();
+  readonly media = new Map<string, Blob>();
   async load(table: string) {
     return [...(this.tables.get(table)?.values() ?? [])].map(r => ({...r}));
   }
@@ -53,6 +62,12 @@ export class MemoryBackend implements Backend {
   }
   async setMeta(key: string, value: unknown) {
     this.meta.set(key, value);
+  }
+  async putMedia(files: MediaFile[]) {
+    for (const f of files) this.media.set(f.name, f.data);
+  }
+  async getMedia(name: string) {
+    return this.media.get(name);
   }
 }
 

@@ -216,8 +216,8 @@ What can be imported:
   Its `#separator:`, `#html:`, `#columns:`, `#notetype column:`, … headers are
   read.
 
-All parsing is done in the browser, in a Web Worker, so the server never
-accepts uploaded deck files. The worker loads the libraries only when needed:
+All parsing is done in the browser (packages in a Web Worker), so the server
+never accepts uploaded deck files. The worker loads the libraries only when needed:
 fflate (zip), fzstd (zstd), and sql.js (SQLite in WebAssembly, ~1 MB).
 Anki has several package formats, and we read all of them:
 
@@ -241,6 +241,12 @@ their cards come in as new. When scheduling is present:
   23.10+), use it;
 - otherwise, if there are reviews, replay them with ts-fsrs;
 - otherwise, convert the SM-2 interval and ease to an approximate FSRS state.
+
+**Note types** are stored in a synced `noteTypes` table (name, kind, fields,
+templates, CSS). Their id comes from the name and fields, so importing the same
+deck type twice, or from two devices, gives one note type. Notes become facts with id
+`a-<base64url GUID>`. Notes of our own exported note type (`g-sho (Japanese)`,
+GUID `g-sho-<wordId>`) come back as dictionary words (`w:<wordId>`).
 
 **Linking notes to the dictionary.** For each note type, pick the word field and the
 reading field. The guesses reuse the AnkiConnect field-name heuristics

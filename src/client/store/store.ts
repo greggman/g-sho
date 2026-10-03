@@ -61,6 +61,22 @@ export interface FactRow extends Row {
   guid: string;
   /** the dictionary entry it's about, if known */
   wordId?: number;
+  /**
+   * How sure the link to wordId is (imported notes): "exact" when word and
+   * reading match, "word" when only the word does.
+   */
+  linkConfidence?: 'exact' | 'word';
+}
+
+/** A note type from Anki: its fields and card templates. */
+export interface NoteTypeRow extends Row {
+  name: string;
+  kind: 'standard' | 'cloze';
+  fields: string[];
+  templates: {name: string; front: string; back: string}[];
+  css: string;
+  /** Anki's id for it */
+  ankiId?: number;
 }
 
 /** FSRS card states (the same numbers as ts-fsrs's State). */
@@ -122,6 +138,7 @@ export interface Store {
   facts: Table<FactRow>;
   cards: Table<CardRow>;
   reviews: Table<ReviewRow>;
+  noteTypes: Table<NoteTypeRow>;
   backend: Backend;
   /** false when nothing is saved (no IndexedDB) */
   persistent: boolean;
@@ -136,9 +153,10 @@ const TABLES = [
   'facts',
   'cards',
   'reviews',
+  'noteTypes',
 ] as const;
 /** Bump when TABLES changes. */
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export async function createStore(backend: Backend, persistent: boolean) {
   const store = {
@@ -150,6 +168,7 @@ export async function createStore(backend: Backend, persistent: boolean) {
     facts: new Table<FactRow>('facts', backend),
     cards: new Table<CardRow>('cards', backend),
     reviews: new Table<ReviewRow>('reviews', backend),
+    noteTypes: new Table<NoteTypeRow>('noteTypes', backend),
     backend,
     persistent,
   };

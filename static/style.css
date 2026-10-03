@@ -1721,3 +1721,86 @@ mark {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ---- import ---- */
+
+html.dropping body::after {
+  content: 'Drop an Anki deck (.apkg) to import it';
+  position: fixed;
+  inset: 12px;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--accent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  color: var(--accent-strong);
+  font-size: 1.4rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.import-page h3 {
+  margin: 18px 0 6px;
+  font-size: 1rem;
+}
+
+.import-pick input {
+  display: none;
+}
+
+.import-text {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 14px 0 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.import-types {
+  padding-left: 18px;
+}
+
+.import-types li {
+  margin: 8px 0;
+}
+
+.import-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
+.import-fields select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.import-status.error {
+  color: #c0392b;
+}
+
+.card-frame {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  border: 0;
+  color-scheme: normal;
+}
+
+.card-word-link {
+  text-align: center;
+}

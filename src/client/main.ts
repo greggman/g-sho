@@ -255,6 +255,16 @@ async function route(dict: Dict, record = false) {
   historyColumn.setCurrent(query);
   document.title = query ? `${query} - g-sho` : 'g-sho — Japanese dictionary';
 
+  if (params.has('import') && store) {
+    document.title = 'Import - g-sho';
+    const id = ++currentSearch;
+    const view = await import('./study/import-view.ts');
+    if (id !== currentSearch) return;
+    const file = pendingImport;
+    pendingImport = undefined;
+    content.replaceChildren(view.renderImport(store, dict, file));
+    return;
+  }
   const study = params.get('study');
   if (study !== null && store) {
     document.title = 'Study - g-sho';
@@ -294,6 +304,43 @@ async function route(dict: Dict, record = false) {
   } finally {
     if (id === currentSearch) content.removeAttribute('aria-busy');
   }
+}
+
+/** A file dropped or pasted, for the import page to pick up. */
+let pendingImport: File | undefined;
+
+/** Anki decks dropped or pasted anywhere open the import page. */
+function setupImportDrop(dict: Dict) {
+  const importable = (f: File) => /\.(apkg|colpkg|txt|tsv|csv)$/i.test(f.name);
+  const root = document.documentElement.classList;
+  const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files');
+  document.addEventListener('dragover', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    root.add('dropping');
+  });
+  document.addEventListener('dragleave', e => {
+    if (!e.relatedTarget) root.remove('dropping');
+  });
+  document.addEventListener('drop', e => {
+    root.remove('dropping');
+    if (!hasFiles(e)) return;
+    // Don't let the browser open the file instead.
+    e.preventDefault();
+    const file = [...(e.dataTransfer?.files ?? [])].find(importable);
+    if (file) {
+      pendingImport = file;
+      navigate(dict, '?import');
+    }
+  });
+  document.addEventListener('paste', e => {
+    const file = [...(e.clipboardData?.files ?? [])].find(importable);
+    if (file) {
+      e.preventDefault();
+      pendingImport = file;
+      navigate(dict, '?import');
+    }
+  });
 }
 
 function navigate(dict: Dict, url: string, scroll = true, record = true) {
@@ -508,6 +555,7 @@ async function main() {
 
   window.addEventListener('popstate', () => void route(dict));
   setupPanels(dict);
+  setupImportDrop(dict);
   await applyAnki(dict, loadSettings());
   // A search opened from a link counts as a lookup too.
   await route(dict, true);
