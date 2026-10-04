@@ -10,9 +10,10 @@
 /chunks/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Data files are requested with ?v=<data version>, so new data is new URLs.
+# Data files are requested with ?v=<their data set's content hash> (see
+# meta.json "versions"): changed data is a new URL, so they never go stale.
 /data/*
-  Cache-Control: public, max-age=604800
+  Cache-Control: public, max-age=31536000, immutable
 
 # ...except meta.json, which says what the current version is.
 /data/meta.json

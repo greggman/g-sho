@@ -181,4 +181,10 @@ export interface Meta {
   };
   /** tag → human readable description */
   tags: Record<string, string>;
+  /**
+   * Each data set's version (a hash of its files), by folder or file name
+   * (ent, ja, en, kanji, strokes, jadef, radk): put in the files' URLs, so a
+   * data set's files can be cached until it changes.
+   */
+  versions?: Record<string, string>;
 }

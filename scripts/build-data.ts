@@ -3,6 +3,7 @@
  * sharded data files the site fetches (dist/data/). See PLAN.md and
  * src/shared/types.ts for the formats.
  */
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
@@ -166,16 +167,32 @@ function appliesTo(a: string[]): string[] | undefined {
   return a.length === 1 && a[0] === '*' ? undefined : a;
 }
 
+/**
+ * Each data set's version: a hash of its files. The client puts it in the
+ * files' URLs (?v=), so they can be cached forever, and a rebuild only
+ * changes the versions of the data sets whose files changed.
+ */
+const versions: Record<string, string> = {};
+
+function contentVersion(parts: string[]): string {
+  const hash = crypto.createHash('sha256');
+  for (const p of parts) hash.update(p).update('\0');
+  return hash.digest('base64url').slice(0, 12);
+}
+
 function writeShards<T>(dir: string, shards: Map<number, T>) {
   fs.mkdirSync(path.join(OUT_DIR, dir), {recursive: true});
   let bytes = 0;
   let max = 0;
-  for (const [n, data] of shards) {
+  const parts: string[] = [];
+  for (const [n, data] of [...shards].sort((a, b) => a[0] - b[0])) {
     const json = JSON.stringify(data);
     bytes += json.length;
     max = Math.max(max, json.length);
+    parts.push(`${n}:${json}`);
     fs.writeFileSync(path.join(OUT_DIR, dir, `${shardName(n)}.json`), json);
   }
+  versions[dir] = contentVersion(parts);
   const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
   console.log(
     `${dir}: ${shards.size} shards, ${kb(bytes)} total, avg ${kb(bytes / shards.size)}, max ${kb(max)}`,
@@ -626,7 +643,9 @@ function buildRadicals(strokes: Record<string, number>) {
   for (const k of allKanji) {
     if (strokes[k]) data.strokes[k] = strokes[k];
   }
-  fs.writeFileSync(path.join(OUT_DIR, 'radk.json'), JSON.stringify(data));
+  const json = JSON.stringify(data);
+  fs.writeFileSync(path.join(OUT_DIR, 'radk.json'), json);
+  versions.radk = contentVersion([json]);
 }
 
 // ---- stroke order (KanjiVG) ----
@@ -721,6 +740,7 @@ async function main() {
     kanjiCount,
     shards: {...SHARDS, ...(jaDefs && {jadef: JADEF_SHARDS})},
     tags: dict.tags,
+    versions,
   };
   fs.writeFileSync(path.join(OUT_DIR, 'meta.json'), JSON.stringify(meta));
   console.log(`built data in ${((Date.now() - start) / 1000).toFixed(1)}s`);

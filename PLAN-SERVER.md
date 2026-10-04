@@ -97,8 +97,11 @@ needs them.
   stays the same.
 - CI: replace the Pages upload/deploy jobs with `wrangler deploy` on
   push to main. It needs the secrets from step 4. **(done)**
-- `static/_headers`: content-hashed chunks are cached for a year, and data
-  shards (requested with `?v=<data version>`) for a week. Everything else
+- `static/_headers`: content-hashed chunks and data files are cached for a
+  year (immutable). Data files are requested with `?v=<their data set's
+  content hash>` (`meta.json` → `versions`: ent, ja, en, kanji, strokes,
+  radk, jadef), so the weekly rebuild only changes the URLs of data sets that
+  changed. Kanji, strokes and radicals stay cached across JMdict updates. Everything else
   (the pages, `app.js`, the workers, `meta.json`) is revalidated on every
   load, so an `app.js` from an older deploy can't ask for chunks that are
   gone. (The first version copied GitHub Pages' 10-minute caching for

@@ -1,5 +1,6 @@
 import {hasJapanese, isKanji} from '../shared/kana.ts';
 import {loadSettings, type AnkiSettings} from './anki/settings.ts';
+import type {Meta} from '../shared/types.ts';
 import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
@@ -84,14 +85,22 @@ const historyStore = new HistoryStore();
 const historyColumn = new HistoryView(historyStore, true);
 $<HTMLElement>('history-column').append(historyColumn.element);
 
-let dataVersion = '';
+/** meta.json, once loaded: the data sets' versions. */
+let meta: Meta | undefined;
 const dataBase = new URL('data/', document.baseURI);
 
 async function loadJson(path: string): Promise<unknown> {
   const url = new URL(path, dataBase);
-  // Shards are immutable per data version, so version them for caching;
-  // meta.json says which version is current, so always revalidate it.
-  if (dataVersion) url.searchParams.set('v', dataVersion);
+  // Data files are immutable per version (the server caches them for a
+  // year), so the URL carries their data set's version: "ent/0001.json" is
+  // in "ent", "radk.json" is "radk". meta.json says what the versions are,
+  // so it's always revalidated. (Data built before per-set versions has
+  // only the JMdict version.)
+  const set = path.includes('/')
+    ? path.split('/')[0]
+    : path.replace(/\.json$/, '');
+  const version = meta?.versions?.[set] ?? meta?.version;
+  if (version) url.searchParams.set('v', version);
   const res = await fetch(url, path === 'meta.json' ? {cache: 'no-cache'} : {});
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   return res.json();
@@ -507,7 +516,7 @@ async function main() {
   opened.settings.onChange(() =>
     showDisplaySettings(dict, loadDisplaySettings(opened.settings)),
   );
-  dataVersion = dict.meta.version;
+  meta = dict.meta;
   dataInfo.textContent = `JMdict ${dict.meta.dictDate} · ${dict.meta.entryCount.toLocaleString()} words · ${dict.meta.kanjiCount.toLocaleString()} kanji`;
 
   form.addEventListener('submit', e => {
