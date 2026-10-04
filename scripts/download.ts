@@ -9,7 +9,9 @@
  * .cache/kanjivg/, EDRDG's JMdict XML (.cache/JMdict_e.gz), which has the
  * word frequency ranks the JSON version leaves out, wordfreq's Japanese
  * word frequencies (.cache/wordfreq/), pinned to a commit, and Tatoeba's
- * sentence transcriptions (furigana for example sentences, .cache/tatoeba/).
+ * sentence transcriptions (furigana for example sentences, .cache/tatoeba/),
+ * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
+ * definitions, .cache/jawiktionary/).
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
@@ -133,6 +135,33 @@ async function downloadJmdictXml() {
 }
 
 /**
+ * The Japanese Wiktionary, extracted to JSON by wiktextract (kaikki.org),
+ * for Japanese definitions (CC BY-SA). About 65 MB; skipped when the ETag
+ * is unchanged.
+ */
+async function downloadJaWiktionary() {
+  const url = 'https://kaikki.org/jawiktionary/raw-wiktextract-data.jsonl.gz';
+  const dir = path.join(CACHE_DIR, 'jawiktionary');
+  const out = path.join(dir, 'ja-extract.jsonl.gz');
+  const etagFile = `${out}.etag`;
+  const etag =
+    fs.existsSync(etagFile) && fs.existsSync(out)
+      ? fs.readFileSync(etagFile, 'utf8')
+      : undefined;
+  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
+  if (res.status === 304) {
+    console.log('Japanese Wiktionary already downloaded');
+    return;
+  }
+  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+  console.log('downloading the Japanese Wiktionary (kaikki.org)');
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  const newEtag = res.headers.get('etag');
+  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+}
+
+/**
  * wordfreq's Japanese word frequencies (subtitles, Wikipedia, web text, …),
  * a broader frequency signal than JMdict's newspaper-based tags.
  * CC BY-SA 4.0: https://github.com/rspeer/wordfreq
@@ -243,6 +272,7 @@ async function downloadDictionary() {
 await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),
+  downloadJaWiktionary(),
   downloadWordfreq(),
   downloadTatoebaTranscriptions(),
   downloadHandwritingModel(),

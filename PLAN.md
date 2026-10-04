@@ -19,6 +19,7 @@ All sources are the same ones jisho.org credits, consumed through the
 | Example sentences linked to word senses | Tatoeba (via JMdict) | CC BY 2.0 FR |
 | Stroke order | KanjiVG | CC BY-SA 3.0 |
 | Word frequencies (ranking) | wordfreq (Robyn Speer) | CC BY-SA 4.0 |
+| Japanese definitions (国語) | Japanese Wiktionary, via wiktextract / kaikki.org | CC BY-SA 4.0 + GFDL |
 
 Attribution for all of them is shown on an About page in the site, as the
 licenses require. Later phases may add JMnedict (names) and JLPT word lists.
@@ -159,6 +160,29 @@ jisho.org uses).
 - **UI**: a pad with Undo and Clear. It recognizes after each stroke and shows
   candidates as buttons; picking one inserts it into the search box, the same
   way the radical picker does.
+
+## Japanese definitions (国語)
+
+For learners moving on to a Japanese–Japanese dictionary: a display setting
+("Japanese definitions") shows definitions in Japanese above the English
+ones. Turning off English meanings then gives a Japanese-only dictionary.
+
+- **Source**: the Japanese Wiktionary, as extracted to JSON by wiktextract
+  (kaikki.org, ~65 MB, CC BY-SA + GFDL), downloaded by `npm run download`.
+  The commercial 国語辞典 (大辞林, 大辞泉, 明鏡, …) can't be redistributed.
+- **Matching** (`scripts/build-jawiktionary.ts`): a JMdict entry gets a
+  Wiktionary entry through a kanji spelling (following "〜の漢字表記"
+  pointers to the kana word with the same reading, or an entry listing one
+  of its readings), or else its reading (only if the Wiktionary entry lists
+  one of its kanji spellings, or the word is written in kana, so homophones
+  stay apart). Senses marked for particular readings (【うえ、かみ】, （セイ）)
+  go only to those readings. About 69,000 entries get definitions, including
+  84% of common words. Shards: `jadef/NNNN.json` (2,048 by entry id, ~6 MB).
+- **Display** (`src/client/japanese.ts`): definitions with labels and example
+  sentences, shown as text first, then split into words like a pasted
+  sentence. Each word links to its entry, with furigana over its kanji
+  (Wiktionary's own furigana hints first). Sentence cards show the first two
+  senses.
 
 ## History, settings, undo
 

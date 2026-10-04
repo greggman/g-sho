@@ -112,6 +112,9 @@ See PLAN.md for details.
   templates (shown in a sandboxed frame), schedule and review history.
 - **Export** a deck: Study → a deck's options → Download .apkg, or Send to
   Anki (AnkiConnect).
+- **Japanese definitions** (Settings → Japanese definitions): definitions in
+  Japanese from the Japanese Wiktionary, every word linked and with furigana;
+  turn off English meanings to use g-sho as a Japanese–Japanese dictionary.
 - **Sync**: sign in with GitHub (Settings → Account) to sync history, marks,
   notes, settings and decks across devices. Imported images and sounds stay
   on the device for now.

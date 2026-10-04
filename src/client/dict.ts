@@ -9,6 +9,8 @@ import type {
   EnIndexShard,
   Entry,
   EntryShard,
+  JaDefinition,
+  JaDefinitionShard,
   JaIndexShard,
   KanjiInfo,
   KanjiShard,
@@ -107,6 +109,16 @@ export class Dict {
   async entries(ids: number[]): Promise<Entry[]> {
     const entries = await Promise.all(ids.map(id => this.entry(id)));
     return entries.filter((e): e is Entry => e !== undefined);
+  }
+
+  /** The word's definitions in Japanese (Japanese Wiktionary), if any. */
+  async jaDefinitions(id: number): Promise<JaDefinition[] | undefined> {
+    const n = this.meta.shards.jadef;
+    if (!n) return undefined; // data built without them
+    const shard = await this.file<JaDefinitionShard>(
+      `jadef/${shardName(entryShard(id, n))}.json`,
+    );
+    return shard[id];
   }
 
   async kanji(ch: string): Promise<KanjiInfo | undefined> {

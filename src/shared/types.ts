@@ -140,6 +140,30 @@ export interface RadicalData {
 }
 
 /** meta.json */
+/**
+ * A word's definitions in Japanese (from the Japanese Wiktionary), for one
+ * part of speech.
+ */
+export interface JaDefinition {
+  /** part of speech, in Japanese (名詞, 動詞, …) */
+  p: string;
+  s: JaSense[];
+}
+
+export interface JaSense {
+  /** the definition */
+  g: string;
+  /** example sentences */
+  ex?: string[];
+  /** labels (口語, 挨拶, …) */
+  t?: string[];
+  /** furigana for hard words in the definition: [word, reading] */
+  r?: [string, string][];
+}
+
+/** jadef/NNNN.json: entry id → its Japanese definitions */
+export type JaDefinitionShard = Record<number, JaDefinition[]>;
+
 export interface Meta {
   version: string;
   dictDate: string;
@@ -152,6 +176,8 @@ export interface Meta {
     en: number;
     kanji: number;
     strokes: number;
+    /** Japanese definitions; absent when they weren't built */
+    jadef?: number;
   };
   /** tag → human readable description */
   tags: Record<string, string>;

@@ -277,7 +277,7 @@ const SENTENCE_MATCHES = 5;
  * words normally written in kana (は is the particle, not 歯 "tooth"), so
  * those entries come first.
  */
-async function sentenceMatches(
+export async function sentenceMatches(
   dict: Dict,
   token: Token,
 ): Promise<WordResult[]> {

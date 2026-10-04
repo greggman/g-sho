@@ -2,6 +2,7 @@ import {parseFurigana} from '../shared/furigana.ts';
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, join, searchLink} from './dom.ts';
+import {jaDefinitionsSlot} from './japanese.ts';
 import {
   furigana,
   headword,
@@ -306,6 +307,7 @@ export function renderEntry(
       'div',
       {class: 'entry-body'},
       inflection && inflectionNote(inflection),
+      jaDefinitionsSlot(entry.id),
       h(
         'ol',
         {class: 'senses'},
@@ -530,6 +532,7 @@ function renderSentenceWord(
         {class: 'chain', lang: 'ja'},
         inflectionChain(inflection.to, inflection.reasons),
       ),
+    jaDefinitionsSlot(entry.id, true),
     h('ol', {class: 'compact-senses'}, senses),
     h(
       'details',

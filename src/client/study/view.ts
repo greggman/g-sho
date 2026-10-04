@@ -8,6 +8,7 @@ import {h} from '../dom.ts';
 import {cardFrame} from '../anki/card-frame.ts';
 import {renderTemplate} from '../anki/template.ts';
 import {headword} from '../forms.ts';
+import {fillJapanese} from '../japanese.ts';
 import {renderEntry, rubyWord} from '../render.ts';
 import type {CardRow, DeckRow, Store} from '../store/store.ts';
 import {fieldsOf} from '../store/table.ts';
@@ -578,6 +579,7 @@ export function renderSession(
         }
       };
       face.replaceChildren(...(await backSide()).filter(n => n !== undefined));
+      void fillJapanese(dict, face);
       buttons.replaceChildren(
         ...RATINGS.map(r =>
           h(

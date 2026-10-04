@@ -22,6 +22,7 @@ import {
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
+import {fillJapanese} from './japanese.ts';
 import {buildQueue} from './study/model.ts';
 import {loadAccount} from './account.ts';
 import {Sync} from './sync.ts';
@@ -297,6 +298,7 @@ async function route(dict: Dict, record = false) {
     const view = await renderResults(dict, query, result, pages);
     if (id !== currentSearch) return;
     content.replaceChildren(view);
+    void fillJapanese(dict, content);
     if (record && pages === 1) recordHistory(query, result);
     historyColumn.setCurrent(query);
   } catch (e) {
@@ -477,6 +479,7 @@ function showDisplaySettings(
   const historyChanged = settings.history !== display.history;
   display = settings;
   applyDisplaySettings(display);
+  if (dict) void fillJapanese(dict, content);
   document.documentElement.classList.toggle('hide-history', !display.history);
   if (dict && historyChanged && !location.search) void route(dict);
 }

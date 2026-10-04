@@ -11,6 +11,8 @@ import type {Table} from './store/table.ts';
 
 export interface DisplaySettings {
   meanings: boolean;
+  /** definitions in Japanese (Japanese Wiktionary) */
+  japanese: boolean;
   furigana: boolean;
   examples: boolean;
   kanji: boolean;
@@ -22,6 +24,10 @@ export const SETTING_LABELS: Record<keyof DisplaySettings, [string, string]> = {
   meanings: [
     'English meanings',
     'When off, meanings are blurred; tap one to see it.',
+  ],
+  japanese: [
+    'Japanese definitions (国語)',
+    'From the Japanese Wiktionary. Every word in them links to its entry. To study in Japanese only, also turn off English meanings.',
   ],
   furigana: ['Furigana', 'When off, readings show when you hover over a word.'],
   examples: ['Example sentences', ''],
@@ -35,6 +41,7 @@ export const SETTING_LABELS: Record<keyof DisplaySettings, [string, string]> = {
 
 const DEFAULTS: DisplaySettings = {
   meanings: true,
+  japanese: false,
   furigana: true,
   examples: true,
   kanji: true,
@@ -62,6 +69,7 @@ export function saveDisplaySettings(
 export function applyDisplaySettings(settings: DisplaySettings) {
   const root = document.documentElement.classList;
   root.toggle('hide-meanings', !settings.meanings);
+  root.toggle('show-japanese', settings.japanese);
   root.toggle('hide-furigana', !settings.furigana);
   root.toggle('hide-examples', !settings.examples);
   root.toggle('hide-kanji', !settings.kanji);

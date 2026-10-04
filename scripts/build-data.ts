@@ -16,6 +16,10 @@ import {
 import {parseFurigana, plainText} from '../src/shared/furigana.ts';
 import {decodeMsgpack} from './msgpack.ts';
 import {
+  matchWord as matchJaWord,
+  readWiktionary,
+} from './build-jawiktionary.ts';
+import {
   EN_STOP_WORDS,
   glossCore,
   normalizeJa,
@@ -25,6 +29,7 @@ import type {
   EnIndexShard,
   Entry,
   EntryShard,
+  JaDefinitionShard,
   JaIndexShard,
   KanjiInfo,
   KanjiShard,
@@ -39,6 +44,8 @@ const CACHE_DIR = path.join(ROOT, '.cache');
 const OUT_DIR = path.join(ROOT, 'dist', 'data');
 
 const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128, strokes: 1024};
+/** Japanese definitions, sharded by entry id like the entries. */
+const JADEF_SHARDS = 2048;
 
 /** Longest English phrase (in words) indexed as a whole. */
 const MAX_PHRASE_WORDS = 4;
@@ -650,7 +657,45 @@ function buildStrokes() {
   return count;
 }
 
-function main() {
+// ---- Japanese definitions ----
+
+/**
+ * Japanese definitions from the Japanese Wiktionary (.cache/jawiktionary),
+ * by entry id. Returns false when the extract isn't downloaded.
+ */
+async function buildJaDefinitions(dict: JmDict): Promise<boolean> {
+  const file = path.join(CACHE_DIR, 'jawiktionary', 'ja-extract.jsonl.gz');
+  if (!fs.existsSync(file)) {
+    console.warn(
+      'warning: Japanese Wiktionary missing; run `npm run download`',
+    );
+    return false;
+  }
+  const byWord = await readWiktionary(file);
+  const shards = new Map<number, JaDefinitionShard>();
+  let count = 0;
+  for (const w of dict.words) {
+    const defs = matchJaWord(
+      {
+        id: Number(w.id),
+        kanji: w.kanji.map(k => k.text),
+        kana: w.kana.map(k => k.text),
+        usuallyKana: w.sense[0]?.misc.includes('uk') ?? false,
+      },
+      byWord,
+    );
+    if (!defs.length) continue;
+    count++;
+    getShard(shards, entryShard(Number(w.id), JADEF_SHARDS), () => ({}))[
+      Number(w.id)
+    ] = defs;
+  }
+  writeShards('jadef', shards);
+  console.log(`Japanese definitions for ${count} entries`);
+  return true;
+}
+
+async function main() {
   const start = Date.now();
   fs.rmSync(OUT_DIR, {recursive: true, force: true});
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -666,6 +711,7 @@ function main() {
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
   buildStrokes();
+  const jaDefs = await buildJaDefinitions(dict);
 
   const meta: Meta = {
     version,
@@ -673,11 +719,11 @@ function main() {
     builtAt: new Date().toISOString(),
     entryCount,
     kanjiCount,
-    shards: SHARDS,
+    shards: {...SHARDS, ...(jaDefs && {jadef: JADEF_SHARDS})},
     tags: dict.tags,
   };
   fs.writeFileSync(path.join(OUT_DIR, 'meta.json'), JSON.stringify(meta));
   console.log(`built data in ${((Date.now() - start) / 1000).toFixed(1)}s`);
 }
 
-main();
+await main();
