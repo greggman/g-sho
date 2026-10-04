@@ -97,7 +97,13 @@ needs them.
   stays the same.
 - CI: replace the Pages upload/deploy jobs with `wrangler deploy` on
   push to main. It needs the secrets from step 4. **(done)**
-- `static/_headers` keeps GitHub Pages' `Cache-Control: max-age=600`.
+- `static/_headers`: content-hashed chunks are cached for a year, and data
+  shards (requested with `?v=<data version>`) for a week. Everything else
+  (the pages, `app.js`, the workers, `meta.json`) is revalidated on every
+  load, so an `app.js` from an older deploy can't ask for chunks that are
+  gone. (The first version copied GitHub Pages' 10-minute caching for
+  everything, and broke the site for a while after deploys.) A page open
+  across a deploy reloads once if a chunk is missing (`stale.ts`).
   **(done)**
 - Cutover: add g-sho.org as the Worker's custom domain (config `routes`
   with `custom_domain: true`), delete the GitHub Pages DNS records, deploy,

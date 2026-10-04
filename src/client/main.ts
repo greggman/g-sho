@@ -22,6 +22,7 @@ import {
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
+import {reloadIfStale} from './stale.ts';
 import {fillJapanese} from './japanese.ts';
 import {buildQueue} from './study/model.ts';
 import {loadAccount} from './account.ts';
@@ -302,7 +303,7 @@ async function route(dict: Dict, record = false) {
     if (record && pages === 1) recordHistory(query, result);
     historyColumn.setCurrent(query);
   } catch (e) {
-    if (id !== currentSearch) return;
+    if (id !== currentSearch || reloadIfStale(e)) return;
     console.error(e);
     content.replaceChildren(
       h(
@@ -389,6 +390,7 @@ function setupPanel(
         panel.replaceChildren(await create());
       } catch (e) {
         created = false;
+        if (reloadIfStale(e)) return;
         console.error(e);
         panel.replaceChildren(
           h('p', {class: 'error'}, 'Couldn’t load this panel.'),
@@ -572,7 +574,11 @@ async function main() {
   await route(dict, true);
 }
 
+// A dynamic import failing anywhere else (study pages, Anki, …).
+window.addEventListener('unhandledrejection', e => reloadIfStale(e.reason));
+
 main().catch(e => {
+  if (reloadIfStale(e)) return;
   console.error(e);
   content.replaceChildren(
     h(

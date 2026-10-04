@@ -4,6 +4,14 @@ A Japanese–English dictionary website inspired by [jisho.org](https://jisho.or
 Search in English, Japanese, or romaji, paste a sentence to see its words, or
 find kanji by radical.
 
+## Features
+
+* Sync across devices ([*](#sync))
+* Builtin FSRS Flashcards
+* Anki import/export
+* Japanese->Japanese dictionary
+* Easier Handwriting Recognition
+
 ## Why?
 
 The number one reason probably boils
@@ -42,12 +50,20 @@ g-sho also integrates with Anki Connect. I’m not entirely sure if that’s use
 
 Maybe the biggest take away is how easy it is in September 2026. The data is all public and open source so I asked Claude to use jisho as inspiration. I asked it to make it work as a static site and shard the dictionary. Less than a hour later it was ready to use. Another hour added the handwriting, strokes, Anki and definition order. A few minutes more added options and history.
 
-It's a fully static site. At build time the dictionary is split into small
+~It's a~, *It was* a fully static site. At build time the dictionary is split into small
 JSON shards; the browser fetches only the shards a search needs, so it can be
 hosted on GitHub Pages or any static file server. See [PLAN.md](PLAN.md) for the
 design. This also means less server cost. There is no database being queried.
 The shards are cached by your browser so as you look up words, more and more of
 the dictionary is local, making it faster.
+
+## Sync
+
+g-sho can sync across devices. Currently it needs a github account. Will try to add
+more services later. Note: It only uses github for a user id. It does not keep your email address
+or any other account data. It does keep your word history and flashcards because otherwise
+what would be the point? Note that I'm paying for syncing. I added syncing because I needed
+it. If it gets abused I real remove it and set it up just for myself SO PLEASE DON'T ABUSE IT!
 
 ## Development
 
