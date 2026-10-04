@@ -104,8 +104,9 @@ async function rankJapanese(
   if (!key) return [];
 
   // tier: 0 common exact/deinflected, 1 other exact/deinflected,
-  // 2 common prefix, 3 other prefix
-  const tiers: Candidate[][] = [[], [], [], []];
+  // 2 a bare stem's verb (見 → 見る: a guess, so after real matches),
+  // 3 common prefix, 4 other prefix
+  const tiers: Candidate[][] = [[], [], [], [], []];
   const seen = new Set<number>();
   const push = (tier: number, c: Candidate) => {
     if (!seen.has(c.id)) {
@@ -128,8 +129,9 @@ async function rankJapanese(
       d.reasons.length > 0
         ? {from: text, to: d.term, reasons: d.reasons}
         : undefined;
+    const bareStem = d.reasons.length === 1 && d.reasons[0] === 'masu stem';
     for (const h of hits) {
-      push(h.common ? 0 : 1, {id: h.id, inflection});
+      push(bareStem ? 2 : h.common ? 0 : 1, {id: h.id, inflection});
     }
   }
 
@@ -139,7 +141,7 @@ async function rankJapanese(
     ([ka], [kb]) => ka.length - kb.length || (ka < kb ? -1 : ka > kb ? 1 : 0),
   );
   for (const [, hits] of prefixed) {
-    for (const h of hits) push(h.common ? 2 : 3, {id: h.id});
+    for (const h of hits) push(h.common ? 3 : 4, {id: h.id});
   }
   return tiers.flat();
 }

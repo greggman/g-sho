@@ -29,8 +29,14 @@ const {V1, V5, VK, VS, VSN, ADJ, MASU, STEM, TE, PAST} = WordType;
 /** Types that can be looked up in the dictionary. */
 export const DICTIONARY_TYPES = V1 | V5 | VK | VS | VSN | ADJ;
 
-/** What the typed word may be. STEM is excluded so "" → "る" can't fire on raw input. */
+/**
+ * What the typed word may be. A stem (煎り, 書き, 食べ) only if it has a
+ * kanji: in kana, the stem rules would read particles as verbs (に → 似る,
+ * で → 出る).
+ */
 const INITIAL_TYPES = V1 | V5 | VK | VS | ADJ | MASU | TE | PAST;
+
+const hasKanji = (s: string) => /[\u3400-\u9fff\uf900-\ufaff々]/.test(s);
 
 interface Rule {
   from: string;
@@ -269,10 +275,9 @@ const TE_AUXILIARIES = new Set([
  * reasons). Candidates whose type is only an intermediate form are dropped.
  */
 export function deinflect(word: string): Deinflection[] {
-  const results: Deinflection[] = [
-    {term: word, type: INITIAL_TYPES, reasons: []},
-  ];
-  const seen = new Set([`${word}:${INITIAL_TYPES}`]);
+  const initial = INITIAL_TYPES | (hasKanji(word) ? STEM : 0);
+  const results: Deinflection[] = [{term: word, type: initial, reasons: []}];
+  const seen = new Set([`${word}:${initial}`]);
   for (let i = 0; i < results.length; i++) {
     const {term, type, reasons} = results[i];
     if (reasons.length >= MAX_DEPTH) continue;
@@ -284,10 +289,12 @@ export function deinflect(word: string): Deinflection[] {
       const key = `${next}:${rule.out}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      // The masu-stem step is an implementation detail, and "progressive"
-      // already says te-form, so neither is worth showing.
+      // The masu-stem step inside a longer form (食べ|ました) is an
+      // implementation detail, and "progressive" already says te-form, so
+      // neither is worth showing. A bare stem (煎り) keeps it, which also
+      // makes the dictionary check its part of speech.
       const implied =
-        rule.reason === 'masu stem' ||
+        (rule.reason === 'masu stem' && reasons.length > 0) ||
         (rule.reason === 'te-form' && TE_AUXILIARIES.has(reasons.at(-1)!));
       const newReasons = implied ? reasons : [...reasons, rule.reason];
       results.push({term: next, type: rule.out, reasons: newReasons});

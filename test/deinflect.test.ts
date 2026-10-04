@@ -39,3 +39,20 @@ test('the word itself is the first candidate', () => {
   assert.equal(first.term, '猫');
   assert.deepEqual(first.reasons, []);
 });
+
+test('a bare stem with kanji deinflects, and says so', () => {
+  const find = (word: string, term: string) =>
+    deinflect(word).find(d => d.term === term);
+  assert.deepEqual(find('煎り', '煎る')?.reasons, ['masu stem']);
+  assert.deepEqual(find('書き', '書く')?.reasons, ['masu stem']);
+  assert.deepEqual(find('食べ', '食べる')?.reasons, ['masu stem']);
+  // Inside a longer form, the stem step stays silent.
+  assert.deepEqual(find('食べました', '食べる')?.reasons, ['past', 'polite']);
+});
+
+test('kana alone is never read as a stem (particles stay particles)', () => {
+  const terms = (word: string) => deinflect(word).map(d => d.term);
+  assert.ok(!terms('に').includes('にる'));
+  assert.ok(!terms('で').includes('でる'));
+  assert.ok(!terms('し').includes('する'));
+});

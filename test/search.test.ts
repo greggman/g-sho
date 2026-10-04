@@ -130,4 +130,24 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     assert.equal(k?.s, 9);
     assert.ok(k?.m.includes('eat'));
   });
+
+  test('a bare stem finds its verb (煎り → 煎る), before compounds', async () => {
+    const r = await search(dict, '煎り');
+    const first = r.words[0];
+    assert.equal(headword(first.entry).text, '炒る'); // main spelling of 煎る
+    assert.deepEqual(first.inflection?.reasons, ['masu stem']);
+  });
+
+  test('an exact entry comes before a stem guess', async () => {
+    assert.equal((await firstWord('見')).text, '見');
+  });
+
+  test('a stem inside a phrase is one word', async () => {
+    const r = await search(dict, '黒煎り');
+    assert.deepEqual(
+      r.tokens?.map(t => t.text),
+      ['黒', '煎り'],
+    );
+    assert.equal(r.tokens?.[1].base, '煎る');
+  });
 });
