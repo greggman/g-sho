@@ -15,6 +15,7 @@ import {
   shardName,
 } from '../src/shared/hash.ts';
 import {parseFurigana, plainText} from '../src/shared/furigana.ts';
+import {makePack} from '../src/shared/pack.ts';
 import {decodeMsgpack} from './msgpack.ts';
 import {
   matchWord as matchJaWord,
@@ -752,6 +753,51 @@ function readMoreExamples(
   );
 }
 
+// ---- packs (the whole dictionary, for offline use) ----
+
+/** Raw size of a pack; a few MB compresses well and downloads in seconds. */
+const PACK_SIZE = 4_000_000;
+
+/**
+ * Bundles each data set's files into a few "packs" (data/pack/<set>-<i>.txt),
+ * so the app can save the whole dictionary for offline use with tens of
+ * requests instead of ~17,000, and compress them better in transit (format:
+ * src/shared/pack.ts). Returns the number of packs per data set.
+ */
+function writePacks(): Record<string, number> {
+  const dir = path.join(OUT_DIR, 'pack');
+  fs.mkdirSync(dir, {recursive: true});
+  const counts: Record<string, number> = {};
+  for (const set of Object.keys(versions)) {
+    const files = fs.existsSync(path.join(OUT_DIR, set))
+      ? fs
+          .readdirSync(path.join(OUT_DIR, set))
+          .sort()
+          .map(f => `${set}/${f}`)
+      : [`${set}.json`];
+    let pack: [string, string][] = [];
+    let size = 0;
+    let n = 0;
+    const flush = () => {
+      if (!pack.length) return;
+      fs.writeFileSync(path.join(dir, `${set}-${n++}.txt`), makePack(pack));
+      pack = [];
+      size = 0;
+    };
+    for (const f of files) {
+      const text = fs.readFileSync(path.join(OUT_DIR, f), 'utf8');
+      pack.push([f, text]);
+      size += text.length;
+      if (size >= PACK_SIZE) flush();
+    }
+    flush();
+    counts[set] = n;
+  }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  console.log(`pack: ${total} packs`);
+  return counts;
+}
+
 async function main() {
   const start = Date.now();
   fs.rmSync(OUT_DIR, {recursive: true, force: true});
@@ -804,6 +850,7 @@ async function main() {
     },
     tags: dict.tags,
     versions,
+    packs: writePacks(),
   };
   fs.writeFileSync(path.join(OUT_DIR, 'meta.json'), JSON.stringify(meta));
   console.log(`built data in ${((Date.now() - start) / 1000).toFixed(1)}s`);

@@ -53,6 +53,7 @@ async function buildServiceWorker(outputs: string[]) {
       'style.css',
       'handwriting-worker.js',
       'import-worker.js',
+      'offline-worker.js',
       'nn.wasm',
       'favicon.svg',
       'manifest.webmanifest',
@@ -103,6 +104,7 @@ const options: esbuild.BuildOptions = {
     app: path.join(ROOT, 'src/client/main.ts'),
     'handwriting-worker': path.join(ROOT, 'src/client/handwriting/worker.ts'),
     'import-worker': path.join(ROOT, 'src/client/anki/import-worker.ts'),
+    'offline-worker': path.join(ROOT, 'src/client/offline/download-worker.ts'),
   },
   outdir: DIST,
   // Code that's only needed later (handwriting recognition) goes in chunks

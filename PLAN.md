@@ -196,6 +196,21 @@ jisho.org uses).
   - Not registered in local dev (it would get in the way of rebuilds)
     unless turned on with `?sw` (`?sw=0` turns it off).
   - Offline, a search that needs data not yet saved says so.
+- **The whole dictionary offline** (`src/client/offline/`): once the
+  service worker is running, a background worker downloads every data set
+  as "packs" (`data/pack/<set>-<i>.txt`, ~4 MB each, 28 in all; format in
+  `src/shared/pack.ts`; counts in `meta.json` → `packs`). It unpacks each
+  into the service worker's data cache under the exact URLs the app asks
+  for. That's about 34 MB to download (Brotli; 49 MB if fetched file by
+  file) and ~120 MB stored. It goes one pack at a time at low fetch
+  priority, so the user's own lookups go first, in the order search indexes,
+  entries, kanji, strokes, Japanese definitions, examples. Finished packs
+  are recorded, so it resumes. It starts automatically, except with Data
+  Saver on or on a connection the browser reports as cellular. Settings →
+  Offline shows progress, has "Download now", and an off switch that frees
+  the space.
+- Data sets whose version changes (most do weekly) download again in
+  full. Per-file updates would make that smaller; maybe later.
 
 ## More example sentences
 

@@ -13,7 +13,8 @@
  *   deleted. meta.json itself is network first.
  * - The handwriting model and sql.js's wasm: saved copy, refreshed in the
  *   background.
- * - /api/ (sign-in, sync): never cached.
+ * - /api/ (sign-in, sync): never cached, nor the packs the offline download
+ *   unpacks into the data cache (offline/download-worker.ts).
  *
  * Built by scripts/build.ts, which defines BUILD (this build's id) and
  * FILES (the files to save at install).
@@ -66,6 +67,10 @@ sw.addEventListener('install', event => {
           await (file.startsWith('/chunks/') ? chunks : app).put(file, res);
         }),
       );
+      // meta.json too: the page that installed this worker fetched it
+      // before the worker was running, and the app can't start without it.
+      const meta = await fetch('/data/meta.json', {cache: 'no-cache'});
+      if (meta.ok) await (await caches.open(DATA)).put('/data/meta.json', meta);
       // Take over right away; pages already open keep working (their
       // chunks are kept, and a missing one makes them reload once).
       await sw.skipWaiting();
@@ -216,6 +221,10 @@ sw.addEventListener('fetch', event => {
         return res;
       }),
     );
+  } else if (path.startsWith('/data/pack/')) {
+    // Packs are unpacked into the data cache by the offline download; no
+    // need to keep them too.
+    return;
   } else if (path.startsWith('/data/')) {
     event.respondWith(cacheFirst(request, DATA));
   } else if (path.startsWith('/handwriting/') || path === '/sql-wasm.wasm') {

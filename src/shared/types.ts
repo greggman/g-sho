@@ -194,4 +194,9 @@ export interface Meta {
    * data set's files can be cached until it changes.
    */
   versions?: Record<string, string>;
+  /**
+   * How many packs each data set has (data/pack/<set>-<i>.txt): its files
+   * bundled for downloading the whole dictionary (see build-data.ts).
+   */
+  packs?: Record<string, number>;
 }

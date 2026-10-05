@@ -2339,3 +2339,23 @@ body {
     display: inline-grid;
   }
 }
+
+.settings-offline {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.offline-panel .offline-status {
+  margin: 6px 0;
+}
+
+.offline-panel button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}

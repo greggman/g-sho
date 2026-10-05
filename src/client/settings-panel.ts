@@ -11,6 +11,8 @@ export function createSettingsPanel(
   anki: () => Promise<HTMLElement>,
   /** null when the site has no account server */
   account: () => Promise<HTMLElement | null>,
+  /** the Offline section; null when offline use isn't set up */
+  offline: HTMLElement | null,
 ): HTMLElement {
   let settings = {...initial};
   const toggles = (
@@ -60,6 +62,7 @@ export function createSettingsPanel(
     h('h2', {class: 'panel-title'}, 'Show'),
     h('div', {class: 'settings-toggles'}, toggles),
     accountSection,
+    offline && h('div', {class: 'settings-offline'}, offline),
     ankiSection,
   );
 }

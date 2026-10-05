@@ -24,6 +24,7 @@ import {
 import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
 import {reloadIfStale} from './stale.ts';
+import {OfflineDictionary, createOfflinePanel} from './offline/offline.ts';
 import {fillJapanese} from './japanese.ts';
 import {buildQueue} from './study/model.ts';
 import {loadAccount} from './account.ts';
@@ -60,6 +61,8 @@ const undo = attachUndo(input);
 /** Defaults until the store is open. */
 let display = loadDisplaySettings(undefined);
 let store: Store | undefined;
+/** Saving the whole dictionary for offline use; set once the app starts. */
+let offline: OfflineDictionary | undefined;
 /** Running while signed in. */
 let sync: Sync | undefined;
 
@@ -476,6 +479,7 @@ function setupPanels(dict: Dict) {
           () => sync,
           stopSync,
         ),
+      offline ? createOfflinePanel(offline) : null,
     );
   });
 }
@@ -606,6 +610,10 @@ async function main() {
   await applyAnki(dict, loadSettings());
   // A search opened from a link counts as a lookup too.
   await route(dict, true);
+  // The whole dictionary for offline use, in the background, once the
+  // service worker (which serves it) is running.
+  offline = new OfflineDictionary(dict.meta);
+  void navigator.serviceWorker?.ready.then(() => offline?.autoStart());
 }
 
 /**
