@@ -7,6 +7,7 @@
  *
  * The dictionary data (dist/data) is built separately by build-data.ts.
  */
+import * as crypto from 'node:crypto';
 import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -37,12 +38,62 @@ function copyStatic() {
   }
 }
 
+/**
+ * The service worker (src/client/sw.ts), with this build's id and the files
+ * to save for offline use built in. A new build changes sw.js, which is how
+ * browsers notice there's a new version.
+ */
+async function buildServiceWorker(outputs: string[]) {
+  const files = [
+    '/',
+    '/about',
+    '/privacy',
+    ...[
+      'app.js',
+      'style.css',
+      'handwriting-worker.js',
+      'import-worker.js',
+      'nn.wasm',
+      'favicon.svg',
+      'manifest.webmanifest',
+    ].filter(f => fs.existsSync(path.join(DIST, f))),
+    ...fs.readdirSync(path.join(DIST, 'icons')).map(f => `icons/${f}`),
+    // This build's chunks (dist/chunks may still hold older ones).
+    ...outputs
+      .map(f => path.relative(DIST, path.resolve(ROOT, f)))
+      .filter(f => f.startsWith('chunks/') && f.endsWith('.js')),
+  ].map(f => (f.startsWith('/') ? f : `/${f}`));
+  // The build id: a hash of the files' contents.
+  const hash = crypto.createHash('sha256');
+  for (const f of files) {
+    const file = path.join(DIST, f === '/' ? 'index.html' : f);
+    const real = fs.existsSync(file) ? file : `${file}.html`;
+    if (fs.existsSync(real)) hash.update(f).update(fs.readFileSync(real));
+  }
+  await esbuild.build({
+    entryPoints: [path.join(ROOT, 'src/client/sw.ts')],
+    outfile: path.join(DIST, 'sw.js'),
+    bundle: true,
+    format: 'iife',
+    target: ['es2022', 'chrome100', 'firefox100', 'safari15'],
+    minify: !watch,
+    define: {
+      BUILD: JSON.stringify(hash.digest('base64url').slice(0, 12)),
+      FILES: JSON.stringify(files),
+    },
+    logLevel: 'warning',
+  });
+}
+
 /** Copies static/ again after every rebuild, so edits to it show up in watch mode. */
 const copyStaticPlugin: esbuild.Plugin = {
   name: 'copy-static',
   setup(build) {
-    build.onEnd(result => {
-      if (result.errors.length === 0) copyStatic();
+    build.onEnd(async result => {
+      if (result.errors.length === 0) {
+        copyStatic();
+        await buildServiceWorker(Object.keys(result.metafile?.outputs ?? {}));
+      }
     });
   },
 };
@@ -65,6 +116,8 @@ const options: esbuild.BuildOptions = {
   sourcemap: true,
   logLevel: 'info',
   plugins: [copyStaticPlugin],
+  // Lists the outputs, for the service worker's file list.
+  metafile: true,
 };
 
 fs.mkdirSync(DIST, {recursive: true});

@@ -318,7 +318,11 @@ async function route(dict: Dict, record = false) {
       h(
         'p',
         {class: 'error'},
-        'Something went wrong loading the dictionary. Try again.',
+        // A network failure (not a server error) rejects fetch with a
+        // TypeError; navigator.onLine alone isn't reliable.
+        e instanceof TypeError || navigator.onLine === false
+          ? 'You’re offline, and this part of the dictionary isn’t saved on this device yet. Words you’ve looked up before work offline.'
+          : 'Something went wrong loading the dictionary. Try again.',
       ),
     );
   } finally {
@@ -603,6 +607,31 @@ async function main() {
   // A search opened from a link counts as a lookup too.
   await route(dict, true);
 }
+
+/**
+ * Offline use: the service worker (sw.ts) saves the app and the dictionary
+ * data you use. Not in local dev, where it would get in the way of
+ * rebuilds, unless turned on with ?sw (once; ?sw=0 turns it off).
+ */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (local) {
+    const flag = new URLSearchParams(location.search).get('sw');
+    try {
+      if (flag !== null)
+        localStorage.setItem('g-sho.sw', flag === '0' ? '' : '1');
+      if (!localStorage.getItem('g-sho.sw')) return;
+    } catch {
+      return;
+    }
+  }
+  navigator.serviceWorker.register('/sw.js').catch(e => {
+    console.warn('service worker not registered', e);
+  });
+}
+
+registerServiceWorker();
 
 // A dynamic import failing anywhere else (study pages, Anki, …).
 window.addEventListener('unhandledrejection', e => reloadIfStale(e.reason));

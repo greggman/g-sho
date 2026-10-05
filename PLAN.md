@@ -176,8 +176,26 @@ jisho.org uses).
 - A home-screen app has no browser back button, so in `display-mode:
   standalone` a ‹ button shows before the logo whenever there's an earlier
   g-sho page (history state carries the depth).
-- No service worker yet, so no offline use. Data files are cached by the
-  browser for a year, but the page itself needs the network.
+- **Offline** (`src/client/sw.ts`, a service worker; `scripts/build.ts`
+  builds `sw.js` with the build's id and file list from esbuild's metafile,
+  so every deploy changes it):
+  - At install, it saves the whole current build: the pages, app.js, CSS,
+    workers, icons and every chunk. So every screen opens offline.
+  - App files and pages are network first: online you always get the
+    current deploy (no stale app.js); the saved copy only when offline. A
+    search URL (`/?q=…`) offline is the saved app page.
+  - Chunks: saved copy first. Old builds' chunks are kept for a week, so a
+    page opened before a deploy still loads them (and stale.ts reloads it if
+    one is missing anyway).
+  - Data: saved copy first (versioned URLs). When `meta.json` lists new
+    versions, saved files of other versions are deleted. So words you've
+    looked up work offline. The handwriting model and sql.js's wasm: saved,
+    refreshed in the background. `/api/` is never cached.
+  - It takes over at once (skipWaiting + clients.claim). Old caches are
+    deleted on activation.
+  - Not registered in local dev (it would get in the way of rebuilds)
+    unless turned on with `?sw` (`?sw=0` turns it off).
+  - Offline, a search that needs data not yet saved says so.
 
 ## More example sentences
 
