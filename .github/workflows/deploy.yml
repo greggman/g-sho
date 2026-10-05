@@ -4,21 +4,33 @@ on:
   push:
     branches: [main]
   pull_request:
-  # jmdict-simplified publishes new dictionary data weekly; rebuild to pick it up.
+  # New dictionary data at most quarterly (1 Jan, Apr, Jul, Oct). Every other
+  # build reuses the newest data release, so pushes don't change the data
+  # (and devices that saved it for offline use don't download it again).
   schedule:
-    - cron: '0 6 * * 2'
+    - cron: '0 6 1 1,4,7,10 *'
   workflow_dispatch:
+    inputs:
+      refresh_data:
+        description: 'Refresh the dictionary data (download the latest sources and publish a new data release)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Pushes queue up behind a running build rather than cancel it (it may be
+  # the quarterly data refresh); pull requests just need the newest run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      # to publish a data release
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -31,7 +43,41 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
 
-      - name: Download dictionary data and handwriting model
+      # The dictionary data comes from the newest "data-…" release, unless
+      # this is a refresh (the quarterly schedule, or a manual run with
+      # refresh_data) or there's no data release yet.
+      - name: Find the dictionary data
+        id: data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release list --limit 100 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("data-"))][0].tagName // ""')
+          if [ "${{ github.event_name }}" = schedule ] || [ "${{ inputs.refresh_data }}" = true ] || [ -z "$tag" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Building new dictionary data"
+          else
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "Using dictionary data from $tag"
+          fi
+
+      - name: Use the published dictionary data
+        if: steps.data.outputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.data.outputs.tag }}
+        run: |
+          gh release download "$TAG" --pattern data.tar.gz
+          mkdir -p dist
+          tar -xzf data.tar.gz -C dist
+          rm data.tar.gz
+
+      - name: Download the handwriting model
+        if: steps.data.outputs.tag
+        run: npm run download:handwriting
+
+      - name: Download the dictionary sources and handwriting model
+        if: steps.data.outputs.build
         run: npm run download
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,9 +85,25 @@ jobs:
       # For the WebAssembly kernels (src/wasm/nn.rs).
       - run: rustup target add wasm32-unknown-unknown
 
-      - run: npm run build:data
+      - name: Build the dictionary data
+        if: steps.data.outputs.build
+        run: npm run build:data
+
       - run: npm run build
       - run: npm test
+
+      # New data is published once the tests pass, for the builds after it.
+      - name: Publish the dictionary data
+        if: steps.data.outputs.build && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="data-$(date -u +%Y-%m-%d-%H%M)"
+          tar -czf data.tar.gz -C dist data
+          gh release create "$tag" data.tar.gz --latest=false \
+            --title "Dictionary data $(date -u +%Y-%m-%d)" \
+            --notes "The built dictionary data (dist/data): JMdict $(node -p "require('./dist/data/meta.json').dictDate"), with the Japanese Wiktionary and Tatoeba as of $(date -u +%Y-%m-%d). Builds use the newest data-* release; the deploy workflow refreshes it quarterly."
+          rm data.tar.gz
 
       # One tarball uploads much faster than ~12,500 separate files.
       - name: Pack the site

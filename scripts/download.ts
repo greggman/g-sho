@@ -317,6 +317,13 @@ async function downloadDictionary() {
   console.log(`downloaded ${release.tag_name}`);
 }
 
+// `--handwriting`: only the (pinned) handwriting model, for building the app
+// with dictionary data from a data release (see .github/workflows/deploy.yml).
+if (process.argv.includes('--handwriting')) {
+  await downloadHandwritingModel();
+  process.exit(0);
+}
+
 await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),

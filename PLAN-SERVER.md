@@ -100,7 +100,7 @@ needs them.
 - `static/_headers`: content-hashed chunks and data files are cached for a
   year (immutable). Data files are requested with `?v=<their data set's
   content hash>` (`meta.json` → `versions`: ent, ja, en, kanji, strokes,
-  radk, jadef), so the weekly rebuild only changes the URLs of data sets that
+  radk, jadef), so a data refresh only changes the URLs of data sets that
   changed. Kanji, strokes and radicals stay cached across JMdict updates. Everything else
   (the pages, `app.js`, the workers, `meta.json`) is revalidated on every
   load, so an `app.js` from an older deploy can't ask for chunks that are

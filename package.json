@@ -21,7 +21,8 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "dev:worker": "wrangler d1 migrations apply DB --local --env dev && wrangler dev --env dev",
     "deploy": "wrangler deploy --env=\"\"",
-    "dev:server": "node scripts/build.ts --watch --serve"
+    "dev:server": "node scripts/build.ts --watch --serve",
+    "download:handwriting": "node scripts/download.ts --handwriting"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

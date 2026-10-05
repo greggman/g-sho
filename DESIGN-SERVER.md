@@ -43,8 +43,9 @@ later if it's needed.
 **Deploys stay push-to-main.** The GitHub Actions workflow builds and tests as it
 does now, then runs `wrangler deploy` in place of the Pages upload. That one
 command uploads the changed static files and the Worker together (and D1
-migrations run first). Pull requests only build and test. The weekly
-scheduled rebuild for new dictionary data keeps working unchanged. GitHub Pages is
+migrations run first). Pull requests only build and test. New dictionary data
+comes at most quarterly: builds reuse the newest `data-…` release, and a
+scheduled (or manual) refresh publishes a new one. GitHub Pages is
 turned off once g-sho.org points at the Worker.
 
 The client checks `/api/me`. If that isn't there (a plain static host), the
