@@ -120,6 +120,17 @@
               <a href="https://etlcdb.db.aist.go.jp/?lang=en">ETL Character Database terms</a>
             </td>
           </tr>
+          <tr>
+            <td>Text recognition models (reading photos)</td>
+            <td>
+              <a href="https://github.com/PaddlePaddle/PaddleOCR">PaddleOCR</a> PP-OCRv6 (tiny
+              detection, small recognition), as converted to ONNX by
+              <a href="https://github.com/RapidAI/RapidOCR">RapidOCR</a>
+            </td>
+            <td>
+              <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>
+            </td>
+          </tr>
         </tbody>
       </table>
       <p>
@@ -139,6 +150,11 @@
           Handwriting is recognized from the picture of what you draw, by a neural network running
           in your browser (WebGPU, or WebAssembly where WebGPU isn't available). Stroke count, order
           and direction don't matter.
+        </li>
+        <li>
+          Text in photos (the camera button) is found and read by two more neural networks in your
+          browser: one finds the lines of text, horizontal or vertical, the other reads each line.
+          The photo never leaves your device.
         </li>
         <li>
           Sentences are split into words by finding the longest dictionary word at each position.

@@ -72,7 +72,7 @@ handwriting recognizer's kernels (`rustup target add wasm32-unknown-unknown`).
 
 ```sh
 npm install
-npm run download     # fetch the dictionary data and handwriting model into .cache/
+npm run download     # fetch the dictionary data and the handwriting and OCR models into .cache/
 npm run build:data   # build the data shards into dist/data/
 npm run dev          # build the app, watch for changes, serve at http://localhost:8787
 ```
@@ -110,6 +110,28 @@ on our own inference code (no ML runtime library):
   Set it up with `uv venv ml/.venv && uv pip install --python ml/.venv/bin/python onnx onnxruntime numpy pillow svgpathtools`.
 
 Add `?engine=wasm` or `?engine=js` to the URL to force an engine.
+
+## Reading text in photos
+
+The camera button reads text in a photo (a label, a sign, a page), also in
+the browser on our own inference code. It uses PaddleOCR's PP-OCRv6 models
+(as ONNX from RapidOCR): a tiny detector that finds the lines of text and a
+small recognizer that reads each one (Japanese and Chinese characters, kana,
+Latin letters). Tap a line to search it, or drag a box around part of the
+photo to read just that.
+
+- `scripts/convert-graph.ts` converts the models to a general graph format
+  (`src/client/nn/graph.ts`: ONNX's operators over n-dimensional tensors);
+  `scripts/build-ocr.ts` puts them in `dist/ocr/` (11.5 MB, loaded on first use).
+- `src/client/nn/graph-webgpu.ts` runs them with WebGPU compute shaders;
+  `graph-cpu.ts` is the plain JavaScript reference and fallback.
+- `src/client/ocr/pipeline.ts` is everything around the models, following
+  RapidOCR: finding line boxes in the detector's output, straightening each
+  line (vertical ones turned on their side), and decoding the recognizer's
+  output into text.
+- `ml/ocr_reference.py` checks our engine against ONNX Runtime
+  (`test/ocr-models.test.ts`); `test/ocr-pipeline.test.ts` reads the test
+  images end to end.
 
 ## Anki
 
@@ -174,5 +196,8 @@ Dictionary data comes from [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-
 The handwriting model is [LT8/japanese-handwriting-onnx](https://huggingface.co/LT8/japanese-handwriting-onnx),
 trained on the [ETL Character Database](https://etlcdb.db.aist.go.jp/?lang=en)
 and subject to its terms; it is downloaded at build time, not stored in this repository.
+The text recognition models are [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)'s
+PP-OCRv6 as converted by [RapidOCR](https://github.com/RapidAI/RapidOCR) (Apache 2.0),
+also downloaded at build time.
 The generated data files are derived works under the same licenses. The site's
 about page carries the attribution.
