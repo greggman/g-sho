@@ -326,6 +326,20 @@ async function route(dict: Dict, record = false) {
   }
 }
 
+const backButton = $<HTMLButtonElement>('back-button');
+
+function pageDepth(): number {
+  return (history.state as {depth?: number} | null)?.depth ?? 0;
+}
+
+/**
+ * The back button (shown only in the home-screen app, by CSS) appears when
+ * there's an earlier g-sho page to go back to.
+ */
+function showBackButton() {
+  backButton.hidden = pageDepth() === 0;
+}
+
 /** A file dropped or pasted, for the import page to pick up. */
 let pendingImport: File | undefined;
 
@@ -364,7 +378,9 @@ function setupImportDrop(dict: Dict) {
 }
 
 function navigate(dict: Dict, url: string, scroll = true, record = true) {
-  history.pushState(null, '', url);
+  // How many in-app pages deep we are, for the back button.
+  history.pushState({depth: pageDepth() + 1}, '', url);
+  showBackButton();
   if (scroll) window.scrollTo(0, 0);
   void route(dict, record);
 }
@@ -575,7 +591,12 @@ async function main() {
     true,
   );
 
-  window.addEventListener('popstate', () => void route(dict));
+  window.addEventListener('popstate', () => {
+    showBackButton();
+    void route(dict);
+  });
+  backButton.addEventListener('click', () => history.back());
+  showBackButton();
   setupPanels(dict);
   setupImportDrop(dict);
   await applyAnki(dict, loadSettings());

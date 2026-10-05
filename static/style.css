@@ -2306,3 +2306,36 @@ html.show-japanese .ja-defs:empty {
   color: var(--muted);
   font-size: 0.75rem;
 }
+
+/* ---- home-screen app (PWA) ---- */
+
+/* Keep clear of the notch and the home indicator (viewport-fit=cover). */
+body {
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.back-button {
+  display: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* The home-screen app has no browser back button: show ours (when there's
+   somewhere to go back to). */
+@media (display-mode: standalone) {
+  .site-header {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  .back-button:not([hidden]) {
+    display: inline-grid;
+  }
+}

@@ -162,6 +162,23 @@ jisho.org uses).
   candidates as buttons; picking one inserts it into the search box, the same
   way the radical picker does.
 
+## Home-screen app (PWA)
+
+- `static/manifest.webmanifest` (name, standalone display, theme colors, a
+  Study shortcut) and PNG icons in `static/icons/` (the green 書: 180 px for
+  iOS's apple-touch-icon, 192 and 512 px, and a 512 px maskable one with the
+  glyph inside the safe zone). iOS ignores SVG icons, so the PNGs are drawn
+  from the same design and committed.
+- Every page has the manifest, the apple-touch-icon, `apple-mobile-web-app-*`
+  tags and light/dark `theme-color`. The viewport is `viewport-fit=cover`,
+  with padding from `env(safe-area-inset-*)` for the notch and home
+  indicator.
+- A home-screen app has no browser back button, so in `display-mode:
+  standalone` a ‹ button shows before the logo whenever there's an earlier
+  g-sho page (history state carries the depth).
+- No service worker yet, so no offline use. Data files are cached by the
+  browser for a year, but the page itself needs the network.
+
 ## More example sentences
 
 JMdict links Tatoeba sentences to only about 29,000 of its 218,000 entries.

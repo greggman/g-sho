@@ -2,18 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>g-sho — Japanese dictionary</title>
     <meta
       name="description"
       content="A Japanese-English dictionary. Search in English, Japanese, or romaji."
     />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <!-- Add to Home Screen (iPhone) and installing as an app elsewhere. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="g-sho" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161917" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="app.js"></script>
   </head>
   <body>
     <header class="site-header">
+      <!-- Only in the home-screen app, which has no browser back button. -->
+      <button id="back-button" type="button" class="back-button" aria-label="Back" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
       <a class="logo" href="./" aria-label="g-sho home"
         ><span class="logo-mark" lang="ja">書</span><span class="logo-text">g-sho</span></a
       >

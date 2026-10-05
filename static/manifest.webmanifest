@@ -1,0 +1,22 @@
+{
+  "name": "g-sho — Japanese dictionary",
+  "short_name": "g-sho",
+  "description": "A Japanese–English dictionary: search in English, Japanese, or romaji, draw a kanji, and study.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f9f9f7",
+  "theme_color": "#3f9b52",
+  "lang": "en",
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [{"name": "Study", "url": "/?study"}]
+}
