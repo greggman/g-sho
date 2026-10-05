@@ -150,4 +150,12 @@ describe('search', {skip: !haveData && 'data not built'}, () => {
     );
     assert.equal(r.tokens?.[1].base, '煎る');
   });
+
+  test('words have more example sentences', async () => {
+    const neko = (await firstWord('猫')).e;
+    assert.ok((neko.mx ?? 0) >= 5);
+    const more = await dict.moreExamples(neko.id);
+    assert.ok(more && more.length >= 5);
+    assert.ok(more.every(e => e.ja && e.en));
+  });
 });

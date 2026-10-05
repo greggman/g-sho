@@ -10,6 +10,8 @@
  * word frequency ranks the JSON version leaves out, wordfreq's Japanese
  * word frequencies (.cache/wordfreq/), pinned to a commit, and Tatoeba's
  * sentence transcriptions (furigana for example sentences, .cache/tatoeba/),
+ * Tatoeba's word index with its Japanese and English sentences (more example
+ * sentences, .cache/tatoeba/),
  * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
  * definitions, .cache/jawiktionary/).
  */
@@ -132,6 +134,52 @@ async function downloadJmdictXml() {
   fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
   const newEtag = res.headers.get('etag');
   if (newEtag) fs.writeFileSync(etagFile, newEtag);
+}
+
+/**
+ * One Tatoeba export (.tar.bz2 or .bz2), unpacked into .cache/tatoeba/ as
+ * `file`. Skipped when the ETag is unchanged.
+ */
+async function downloadTatoebaFile(url: string, file: string) {
+  const dir = path.join(CACHE_DIR, 'tatoeba');
+  const out = path.join(dir, file);
+  const etagFile = `${out}.etag`;
+  const etag =
+    fs.existsSync(etagFile) && fs.existsSync(out)
+      ? fs.readFileSync(etagFile, 'utf8')
+      : undefined;
+  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
+  if (res.status === 304) {
+    console.log(`Tatoeba ${file} already downloaded`);
+    return;
+  }
+  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+  console.log(`downloading Tatoeba ${file}`);
+  fs.mkdirSync(dir, {recursive: true});
+  const archive = path.join(dir, path.basename(new URL(url).pathname));
+  fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+  if (archive.endsWith('.tar.bz2')) {
+    execFileSync('tar', ['xjf', archive, '-C', dir]);
+    fs.rmSync(archive);
+  } else {
+    execFileSync('bunzip2', ['-f', archive]);
+  }
+  const newEtag = res.headers.get('etag');
+  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+}
+
+/** Tatoeba's word index and its sentences, for more example sentences. */
+async function downloadTatoebaExamples() {
+  const base = 'https://downloads.tatoeba.org/exports';
+  await downloadTatoebaFile(`${base}/jpn_indices.tar.bz2`, 'jpn_indices.csv');
+  await downloadTatoebaFile(
+    `${base}/per_language/jpn/jpn_sentences.tsv.bz2`,
+    'jpn_sentences.tsv',
+  );
+  await downloadTatoebaFile(
+    `${base}/per_language/eng/eng_sentences.tsv.bz2`,
+    'eng_sentences.tsv',
+  );
 }
 
 /**
@@ -273,6 +321,7 @@ await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),
   downloadJaWiktionary(),
+  downloadTatoebaExamples(),
   downloadWordfreq(),
   downloadTatoebaTranscriptions(),
   downloadHandwritingModel(),

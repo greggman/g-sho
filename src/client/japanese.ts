@@ -49,7 +49,14 @@ export async function fillJapanese(dict: Dict, root: ParentNode) {
       render(slot, defs);
     }),
   );
-  // Then, one at a time, turn the text into linked words with furigana.
+  await linkJapanese(dict, root);
+}
+
+/**
+ * Turns Japanese text spans (made by jaText) under `root` into linked
+ * words with furigana, one at a time.
+ */
+export async function linkJapanese(dict: Dict, root: ParentNode) {
   for (const el of root.querySelectorAll<HTMLElement>(
     '.ja-text:not([data-linked])',
   )) {
@@ -58,7 +65,8 @@ export async function fillJapanese(dict: Dict, root: ParentNode) {
   }
 }
 
-function text(s: string, hints?: [string, string][]) {
+/** Japanese text, to be linked word by word by linkJapanese. */
+export function jaText(s: string, hints?: [string, string][]) {
   return h(
     'span',
     {
@@ -112,13 +120,13 @@ function render(slot: HTMLElement, defs: JaDefinition[] | undefined) {
                     s.t.map(t => `〔${t}〕`).join(''),
                   )
                 : '',
-              text(s.g, s.r),
+              jaText(s.g, s.r),
               !compact &&
                 !!s.ex?.length &&
                 h(
                   'ul',
                   {class: 'ja-examples'},
-                  s.ex!.map(e => h('li', null, text(e))),
+                  s.ex!.map(e => h('li', null, jaText(e))),
                 ),
             ),
           ),

@@ -75,41 +75,6 @@
             </g>
           </svg>
         </button>
-        <a
-          id="study-link"
-          href="?study"
-          class="radical-toggle icon-button study-link"
-          title="Study"
-          aria-label="Study"
-        >
-          <!-- two cards, one behind the other -->
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-              <rect x="7" y="3.5" width="13" height="15" rx="2" />
-              <path d="M4.5 7.5v11a2 2 0 0 0 2 2h9" />
-            </g>
-          </svg>
-          <span id="study-due" class="study-due" hidden></span>
-        </a>
-        <button
-          id="settings-toggle"
-          type="button"
-          class="radical-toggle icon-button"
-          title="Settings"
-          aria-label="Settings"
-          aria-expanded="false"
-          aria-controls="settings-panel"
-        >
-          <!-- a gear -->
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
-              />
-            </g>
-          </svg>
-        </button>
         <button type="submit" class="search-button" aria-label="Search">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" />
@@ -117,6 +82,43 @@
           </svg>
         </button>
       </form>
+      <nav class="site-nav" aria-label="Study and settings">
+          <a
+            id="study-link"
+            href="?study"
+            class="radical-toggle icon-button study-link"
+            title="Study"
+            aria-label="Study"
+          >
+            <!-- two cards, one behind the other -->
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                <rect x="7" y="3.5" width="13" height="15" rx="2" />
+                <path d="M4.5 7.5v11a2 2 0 0 0 2 2h9" />
+              </g>
+            </svg>
+            <span id="study-due" class="study-due" hidden></span>
+          </a>
+          <button
+            id="settings-toggle"
+            type="button"
+            class="radical-toggle icon-button"
+            title="Settings"
+            aria-label="Settings"
+            aria-expanded="false"
+            aria-controls="settings-panel"
+          >
+            <!-- a gear -->
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+                />
+              </g>
+            </svg>
+          </button>
+      </nav>
     </header>
     <div class="layout">
       <aside id="history-column" class="history-column"></aside>

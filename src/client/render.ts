@@ -2,7 +2,7 @@ import {parseFurigana} from '../shared/furigana.ts';
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, join, searchLink} from './dom.ts';
-import {jaDefinitionsSlot} from './japanese.ts';
+import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
   furigana,
   headword,
@@ -282,6 +282,52 @@ function isCommon(entry: Entry): boolean {
   return (entry.k ?? []).some(k => k.c) || entry.r.some(r => r.c);
 }
 
+/**
+ * "N more example sentences": Tatoeba's sentences for the word (with
+ * English), then the Japanese Wiktionary's (Japanese only, every word
+ * linked). Loaded when opened.
+ */
+function moreExamples(dict: Dict, entry: Entry): HTMLElement {
+  const n = entry.mx ?? 0;
+  const list = h('ul', null, h('li', {class: 'hint'}, 'Loading…'));
+  const details = h(
+    'details',
+    {class: 'examples more-examples'},
+    h('summary', null, `${n} more example sentence${n === 1 ? '' : 's'}`),
+    list,
+  );
+  details.addEventListener('toggle', () => {
+    if (!details.open || details.dataset.loaded !== undefined) return;
+    details.dataset.loaded = '';
+    void (async () => {
+      const [tatoeba, defs] = await Promise.all([
+        dict.moreExamples(entry.id).catch(() => undefined),
+        dict.jaDefinitions(entry.id).catch(() => undefined),
+      ]);
+      const wiktionary = (defs ?? []).flatMap(d =>
+        d.s.flatMap(s => s.ex ?? []),
+      );
+      list.replaceChildren(
+        ...(tatoeba ?? []).map(exampleSentence),
+        ...wiktionary.map(t =>
+          h(
+            'li',
+            {class: 'example'},
+            h('p', {class: 'example-ja', lang: 'ja'}, jaText(t)),
+            h(
+              'p',
+              {class: 'example-source'},
+              'Japanese Wiktionary (no translation)',
+            ),
+          ),
+        ),
+      );
+      await linkJapanese(dict, list);
+    })();
+  });
+  return details;
+}
+
 export function renderEntry(
   dict: Dict,
   {entry, inflection}: WordResult,
@@ -317,6 +363,7 @@ export function renderEntry(
           return el;
         }),
       ),
+      !!entry.mx && moreExamples(dict, entry),
       others.length > 0 &&
         h(
           'div',

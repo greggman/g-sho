@@ -80,6 +80,8 @@ export interface Entry {
   k?: KanjiForm[];
   r: ReadingForm[];
   s: Sense[];
+  /** how many more example sentences it has (tex/ and jadef/) */
+  mx?: number;
 }
 
 /** ent/NNNN.json: entry id → entry */
@@ -161,6 +163,9 @@ export interface JaSense {
   r?: [string, string][];
 }
 
+/** tex/NNNN.json: entry id → more example sentences (Tatoeba) */
+export type ExampleShard = Record<number, Example[]>;
+
 /** jadef/NNNN.json: entry id → its Japanese definitions */
 export type JaDefinitionShard = Record<number, JaDefinition[]>;
 
@@ -178,6 +183,8 @@ export interface Meta {
     strokes: number;
     /** Japanese definitions; absent when they weren't built */
     jadef?: number;
+    /** more example sentences; absent when they weren't built */
+    tex?: number;
   };
   /** tag → human readable description */
   tags: Record<string, string>;

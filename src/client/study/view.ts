@@ -523,16 +523,27 @@ export function renderSession(
     // A card from an imported deck is drawn with its own template.
     const imported =
       fact && fact.noteType !== NOTE_TYPE ? importedCard(card) : undefined;
+    // The word links to its search, so it can be looked up from the card.
+    const wordLink = (...content: (Node | string)[]) =>
+      h(
+        'a',
+        {
+          class: 'card-word',
+          href: `?${new URLSearchParams({q: entry ? headword(entry).text : word})}`,
+          title: `Look up ${word}`,
+        },
+        ...content,
+      );
     const front = imported
       ? await imported.front
-      : h('div', {class: 'card-front', lang: 'ja'}, word);
+      : h('div', {class: 'card-front', lang: 'ja'}, wordLink(word));
     const backSide = async () => {
       if (!imported) {
         return [
           h(
             'div',
             {class: 'card-front revealed'},
-            rubyWord({text: word, ...(reading && {reading})}),
+            wordLink(rubyWord({text: word, ...(reading && {reading})})),
           ),
           h(
             'div',

@@ -20,6 +20,7 @@ All sources are the same ones jisho.org credits, consumed through the
 | Stroke order | KanjiVG | CC BY-SA 3.0 |
 | Word frequencies (ranking) | wordfreq (Robyn Speer) | CC BY-SA 4.0 |
 | Japanese definitions (国語) | Japanese Wiktionary, via wiktextract / kaikki.org | CC BY-SA 4.0 + GFDL |
+| More example sentences | Tatoeba word index (jpn_indices) with its Japanese and English sentences | CC BY 2.0 FR |
 
 Attribution for all of them is shown on an About page in the site, as the
 licenses require. Later phases may add JMnedict (names) and JLPT word lists.
@@ -160,6 +161,23 @@ jisho.org uses).
 - **UI**: a pad with Undo and Clear. It recognizes after each stroke and shows
   candidates as buttons; picking one inserts it into the search box, the same
   way the radical picker does.
+
+## More example sentences
+
+JMdict links Tatoeba sentences to only about 29,000 of its 218,000 entries.
+Tatoeba's word index (`jpn_indices.csv`, Tanaka-corpus "B lines") tags
+~150,000 Japanese sentences, each with an English translation, with the
+dictionary words in them: `word(reading)[sense]{form}~`, where ~ marks a
+checked example. `scripts/build-examples.ts` matches each word to its JMdict
+entry (by spelling, the reading choosing between homographs), and keeps up to
+10 sentences per entry. Checked sentences come first, then shorter ones, and
+ones JMdict already shows are skipped. Furigana comes from Tatoeba's
+transcriptions. That adds 97,000 sentences for 18,000 entries (half the
+common words), in `tex/NNNN.json` (4,096 shards by entry id, ~13 MB).
+
+Each entry records how many more it has (`mx`, Tatoeba plus the Japanese
+Wiktionary's examples), and shows "N more example sentences", which loads
+them when opened. Wiktionary's are Japanese only, with every word linked.
 
 ## Japanese definitions (国語)
 

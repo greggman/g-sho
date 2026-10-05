@@ -9,6 +9,8 @@ import type {
   EnIndexShard,
   Entry,
   EntryShard,
+  Example,
+  ExampleShard,
   JaDefinition,
   JaDefinitionShard,
   JaIndexShard,
@@ -109,6 +111,16 @@ export class Dict {
   async entries(ids: number[]): Promise<Entry[]> {
     const entries = await Promise.all(ids.map(id => this.entry(id)));
     return entries.filter((e): e is Entry => e !== undefined);
+  }
+
+  /** More example sentences for the word (Tatoeba), if any. */
+  async moreExamples(id: number): Promise<Example[] | undefined> {
+    const n = this.meta.shards.tex;
+    if (!n) return undefined;
+    const shard = await this.file<ExampleShard>(
+      `tex/${shardName(entryShard(id, n))}.json`,
+    );
+    return shard[id];
   }
 
   /** The word's definitions in Japanese (Japanese Wiktionary), if any. */

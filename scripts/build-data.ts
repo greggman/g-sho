@@ -20,6 +20,7 @@ import {
   matchWord as matchJaWord,
   readWiktionary,
 } from './build-jawiktionary.ts';
+import {buildExamples} from './build-examples.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -30,7 +31,8 @@ import type {
   EnIndexShard,
   Entry,
   EntryShard,
-  JaDefinitionShard,
+  Example,
+  JaDefinition,
   JaIndexShard,
   KanjiInfo,
   KanjiShard,
@@ -47,6 +49,8 @@ const OUT_DIR = path.join(ROOT, 'dist', 'data');
 const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128, strokes: 1024};
 /** Japanese definitions, sharded by entry id like the entries. */
 const JADEF_SHARDS = 2048;
+/** More example sentences (Tatoeba), by entry id. */
+const TEX_SHARDS = 4096;
 
 /** Longest English phrase (in words) indexed as a whole. */
 const MAX_PHRASE_WORDS = 4;
@@ -460,6 +464,8 @@ function buildWords(
   priorities: Priorities,
   zipf: Map<string, number>,
   furigana: Map<string, string>,
+  /** how many more examples each entry has (tex/ and jadef/) */
+  moreExamples: Map<number, number>,
 ) {
   const spellingPriority = spellingPriorities(dict, priorities, zipf);
   const entryShards = new Map<number, EntryShard>();
@@ -497,6 +503,8 @@ function buildWords(
 
   for (const w of dict.words) {
     const entry = convertWord(w, furigana);
+    const more = moreExamples.get(entry.id);
+    if (more) entry.mx = more;
     getShard(entryShards, entryShard(entry.id, SHARDS.entries), () => ({}))[
       entry.id
     ] = entry;
@@ -680,19 +688,20 @@ function buildStrokes() {
 
 /**
  * Japanese definitions from the Japanese Wiktionary (.cache/jawiktionary),
- * by entry id. Returns false when the extract isn't downloaded.
+ * by entry id; undefined when the extract isn't downloaded.
  */
-async function buildJaDefinitions(dict: JmDict): Promise<boolean> {
+async function readJaDefinitions(
+  dict: JmDict,
+): Promise<Map<number, JaDefinition[]> | undefined> {
   const file = path.join(CACHE_DIR, 'jawiktionary', 'ja-extract.jsonl.gz');
   if (!fs.existsSync(file)) {
     console.warn(
       'warning: Japanese Wiktionary missing; run `npm run download`',
     );
-    return false;
+    return undefined;
   }
   const byWord = await readWiktionary(file);
-  const shards = new Map<number, JaDefinitionShard>();
-  let count = 0;
+  const out = new Map<number, JaDefinition[]>();
   for (const w of dict.words) {
     const defs = matchJaWord(
       {
@@ -703,15 +712,44 @@ async function buildJaDefinitions(dict: JmDict): Promise<boolean> {
       },
       byWord,
     );
-    if (!defs.length) continue;
-    count++;
-    getShard(shards, entryShard(Number(w.id), JADEF_SHARDS), () => ({}))[
-      Number(w.id)
-    ] = defs;
+    if (defs.length) out.set(Number(w.id), defs);
   }
-  writeShards('jadef', shards);
-  console.log(`Japanese definitions for ${count} entries`);
-  return true;
+  return out;
+}
+
+/** Writes per-entry data into shards by entry id. */
+function writeByEntry<T>(dir: string, n: number, data: Map<number, T>) {
+  const shards = new Map<number, Record<number, T>>();
+  for (const [id, value] of data) {
+    getShard(shards, entryShard(id, n), () => ({}))[id] = value;
+  }
+  writeShards(dir, shards);
+}
+
+// ---- more example sentences ----
+
+/** Tatoeba's sentences for each word, beyond the ones JMdict links. */
+function readMoreExamples(
+  dict: JmDict,
+  furigana: Map<string, string>,
+): Map<number, Example[]> {
+  return buildExamples(
+    path.join(CACHE_DIR, 'tatoeba'),
+    dict.words.map(w => ({
+      id: Number(w.id),
+      kanji: w.kanji.map(k => k.text),
+      kana: w.kana.map(k => k.text),
+      common: w.kanji.some(k => k.common) || w.kana.some(k => k.common),
+      existing: new Set(
+        w.sense.flatMap(s =>
+          s.examples.map(
+            e => e.sentences.find(x => x.lang === 'jpn')?.text ?? '',
+          ),
+        ),
+      ),
+    })),
+    furigana,
+  );
 }
 
 async function main() {
@@ -721,16 +759,37 @@ async function main() {
 
   const version = readJson<{version: string}>('version.json').version;
   const dict = readJson<JmDict>('jmdict.json');
+  const furigana = readFurigana();
+  const jaDefs = await readJaDefinitions(dict);
+  const examples = readMoreExamples(dict, furigana);
+  // Each entry says how many more examples it has, so the page can offer
+  // them without fetching.
+  const moreExamples = new Map<number, number>();
+  for (const [id, list] of examples) moreExamples.set(id, list.length);
+  for (const [id, defs] of jaDefs ?? []) {
+    const n = defs
+      .flatMap(d => d.s)
+      .reduce((a, s) => a + (s.ex?.length ?? 0), 0);
+    if (n) moreExamples.set(id, (moreExamples.get(id) ?? 0) + n);
+  }
   const entryCount = buildWords(
     dict,
     readPriorities(),
     readWordfreq(),
-    readFurigana(),
+    furigana,
+    moreExamples,
   );
   const {count: kanjiCount, strokes} = buildKanji();
   buildRadicals(strokes);
   buildStrokes();
-  const jaDefs = await buildJaDefinitions(dict);
+  if (jaDefs) {
+    writeByEntry('jadef', JADEF_SHARDS, jaDefs);
+    console.log(`Japanese definitions for ${jaDefs.size} entries`);
+  }
+  if (examples.size) {
+    writeByEntry('tex', TEX_SHARDS, examples);
+    console.log(`more example sentences for ${examples.size} entries`);
+  }
 
   const meta: Meta = {
     version,
@@ -738,7 +797,11 @@ async function main() {
     builtAt: new Date().toISOString(),
     entryCount,
     kanjiCount,
-    shards: {...SHARDS, ...(jaDefs && {jadef: JADEF_SHARDS})},
+    shards: {
+      ...SHARDS,
+      ...(jaDefs && {jadef: JADEF_SHARDS}),
+      ...(examples.size && {tex: TEX_SHARDS}),
+    },
     tags: dict.tags,
     versions,
   };

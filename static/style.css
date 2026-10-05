@@ -145,6 +145,32 @@ a:hover {
   color: var(--accent-strong);
 }
 
+/* Study and settings: pages, not search tools, so beside the search box. */
+.site-nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.site-nav .icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.site-nav .icon-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
 .search .search-button {
   background: var(--accent);
   color: #fff;
@@ -894,6 +920,11 @@ a:hover {
     margin-left: 0;
   }
 
+  /* The study and settings buttons take a column after the search box. */
+  .site-header {
+    grid-template-columns: 250px minmax(0, 1fr) auto;
+  }
+
   .home .history {
     display: none;
   }
@@ -1420,14 +1451,21 @@ mark {
 }
 
 @media (max-width: 560px) {
-  /* Just the mark, on the same row as the search box. */
+  /* Two rows: the logo with study and settings, then the whole width for
+     the search box and its tools. */
   .site-header {
-    gap: 10px;
-    padding: 12px 16px 8px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 10px 16px 8px;
   }
 
-  .logo-text {
-    display: none;
+  .site-nav {
+    margin-left: auto;
+  }
+
+  .search {
+    order: 3;
+    flex-basis: 100%;
   }
 
   .search input {
@@ -1632,6 +1670,16 @@ mark {
   font-size: 3.2rem;
   text-align: center;
   line-height: 1.4;
+}
+
+.card-word {
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-word:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
 }
 
 .card-front.revealed {
@@ -2246,4 +2294,15 @@ html.show-japanese .ja-defs:empty {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+/* ---- more example sentences ---- */
+
+.more-examples {
+  margin: 4px 0 12px;
+}
+
+.more-examples .example-source {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
