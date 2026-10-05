@@ -233,3 +233,206 @@ pub unsafe extern "C" fn linear(
             + f32x4_extract_lane::<3>(acc);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Kernels for the graph engine (src/client/nn/graph-wasm.ts): the heavy
+// operators of the OCR models. Inputs come already padded.
+
+/// One group of a convolution: x is cg × ph × pw (padded), weights packed
+/// as [mg / 8][cg][kh·kw][8], output mg × oh × ow. Like `conv`, each inner
+/// step computes 4 output pixels of a row for 8 output channels, with any
+/// strides and dilations.
+#[no_mangle]
+pub unsafe extern "C" fn conv_group(
+    x: *const f32,
+    cg: usize,
+    ph: usize,
+    pw: usize,
+    w: *const f32,
+    bias: *const f32,
+    mg: usize,
+    kh: usize,
+    kw: usize,
+    sh: usize,
+    sw: usize,
+    dh: usize,
+    dw: usize,
+    oh: usize,
+    ow: usize,
+    y: *mut f32,
+) {
+    let kk = kh * kw;
+    let plane = oh * ow;
+    for ob in 0..mg / 8 {
+        let b0 = load(bias.add(ob * 8));
+        let b1 = load(bias.add(ob * 8 + 4));
+        let wb = w.add(ob * cg * kk * 8);
+        let yb = y.add(ob * 8 * plane);
+        for oy in 0..oh {
+            let mut ox = 0;
+            while ox + 4 <= ow {
+                let mut a = [b0, b1, b0, b1, b0, b1, b0, b1];
+                let mut wp = wb;
+                for i in 0..cg {
+                    let xc = x.add(i * ph * pw);
+                    for ky in 0..kh {
+                        let row = xc.add((oy * sh + ky * dh) * pw + ox * sw);
+                        for kx in 0..kw {
+                            let w0 = load(wp);
+                            let w1 = load(wp.add(4));
+                            wp = wp.add(8);
+                            let r = row.add(kx * dw);
+                            let v0 = f32x4_splat(*r);
+                            let v1 = f32x4_splat(*r.add(sw));
+                            let v2 = f32x4_splat(*r.add(2 * sw));
+                            let v3 = f32x4_splat(*r.add(3 * sw));
+                            a[0] = madd(a[0], v0, w0);
+                            a[1] = madd(a[1], v0, w1);
+                            a[2] = madd(a[2], v1, w0);
+                            a[3] = madd(a[3], v1, w1);
+                            a[4] = madd(a[4], v2, w0);
+                            a[5] = madd(a[5], v2, w1);
+                            a[6] = madd(a[6], v3, w0);
+                            a[7] = madd(a[7], v3, w1);
+                        }
+                    }
+                }
+                let base = yb.add(oy * ow + ox);
+                for p in 0..4 {
+                    let lo = a[2 * p];
+                    let hi = a[2 * p + 1];
+                    let d = base.add(p);
+                    *d = f32x4_extract_lane::<0>(lo);
+                    *d.add(plane) = f32x4_extract_lane::<1>(lo);
+                    *d.add(2 * plane) = f32x4_extract_lane::<2>(lo);
+                    *d.add(3 * plane) = f32x4_extract_lane::<3>(lo);
+                    *d.add(4 * plane) = f32x4_extract_lane::<0>(hi);
+                    *d.add(5 * plane) = f32x4_extract_lane::<1>(hi);
+                    *d.add(6 * plane) = f32x4_extract_lane::<2>(hi);
+                    *d.add(7 * plane) = f32x4_extract_lane::<3>(hi);
+                }
+                ox += 4;
+            }
+            while ox < ow {
+                let mut lo = b0;
+                let mut hi = b1;
+                let mut wp = wb;
+                for i in 0..cg {
+                    let xc = x.add(i * ph * pw);
+                    for ky in 0..kh {
+                        let row = xc.add((oy * sh + ky * dh) * pw + ox * sw);
+                        for kx in 0..kw {
+                            let v = f32x4_splat(*row.add(kx * dw));
+                            lo = madd(lo, v, load(wp));
+                            hi = madd(hi, v, load(wp.add(4)));
+                            wp = wp.add(8);
+                        }
+                    }
+                }
+                let d = yb.add(oy * ow + ox);
+                let mut tmp = [0f32; 8];
+                store(tmp.as_mut_ptr(), lo);
+                store(tmp.as_mut_ptr().add(4), hi);
+                for l in 0..8 {
+                    *d.add(l * plane) = tmp[l];
+                }
+                ox += 1;
+            }
+        }
+    }
+}
+
+/// Depthwise convolution (one filter per channel): x is c × ph × pw
+/// (padded), weights c × kh × kw, output c × oh × ow. Four output pixels at
+/// a time.
+#[no_mangle]
+pub unsafe extern "C" fn conv_depthwise(
+    x: *const f32,
+    c: usize,
+    ph: usize,
+    pw: usize,
+    w: *const f32,
+    bias: *const f32,
+    kh: usize,
+    kw: usize,
+    sh: usize,
+    sw: usize,
+    dh: usize,
+    dw: usize,
+    oh: usize,
+    ow: usize,
+    y: *mut f32,
+) {
+    for ch in 0..c {
+        let xc = x.add(ch * ph * pw);
+        let wc = w.add(ch * kh * kw);
+        let b = *bias.add(ch);
+        let yc = y.add(ch * oh * ow);
+        for oy in 0..oh {
+            let mut ox = 0;
+            while ox + 4 <= ow {
+                let mut acc = f32x4_splat(b);
+                for ky in 0..kh {
+                    let row = xc.add((oy * sh + ky * dh) * pw + ox * sw);
+                    for kx in 0..kw {
+                        let r = row.add(kx * dw);
+                        let v = if sw == 1 {
+                            load(r)
+                        } else {
+                            f32x4(*r, *r.add(sw), *r.add(2 * sw), *r.add(3 * sw))
+                        };
+                        acc = madd(acc, v, f32x4_splat(*wc.add(ky * kw + kx)));
+                    }
+                }
+                store(yc.add(oy * ow + ox), acc);
+                ox += 4;
+            }
+            while ox < ow {
+                let mut s = b;
+                for ky in 0..kh {
+                    let row = xc.add((oy * sh + ky * dh) * pw + ox * sw);
+                    for kx in 0..kw {
+                        s += *row.add(kx * dw) * *wc.add(ky * kw + kx);
+                    }
+                }
+                *yc.add(oy * ow + ox) = s;
+                ox += 1;
+            }
+        }
+    }
+}
+
+/// y = a b for a m × k, b k × n (row-major). Four rows of a at a time, so
+/// each vector of b loaded is used four times.
+#[no_mangle]
+pub unsafe extern "C" fn matmul(a: *const f32, b: *const f32, m: usize, k: usize, n: usize, y: *mut f32) {
+    let mut i = 0;
+    while i < m {
+        let rows = if m - i >= 4 { 4 } else { m - i };
+        let mut j = 0;
+        while j + 4 <= n {
+            let mut acc = [f32x4_splat(0.0); 4];
+            for kk in 0..k {
+                let bv = load(b.add(kk * n + j));
+                for r in 0..rows {
+                    acc[r] = madd(acc[r], f32x4_splat(*a.add((i + r) * k + kk)), bv);
+                }
+            }
+            for r in 0..rows {
+                store(y.add((i + r) * n + j), acc[r]);
+            }
+            j += 4;
+        }
+        while j < n {
+            for r in 0..rows {
+                let mut s = 0.0;
+                for kk in 0..k {
+                    s += *a.add((i + r) * k + kk) * *b.add(kk * n + j);
+                }
+                *y.add((i + r) * n + j) = s;
+            }
+            j += 1;
+        }
+        i += rows;
+    }
+}

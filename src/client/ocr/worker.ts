@@ -4,7 +4,8 @@
  * as they're read, so the page can show them one by one.
  */
 import {loadGraph, type Graph, type Tensor} from '../nn/graph.ts';
-import {runGraphCpu} from '../nn/graph-cpu.ts';
+import {runGraphCpu, type Kernels} from '../nn/graph-cpu.ts';
+import {WasmKernels} from '../nn/graph-wasm.ts';
 import {GraphGpu} from '../nn/graph-webgpu.ts';
 import {
   detect,
@@ -31,20 +32,38 @@ function post(message: FromWorker) {
   postMessage(message);
 }
 
-function cpu(graph: Graph): RunModel {
+function cpu(graph: Graph, kernels?: Kernels): RunModel {
   return (x: Tensor) =>
-    runGraphCpu(graph, {[graph.spec.inputs[0]]: x}).get(
+    runGraphCpu(graph, {[graph.spec.inputs[0]]: x}, undefined, kernels).get(
       graph.spec.outputs[0],
     ) as Tensor;
 }
 
-/** WebGPU if there is one (falling back to the CPU if it fails), else the CPU. */
+/**
+ * The fastest engine available: WebGPU, then WebAssembly, then plain
+ * JavaScript. If WebGPU fails mid-way, the next one takes over.
+ */
 async function chooseEngine(
   det: Graph,
   rec: Graph,
+  wasmUrl: string,
   force?: string,
 ): Promise<[string, RunModel, RunModel]> {
-  if (force !== 'js') {
+  let name = 'JavaScript';
+  let [cpuDet, cpuRec] = [cpu(det), cpu(rec)];
+  if (!force || force === 'wasm') {
+    try {
+      const wasm = await WasmKernels.create(
+        await (await fetch(wasmUrl)).arrayBuffer(),
+      );
+      name = 'WebAssembly';
+      cpuDet = cpu(det, wasm.kernelsFor(det));
+      cpuRec = cpu(rec, wasm.kernelsFor(rec));
+    } catch (e) {
+      console.warn('WebAssembly engine unavailable:', e);
+    }
+  }
+  if (!force || force === 'webgpu') {
     try {
       const gd = await GraphGpu.create(det);
       const gr = gd && (await GraphGpu.create(rec, gd.gpuDevice));
@@ -59,23 +78,24 @@ async function chooseEngine(
                   g.spec.outputs[0],
                 )!;
               } catch (e) {
-                console.warn('WebGPU failed; using the CPU:', e);
+                console.warn(`WebGPU failed; using ${name}:`, e);
                 failed = true;
               }
             }
             return fallback(x);
           };
-        return ['WebGPU', run(det, gd, cpu(det)), run(rec, gr, cpu(rec))];
+        return ['WebGPU', run(det, gd, cpuDet), run(rec, gr, cpuRec)];
       }
     } catch (e) {
       console.warn('WebGPU unavailable:', e);
     }
   }
-  return ['JavaScript', cpu(det), cpu(rec)];
+  return [name, cpuDet, cpuRec];
 }
 
 async function init({
   baseUrl,
+  wasmUrl,
   engine: force,
 }: ToWorker & {type: 'init'}): Promise<Models> {
   const base = new URL(baseUrl);
@@ -87,7 +107,12 @@ async function init({
       return (await r.text()).replace(/\n$/, '').split('\n');
     }),
   ]);
-  const [engine, det, rec] = await chooseEngine(detGraph, recGraph, force);
+  const [engine, det, rec] = await chooseEngine(
+    detGraph,
+    recGraph,
+    wasmUrl,
+    force,
+  );
   post({type: 'ready', engine});
   return {det, rec, dict};
 }

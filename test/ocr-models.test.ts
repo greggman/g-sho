@@ -8,13 +8,15 @@ import * as path from 'node:path';
 import {describe, test} from 'node:test';
 import {convertGraph} from '../scripts/convert-graph.ts';
 import {readOnnx} from '../scripts/onnx.ts';
-import {decodeGraph, type Tensor} from '../src/client/nn/graph.ts';
-import {runGraphCpu} from '../src/client/nn/graph-cpu.ts';
+import {decodeGraph, type Graph, type Tensor} from '../src/client/nn/graph.ts';
+import {runGraphCpu, type Kernels} from '../src/client/nn/graph-cpu.ts';
+import {WasmKernels} from '../src/client/nn/graph-wasm.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const MODELS = path.join(ROOT, '.cache/ocr');
 const FIXTURES = path.join(ROOT, 'test/fixtures/ocr');
 const have = fs.existsSync(path.join(MODELS, 'det.onnx'));
+const WASM = path.join(ROOT, 'dist/nn.wasm');
 
 function reference() {
   const index = JSON.parse(
@@ -45,9 +47,14 @@ describe(
   () => {
     const ref = reference();
 
-    const detect = (exact: boolean) => {
+    const detect = (exact: boolean, wasm?: WasmKernels) => {
       const graph = load('det.onnx', exact);
-      const out = runGraphCpu(graph, {x: ref('det.input')});
+      const out = runGraphCpu(
+        graph,
+        {x: ref('det.input')},
+        undefined,
+        wasm?.kernelsFor(graph),
+      );
       const got = out.get(graph.spec.outputs[0]) as Tensor;
       const want = ref('det.output');
       assert.deepEqual(got.shape, want.shape);
@@ -70,9 +77,14 @@ describe(
       assert.ok(d < 0.05, `max difference ${d}`);
     });
 
-    test('recognition matches ONNX Runtime', () => {
+    const recognize = (kernels?: (g: Graph) => Kernels) => {
       const graph = load('rec.onnx');
-      const out = runGraphCpu(graph, {x: ref('rec.input')});
+      const out = runGraphCpu(
+        graph,
+        {x: ref('rec.input')},
+        undefined,
+        kernels?.(graph),
+      );
       const got = out.get(graph.spec.outputs[0]) as Tensor;
       const best = ref('rec.best').data;
       const bestProb = ref('rec.bestProb').data;
@@ -89,7 +101,25 @@ describe(
           `step ${t}: ${got.data[t * classes + arg]} vs ${bestProb[t]}`,
         );
       }
-    });
+    };
+
+    test('recognition matches ONNX Runtime', () => recognize());
+
+    describe(
+      'with the WebAssembly kernels',
+      {skip: !fs.existsSync(WASM) && 'dist/nn.wasm not built'},
+      () => {
+        const wasm = () => WasmKernels.create(fs.readFileSync(WASM));
+        test('detection', async () => {
+          const d = detect(true, await wasm());
+          assert.ok(d < 1e-4, `max difference ${d}`);
+        });
+        test('recognition', async () => {
+          const w = await wasm();
+          recognize(g => w.kernelsFor(g));
+        });
+      },
+    );
   },
 );
 

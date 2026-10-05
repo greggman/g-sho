@@ -84,6 +84,7 @@ export class PhotoPanel {
     this.send({
       type: 'init',
       baseUrl: new URL('ocr/', document.baseURI).href,
+      wasmUrl: new URL('nn.wasm', document.baseURI).href,
       engine: new URLSearchParams(location.search).get('engine') ?? undefined,
     });
   }

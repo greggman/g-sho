@@ -115,7 +115,7 @@ function broadcastIndex(from: number[], to: number[]): Int32Array {
 function repeatPattern(from: number[], to: number[]) {
   const padded = [...new Array(to.length - from.length).fill(1), ...from];
   const kept = padded.flatMap((d, i) => (d === 1 ? [] : [i]));
-  if (!kept.length) return {count: 1, inner: 1};
+  if (!kept.length) return {count: 1, inner: sizeOf(to)}; // one value
   const first = kept[0];
   const last = kept[kept.length - 1];
   for (let i = first; i <= last; i++) if (padded[i] !== to[i]) return null;
@@ -204,15 +204,40 @@ function binary(
   return {shape, data: out};
 }
 
-function unary(x: Tensor, f: (v: number) => number): Tensor {
-  const out = new Float32Array(x.data.length);
-  for (let i = 0; i < out.length; i++) out[i] = f(x.data[i]);
+/** The one-input ops, a loop each (a call per element is slow). */
+function unaryOp(op: string, x: Tensor, alpha: number, beta: number): Tensor {
+  const d = x.data;
+  const out = new Float32Array(d.length);
+  const n = d.length;
+  switch (op) {
+    case 'Relu':
+      for (let i = 0; i < n; i++) out[i] = d[i] > 0 ? d[i] : 0;
+      break;
+    case 'Sigmoid':
+      for (let i = 0; i < n; i++) out[i] = 1 / (1 + Math.exp(-d[i]));
+      break;
+    case 'HardSigmoid':
+      for (let i = 0; i < n; i++) {
+        const v = alpha * d[i] + beta;
+        out[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+      }
+      break;
+    case 'Erf':
+      for (let i = 0; i < n; i++) out[i] = erf(d[i]);
+      break;
+    case 'Sqrt':
+      for (let i = 0; i < n; i++) out[i] = Math.sqrt(d[i]);
+      break;
+    default:
+      throw new Error(`unary ${op}`);
+  }
   return {shape: x.shape, data: out};
 }
 
-function conv(node: GraphNode, x: Tensor, w: Tensor, b?: Tensor): Tensor {
-  const [n, c, h, wd] = x.shape;
-  const [m, cg, kh, kw] = w.shape;
+/** A convolution's padding, strides and output size (ONNX Conv). */
+export function convGeometry(node: GraphNode, x: number[], w: number[]) {
+  const [, c, h, wd] = x;
+  const [, cg, kh, kw] = w;
   const group = attr(node, 'group', 1);
   const [sh, sw] = attr(node, 'strides', [1, 1]);
   const [dh, dw] = attr(node, 'dilations', [1, 1]);
@@ -232,11 +257,33 @@ function conv(node: GraphNode, x: Tensor, w: Tensor, b?: Tensor): Tensor {
         ? [pw >> 1, pw - (pw >> 1)]
         : [pw - (pw >> 1), pw >> 1];
   }
-  const oh = Math.floor((h + pt + pb - (kh - 1) * dh - 1) / sh) + 1;
-  const ow = Math.floor((wd + pl + pr - (kw - 1) * dw - 1) / sw) + 1;
-  const mg = m / group;
-  if (cg * group !== c)
+  if (cg * group !== c) {
     throw new Error(`Conv: ${c} channels, weight for ${cg}×${group}`);
+  }
+  return {
+    group,
+    sh,
+    sw,
+    dh,
+    dw,
+    pt,
+    pl,
+    pb,
+    pr,
+    oh: Math.floor((h + pt + pb - (kh - 1) * dh - 1) / sh) + 1,
+    ow: Math.floor((wd + pl + pr - (kw - 1) * dw - 1) / sw) + 1,
+  };
+}
+
+function conv(node: GraphNode, x: Tensor, w: Tensor, b?: Tensor): Tensor {
+  const [n, c, h, wd] = x.shape;
+  const [m, cg, kh, kw] = w.shape;
+  const {group, sh, sw, dh, dw, pt, pl, pb, pr, oh, ow} = convGeometry(
+    node,
+    x.shape,
+    w.shape,
+  );
+  const mg = m / group;
   const out = new Float32Array(n * m * oh * ow);
   const xd = x.data;
   const wdat = w.data;
@@ -344,25 +391,28 @@ function convTranspose(
   const oh = (h - 1) * sh - pt - pb + kh + oph;
   const ow = (wd - 1) * sw - pl - pr + kw + opw;
   const out = new Float32Array(n * m * oh * ow);
+  const plane = oh * ow;
+  // Each weight in turn, added along whole rows (as in conv).
   for (let ni = 0; ni < n; ni++) {
     for (let o = 0; o < m; o++) {
-      const bias = b ? b.data[o] : 0;
-      const base = (ni * m + o) * oh * ow;
-      for (let i = 0; i < oh * ow; i++) out[base + i] = bias;
-    }
-    for (let ci = 0; ci < c; ci++) {
-      for (let y = 0; y < h; y++) {
-        for (let xx = 0; xx < wd; xx++) {
-          const v = x.data[((ni * c + ci) * h + y) * wd + xx];
-          for (let o = 0; o < m; o++) {
-            for (let ky = 0; ky < kh; ky++) {
+      const ob = (ni * m + o) * plane;
+      if (b) out.fill(b.data[o], ob, ob + plane);
+      for (let ci = 0; ci < c; ci++) {
+        const xb = (ni * c + ci) * h * wd;
+        for (let ky = 0; ky < kh; ky++) {
+          for (let kx = 0; kx < kw; kx++) {
+            const wv = w.data[((ci * m + o) * kh + ky) * kw + kx];
+            if (wv === 0) continue;
+            const offX = kx - pl;
+            const x0 = Math.max(0, Math.ceil(-offX / sw));
+            const x1 = Math.min(wd, Math.floor((ow - 1 - offX) / sw) + 1);
+            for (let y = 0; y < h; y++) {
               const oy = y * sh - pt + ky;
               if (oy < 0 || oy >= oh) continue;
-              for (let kx = 0; kx < kw; kx++) {
-                const ox = xx * sw - pl + kx;
-                if (ox < 0 || ox >= ow) continue;
-                out[((ni * m + o) * oh + oy) * ow + ox] +=
-                  v * w.data[((ci * m + o) * kh + ky) * kw + kx];
+              const orow = ob + oy * ow + offX;
+              const xrow = xb + y * wd;
+              for (let xx = x0; xx < x1; xx++) {
+                out[orow + xx * sw] += wv * x.data[xrow + xx];
               }
             }
           }
@@ -433,6 +483,24 @@ function reduceMean(x: Tensor, axes: number[], keep: boolean): Tensor {
   const ax = new Set(axes.map(a => axis(a, rank)));
   const outShape = x.shape.map((d, i) => (ax.has(i) ? 1 : d));
   const n = sizeOf(outShape);
+  const sorted = [...ax].sort((a, b) => a - b);
+  if (sorted.every((a, i) => i === 0 || a === sorted[i - 1] + 1)) {
+    // Contiguous axes: outer × reduced × inner.
+    const red = sizeOf(x.shape.slice(sorted[0], sorted[sorted.length - 1] + 1));
+    const inner = sizeOf(x.shape.slice(sorted[sorted.length - 1] + 1));
+    const out = new Float32Array(n);
+    for (let o = 0; o < n / inner; o++) {
+      for (let r = 0; r < red; r++) {
+        const src = (o * red + r) * inner;
+        for (let k = 0; k < inner; k++) out[o * inner + k] += x.data[src + k];
+      }
+    }
+    for (let i = 0; i < n; i++) out[i] /= red;
+    return {
+      shape: keep ? outShape : x.shape.filter((_, i) => !ax.has(i)),
+      data: out,
+    };
+  }
   const sums = new Float32Array(n);
   const xs = strides(x.shape);
   const os = strides(outShape);
@@ -607,6 +675,23 @@ function resizeNearest(
 ): Tensor {
   // coordinate_transformation_mode asymmetric, nearest_mode floor.
   const rank = x.shape.length;
+  if (rank === 4 && scales[0] === 1 && scales[1] === 1) {
+    // Images: per plane, rows of precomputed source columns.
+    const [n, c, h, w] = x.shape;
+    const [, , oh, ow] = outShape;
+    const cols = Int32Array.from({length: ow}, (_, i) =>
+      Math.min(w - 1, Math.floor(i / scales[3])),
+    );
+    const out = new Float32Array(sizeOf(outShape));
+    for (let p = 0; p < n * c; p++) {
+      for (let y = 0; y < oh; y++) {
+        const src = (p * h + Math.min(h - 1, Math.floor(y / scales[2]))) * w;
+        const dst = (p * oh + y) * ow;
+        for (let i = 0; i < ow; i++) out[dst + i] = x.data[src + cols[i]];
+      }
+    }
+    return {shape: outShape, data: out};
+  }
   const xs = strides(x.shape);
   const os = strides(outShape);
   const out = new Float32Array(sizeOf(outShape));
@@ -623,12 +708,22 @@ function resizeNearest(
   return {shape: outShape, data: out};
 }
 
+/**
+ * Faster versions of the heaviest operators (graph-wasm.ts); each returns
+ * undefined for a case it doesn't handle, which then runs here.
+ */
+export interface Kernels {
+  conv?(node: GraphNode, x: Tensor, w: Tensor, b?: Tensor): Tensor | undefined;
+  matmul?(a: Tensor, b: Tensor): Tensor | undefined;
+}
+
 /** Runs the graph on the inputs; returns every output, by name. */
 export function runGraphCpu(
   graph: Graph,
   inputs: Record<string, Tensor>,
   /** to inspect intermediate values (tests) */
   onValue?: (name: string, v: Value) => void,
+  kernels?: Kernels,
 ): Map<string, Value> {
   const values = new Map<string, Value>(graph.consts);
   for (const [k, v] of Object.entries(inputs)) values.set(k, v);
@@ -638,7 +733,7 @@ export function runGraphCpu(
     return v;
   };
   for (const node of graph.spec.nodes) {
-    const out = evalNode(node, get);
+    const out = evalNode(node, get, kernels);
     values.set(node.outputs[0], out);
     onValue?.(node.outputs[0], out);
   }
@@ -646,7 +741,11 @@ export function runGraphCpu(
 }
 
 /** One node's output, given its inputs. */
-export function evalNode(node: GraphNode, get: (name: string) => Value): Value {
+export function evalNode(
+  node: GraphNode,
+  get: (name: string) => Value,
+  kernels?: Kernels,
+): Value {
   const f = (name: string): Tensor => {
     const v = get(name);
     if (isInt(v)) return {shape: v.shape, data: new Float32Array(v.ints)};
@@ -660,9 +759,11 @@ export function evalNode(node: GraphNode, get: (name: string) => Value): Value {
   const [i0, i1, i2] = node.inputs;
   let out: Value;
   switch (node.op) {
-    case 'Conv':
-      out = conv(node, f(i0), f(i1), i2 ? f(i2) : undefined);
+    case 'Conv': {
+      const args = [f(i0), f(i1), i2 ? f(i2) : undefined] as const;
+      out = kernels?.conv?.(node, ...args) ?? conv(node, ...args);
       break;
+    }
     case 'ConvTranspose':
       out = convTranspose(node, f(i0), f(i1), i2 ? f(i2) : undefined);
       break;
@@ -683,22 +784,16 @@ export function evalNode(node: GraphNode, get: (name: string) => Value): Value {
       break;
     }
     case 'Relu':
-      out = unary(f(i0), v => (v > 0 ? v : 0));
-      break;
     case 'Sigmoid':
-      out = unary(f(i0), v => 1 / (1 + Math.exp(-v)));
-      break;
-    case 'HardSigmoid': {
-      const alpha = attr(node, 'alpha', 0.2);
-      const beta = attr(node, 'beta', 0.5);
-      out = unary(f(i0), v => Math.max(0, Math.min(1, alpha * v + beta)));
-      break;
-    }
+    case 'HardSigmoid':
     case 'Erf':
-      out = unary(f(i0), erf);
-      break;
     case 'Sqrt':
-      out = unary(f(i0), Math.sqrt);
+      out = unaryOp(
+        node.op,
+        f(i0),
+        attr(node, 'alpha', 0.2),
+        attr(node, 'beta', 0.5),
+      );
       break;
     case 'ChannelAffine': {
       const x = f(i0);
@@ -761,7 +856,7 @@ export function evalNode(node: GraphNode, get: (name: string) => Value): Value {
       out = concat(node.inputs.map(get), attr(node, 'axis', 0));
       break;
     case 'MatMul':
-      out = matmul(f(i0), f(i1));
+      out = kernels?.matmul?.(f(i0), f(i1)) ?? matmul(f(i0), f(i1));
       break;
     case 'Softmax': {
       const x = f(i0);

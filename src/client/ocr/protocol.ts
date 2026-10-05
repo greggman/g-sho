@@ -6,7 +6,9 @@ export type ToWorker =
       type: 'init';
       /** where det/, rec/ and dict.txt are */
       baseUrl: string;
-      /** force the CPU engine ("js"), for testing */
+      /** nn.wasm, the WebAssembly kernels */
+      wasmUrl: string;
+      /** force an engine ("webgpu", "wasm", "js"), for testing */
       engine?: string;
     }
   /** Find and read every line; the photo stays in the worker for 'region'. */

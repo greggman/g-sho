@@ -123,8 +123,11 @@ photo to read just that.
 - `scripts/convert-graph.ts` converts the models to a general graph format
   (`src/client/nn/graph.ts`: ONNX's operators over n-dimensional tensors);
   `scripts/build-ocr.ts` puts them in `dist/ocr/` (11.5 MB, loaded on first use).
-- `src/client/nn/graph-webgpu.ts` runs them with WebGPU compute shaders;
-  `graph-cpu.ts` is the plain JavaScript reference and fallback.
+- `src/client/nn/graph-webgpu.ts` runs them with WebGPU compute shaders.
+  Without WebGPU, `graph-cpu.ts` (plain JavaScript, also the reference)
+  runs them with WebAssembly SIMD kernels for convolution and matrix
+  products (`graph-wasm.ts`, in `src/wasm/nn.rs`). `?engine=wasm` or
+  `?engine=js` forces one.
 - `src/client/ocr/pipeline.ts` is everything around the models, following
   RapidOCR: finding line boxes in the detector's output, straightening each
   line (vertical ones turned on their side), and decoding the recognizer's
