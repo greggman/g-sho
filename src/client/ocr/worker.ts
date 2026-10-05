@@ -5,6 +5,7 @@
  */
 import {loadGraph, type Graph, type Tensor} from '../nn/graph.ts';
 import {runGraphCpu} from '../nn/graph-cpu.ts';
+import {GraphGpu} from '../nn/graph-webgpu.ts';
 import {
   detect,
   OPTIONS,
@@ -37,9 +38,48 @@ function cpu(graph: Graph): RunModel {
     ) as Tensor;
 }
 
-async function init({baseUrl}: ToWorker & {type: 'init'}): Promise<Models> {
+/** WebGPU if there is one (falling back to the CPU if it fails), else the CPU. */
+async function chooseEngine(
+  det: Graph,
+  rec: Graph,
+  force?: string,
+): Promise<[string, RunModel, RunModel]> {
+  if (force !== 'js') {
+    try {
+      const gd = await GraphGpu.create(det);
+      const gr = gd && (await GraphGpu.create(rec, gd.gpuDevice));
+      if (gd && gr) {
+        let failed = false;
+        const run =
+          (g: Graph, engine: GraphGpu, fallback: RunModel): RunModel =>
+          async x => {
+            if (!failed) {
+              try {
+                return (await engine.run({[g.spec.inputs[0]]: x})).get(
+                  g.spec.outputs[0],
+                )!;
+              } catch (e) {
+                console.warn('WebGPU failed; using the CPU:', e);
+                failed = true;
+              }
+            }
+            return fallback(x);
+          };
+        return ['WebGPU', run(det, gd, cpu(det)), run(rec, gr, cpu(rec))];
+      }
+    } catch (e) {
+      console.warn('WebGPU unavailable:', e);
+    }
+  }
+  return ['JavaScript', cpu(det), cpu(rec)];
+}
+
+async function init({
+  baseUrl,
+  engine: force,
+}: ToWorker & {type: 'init'}): Promise<Models> {
   const base = new URL(baseUrl);
-  const [det, rec, dict] = await Promise.all([
+  const [detGraph, recGraph, dict] = await Promise.all([
     loadGraph(new URL('det/', base)),
     loadGraph(new URL('rec/', base)),
     fetch(new URL('dict.txt', base)).then(async r => {
@@ -47,8 +87,9 @@ async function init({baseUrl}: ToWorker & {type: 'init'}): Promise<Models> {
       return (await r.text()).replace(/\n$/, '').split('\n');
     }),
   ]);
-  post({type: 'ready', engine: 'JavaScript'});
-  return {det: cpu(det), rec: cpu(rec), dict};
+  const [engine, det, rec] = await chooseEngine(detGraph, recGraph, force);
+  post({type: 'ready', engine});
+  return {det, rec, dict};
 }
 
 function pixels(image: ImageBitmap): Rgba {

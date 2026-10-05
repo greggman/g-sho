@@ -6,7 +6,7 @@ export type ToWorker =
       type: 'init';
       /** where det/, rec/ and dict.txt are */
       baseUrl: string;
-      /** force an engine ("js"), for testing */
+      /** force the CPU engine ("js"), for testing */
       engine?: string;
     }
   /** Find and read every line; the photo stays in the worker for 'region'. */

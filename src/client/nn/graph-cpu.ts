@@ -15,7 +15,7 @@ import {
   type Value,
 } from './graph.ts';
 
-const strides = (shape: number[]) => {
+export const strides = (shape: number[]) => {
   const s = new Array<number>(shape.length);
   let n = 1;
   for (let i = shape.length - 1; i >= 0; i--) {
@@ -25,9 +25,9 @@ const strides = (shape: number[]) => {
   return s;
 };
 
-const axis = (a: number, rank: number) => (a < 0 ? a + rank : a);
+export const axis = (a: number, rank: number) => (a < 0 ? a + rank : a);
 
-function attr<T extends AttrValue>(
+export function attr<T extends AttrValue>(
   node: GraphNode,
   name: string,
   fallback: T,
@@ -481,7 +481,12 @@ export function reshapeShape(from: number[], to: number[]): number[] {
 }
 
 /** ONNX Slice's ranges for one axis, clamped like ONNX does. */
-function sliceRange(dim: number, start: number, end: number, step: number) {
+export function sliceRange(
+  dim: number,
+  start: number,
+  end: number,
+  step: number,
+) {
   const clamp = (v: number, lo: number, hi: number) =>
     Math.min(Math.max(v, lo), hi);
   if (start < 0) start += dim;
@@ -632,6 +637,16 @@ export function runGraphCpu(
     if (!v) throw new Error(`missing value ${name}`);
     return v;
   };
+  for (const node of graph.spec.nodes) {
+    const out = evalNode(node, get);
+    values.set(node.outputs[0], out);
+    onValue?.(node.outputs[0], out);
+  }
+  return new Map(graph.spec.outputs.map(o => [o, get(o)]));
+}
+
+/** One node's output, given its inputs. */
+export function evalNode(node: GraphNode, get: (name: string) => Value): Value {
   const f = (name: string): Tensor => {
     const v = get(name);
     if (isInt(v)) return {shape: v.shape, data: new Float32Array(v.ints)};
@@ -642,179 +657,175 @@ export function runGraphCpu(
     return isInt(v) ? v.ints : Array.from(v.data);
   };
 
-  for (const node of graph.spec.nodes) {
-    const [i0, i1, i2] = node.inputs;
-    let out: Value;
-    switch (node.op) {
-      case 'Conv':
-        out = conv(node, f(i0), f(i1), i2 ? f(i2) : undefined);
-        break;
-      case 'ConvTranspose':
-        out = convTranspose(node, f(i0), f(i1), i2 ? f(i2) : undefined);
-        break;
-      case 'Add':
-      case 'Sub':
-      case 'Mul':
-      case 'Div':
-      case 'Pow': {
-        const a = get(i0);
-        const b = get(i1);
-        const op = node.op as BinaryOp;
-        if (isInt(a) && isInt(b)) {
-          const t = binary(f(i0), f(i1), BINARY[op]);
-          out = {shape: t.shape, ints: Array.from(t.data, Math.trunc)};
-        } else {
-          out = binaryOp(op, f(i0), f(i1));
+  const [i0, i1, i2] = node.inputs;
+  let out: Value;
+  switch (node.op) {
+    case 'Conv':
+      out = conv(node, f(i0), f(i1), i2 ? f(i2) : undefined);
+      break;
+    case 'ConvTranspose':
+      out = convTranspose(node, f(i0), f(i1), i2 ? f(i2) : undefined);
+      break;
+    case 'Add':
+    case 'Sub':
+    case 'Mul':
+    case 'Div':
+    case 'Pow': {
+      const a = get(i0);
+      const b = get(i1);
+      const op = node.op as BinaryOp;
+      if (isInt(a) && isInt(b)) {
+        const t = binary(f(i0), f(i1), BINARY[op]);
+        out = {shape: t.shape, ints: Array.from(t.data, Math.trunc)};
+      } else {
+        out = binaryOp(op, f(i0), f(i1));
+      }
+      break;
+    }
+    case 'Relu':
+      out = unary(f(i0), v => (v > 0 ? v : 0));
+      break;
+    case 'Sigmoid':
+      out = unary(f(i0), v => 1 / (1 + Math.exp(-v)));
+      break;
+    case 'HardSigmoid': {
+      const alpha = attr(node, 'alpha', 0.2);
+      const beta = attr(node, 'beta', 0.5);
+      out = unary(f(i0), v => Math.max(0, Math.min(1, alpha * v + beta)));
+      break;
+    }
+    case 'Erf':
+      out = unary(f(i0), erf);
+      break;
+    case 'Sqrt':
+      out = unary(f(i0), Math.sqrt);
+      break;
+    case 'ChannelAffine': {
+      const x = f(i0);
+      const scale = f(i1).data;
+      const shift = f(i2).data;
+      const [n, c] = x.shape;
+      const hw = sizeOf(x.shape.slice(2));
+      const data = new Float32Array(x.data.length);
+      for (let p = 0; p < n * c; p++) {
+        const ch = p % c;
+        for (let i = p * hw; i < (p + 1) * hw; i++) {
+          data[i] = x.data[i] * scale[ch] + shift[ch];
         }
-        break;
       }
-      case 'Relu':
-        out = unary(f(i0), v => (v > 0 ? v : 0));
-        break;
-      case 'Sigmoid':
-        out = unary(f(i0), v => 1 / (1 + Math.exp(-v)));
-        break;
-      case 'HardSigmoid': {
-        const alpha = attr(node, 'alpha', 0.2);
-        const beta = attr(node, 'beta', 0.5);
-        out = unary(f(i0), v => Math.max(0, Math.min(1, alpha * v + beta)));
-        break;
+      out = {shape: x.shape, data};
+      break;
+    }
+    case 'GlobalAveragePool':
+      out = reduceMean(f(i0), [2, 3], true);
+      break;
+    case 'ReduceMean': {
+      const x = f(i0);
+      const axes = attr(
+        node,
+        'axes',
+        x.shape.map((_, i) => i),
+      );
+      out = reduceMean(x, axes, attr(node, 'keepdims', 1) === 1);
+      break;
+    }
+    case 'AveragePool':
+      out = pool(node, f(i0), 'avg');
+      break;
+    case 'MaxPool':
+      out = pool(node, f(i0), 'max');
+      break;
+    case 'Resize': {
+      const mode = attr<string>(node, 'mode', 'nearest');
+      const ct = attr<string>(
+        node,
+        'coordinate_transformation_mode',
+        'half_pixel',
+      );
+      const nm = attr<string>(node, 'nearest_mode', 'round_prefer_floor');
+      if (mode !== 'nearest' || ct !== 'asymmetric' || nm !== 'floor') {
+        throw new Error(`Resize ${mode}/${ct}/${nm}`);
       }
-      case 'Erf':
-        out = unary(f(i0), erf);
-        break;
-      case 'Sqrt':
-        out = unary(f(i0), Math.sqrt);
-        break;
-      case 'ChannelAffine': {
-        const x = f(i0);
-        const scale = f(i1).data;
-        const shift = f(i2).data;
-        const [n, c] = x.shape;
-        const hw = sizeOf(x.shape.slice(2));
-        const data = new Float32Array(x.data.length);
-        for (let p = 0; p < n * c; p++) {
-          const ch = p % c;
-          for (let i = p * hw; i < (p + 1) * hw; i++) {
-            data[i] = x.data[i] * scale[ch] + shift[ch];
-          }
-        }
-        out = {shape: x.shape, data};
-        break;
-      }
-      case 'GlobalAveragePool':
-        out = reduceMean(f(i0), [2, 3], true);
-        break;
-      case 'ReduceMean': {
-        const x = f(i0);
-        const axes = attr(
+      const x = f(i0);
+      const scales = i2 ? Array.from(f(i2).data) : [];
+      const sizes = node.inputs[3] ? ints(node.inputs[3]) : undefined;
+      const shape = sizes ?? x.shape.map((d, i) => Math.floor(d * scales[i]));
+      out = resizeNearest(
+        x,
+        shape,
+        sizes ? shape.map((d, i) => d / x.shape[i]) : scales,
+      );
+      break;
+    }
+    case 'Concat':
+      out = concat(node.inputs.map(get), attr(node, 'axis', 0));
+      break;
+    case 'MatMul':
+      out = matmul(f(i0), f(i1));
+      break;
+    case 'Softmax': {
+      const x = f(i0);
+      const ax = axis(attr(node, 'axis', -1), x.shape.length);
+      if (ax !== x.shape.length - 1)
+        throw new Error('Softmax: not the last axis');
+      out = softmaxLast(x);
+      break;
+    }
+    case 'Transpose': {
+      const x = f(i0);
+      out = transpose(
+        x,
+        attr(node, 'perm', x.shape.map((_, i) => i).reverse()),
+      );
+      break;
+    }
+    case 'Reshape': {
+      const x = get(i0);
+      const shape = reshapeShape(x.shape, ints(i1));
+      out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
+      break;
+    }
+    case 'Squeeze': {
+      const x = get(i0);
+      const rank = x.shape.length;
+      const axes = new Set(
+        attr(
           node,
           'axes',
-          x.shape.map((_, i) => i),
-        );
-        out = reduceMean(x, axes, attr(node, 'keepdims', 1) === 1);
-        break;
-      }
-      case 'AveragePool':
-        out = pool(node, f(i0), 'avg');
-        break;
-      case 'MaxPool':
-        out = pool(node, f(i0), 'max');
-        break;
-      case 'Resize': {
-        const mode = attr<string>(node, 'mode', 'nearest');
-        const ct = attr<string>(
-          node,
-          'coordinate_transformation_mode',
-          'half_pixel',
-        );
-        const nm = attr<string>(node, 'nearest_mode', 'round_prefer_floor');
-        if (mode !== 'nearest' || ct !== 'asymmetric' || nm !== 'floor') {
-          throw new Error(`Resize ${mode}/${ct}/${nm}`);
-        }
-        const x = f(i0);
-        const scales = i2 ? Array.from(f(i2).data) : [];
-        const sizes = node.inputs[3] ? ints(node.inputs[3]) : undefined;
-        const shape = sizes ?? x.shape.map((d, i) => Math.floor(d * scales[i]));
-        out = resizeNearest(
-          x,
-          shape,
-          sizes ? shape.map((d, i) => d / x.shape[i]) : scales,
-        );
-        break;
-      }
-      case 'Concat':
-        out = concat(node.inputs.map(get), attr(node, 'axis', 0));
-        break;
-      case 'MatMul':
-        out = matmul(f(i0), f(i1));
-        break;
-      case 'Softmax': {
-        const x = f(i0);
-        const ax = axis(attr(node, 'axis', -1), x.shape.length);
-        if (ax !== x.shape.length - 1)
-          throw new Error('Softmax: not the last axis');
-        out = softmaxLast(x);
-        break;
-      }
-      case 'Transpose': {
-        const x = f(i0);
-        out = transpose(
-          x,
-          attr(node, 'perm', x.shape.map((_, i) => i).reverse()),
-        );
-        break;
-      }
-      case 'Reshape': {
-        const x = get(i0);
-        const shape = reshapeShape(x.shape, ints(i1));
-        out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
-        break;
-      }
-      case 'Squeeze': {
-        const x = get(i0);
-        const rank = x.shape.length;
-        const axes = new Set(
-          attr(
-            node,
-            'axes',
-            x.shape.flatMap((d, i) => (d === 1 ? [i] : [])),
-          ).map(a => axis(a, rank)),
-        );
-        const shape = x.shape.filter((_, i) => !axes.has(i));
-        out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
-        break;
-      }
-      case 'Unsqueeze': {
-        const x = get(i0);
-        const rank = x.shape.length + attr<number[]>(node, 'axes', []).length;
-        const axes = attr<number[]>(node, 'axes', [])
-          .map(a => axis(a, rank))
-          .sort((a, b) => a - b);
-        const shape = [...x.shape];
-        for (const a of axes) shape.splice(a, 0, 1);
-        out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
-        break;
-      }
-      case 'Slice':
-        out = slice(
-          get(i0),
-          ints(i1),
-          ints(i2),
-          node.inputs[3] ? ints(node.inputs[3]) : undefined,
-          node.inputs[4] ? ints(node.inputs[4]) : undefined,
-        );
-        break;
-      case 'Shape': {
-        const x = get(i0);
-        out = {shape: [x.shape.length], ints: [...x.shape]} as IntTensor;
-        break;
-      }
-      default:
-        throw new Error(`unsupported operator ${node.op}`);
+          x.shape.flatMap((d, i) => (d === 1 ? [i] : [])),
+        ).map(a => axis(a, rank)),
+      );
+      const shape = x.shape.filter((_, i) => !axes.has(i));
+      out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
+      break;
     }
-    values.set(node.outputs[0], out);
-    onValue?.(node.outputs[0], out);
+    case 'Unsqueeze': {
+      const x = get(i0);
+      const rank = x.shape.length + attr<number[]>(node, 'axes', []).length;
+      const axes = attr<number[]>(node, 'axes', [])
+        .map(a => axis(a, rank))
+        .sort((a, b) => a - b);
+      const shape = [...x.shape];
+      for (const a of axes) shape.splice(a, 0, 1);
+      out = isInt(x) ? {shape, ints: x.ints} : {shape, data: x.data};
+      break;
+    }
+    case 'Slice':
+      out = slice(
+        get(i0),
+        ints(i1),
+        ints(i2),
+        node.inputs[3] ? ints(node.inputs[3]) : undefined,
+        node.inputs[4] ? ints(node.inputs[4]) : undefined,
+      );
+      break;
+    case 'Shape': {
+      const x = get(i0);
+      out = {shape: [x.shape.length], ints: [...x.shape]} as IntTensor;
+      break;
+    }
+    default:
+      throw new Error(`unsupported operator ${node.op}`);
   }
-  return new Map(graph.spec.outputs.map(o => [o, get(o)]));
+  return out;
 }
