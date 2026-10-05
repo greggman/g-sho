@@ -45,6 +45,24 @@
           autofocus
         />
         <button
+          id="photo-toggle"
+          type="button"
+          class="radical-toggle icon-button"
+          title="Read text in a photo"
+          aria-label="Read text in a photo"
+          aria-expanded="false"
+          aria-controls="photo-panel"
+        >
+          <!-- a camera -->
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+              <path d="M3.5 8.5a2 2 0 0 1 2-2h2.5l1.5-2.5h5l1.5 2.5h2.5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+              <circle cx="12" cy="13" r="3.5" />
+            </g>
+          </svg>
+        </button>
+        <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
+        <button
           id="handwriting-toggle"
           type="button"
           class="radical-toggle icon-button"
@@ -137,6 +155,7 @@
     <div class="layout">
       <aside id="history-column" class="history-column"></aside>
       <div class="main-column">
+        <div id="photo-panel" class="radical-panel" hidden></div>
         <div id="handwriting-panel" class="radical-panel" hidden></div>
         <div id="radical-panel" class="radical-panel" hidden></div>
         <div id="settings-panel" class="radical-panel" hidden></div>

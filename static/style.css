@@ -289,6 +289,115 @@ a:hover {
   padding: 0 8px;
 }
 
+/* ---- photo (OCR) ---- */
+
+.photo-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.photo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.photo-new {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.photo-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The photo, at most most of the screen tall; the overlay matches it. */
+.photo-stage {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.photo-image {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 6px;
+}
+
+.photo-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.photo-box {
+  fill: rgb(63 155 82 / 0.12);
+  stroke: var(--accent);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.photo-box.pending {
+  stroke-dasharray: 4 3;
+}
+
+.photo-box.unread {
+  fill: none;
+  stroke: var(--faint);
+  stroke-dasharray: 2 3;
+}
+
+.photo-box.selected {
+  fill: rgb(63 155 82 / 0.3);
+  stroke: var(--accent-strong);
+  stroke-width: 3px;
+}
+
+.photo-box.drawing {
+  fill: rgb(42 111 176 / 0.12);
+  stroke: var(--link);
+  stroke-dasharray: 4 3;
+}
+
+.photo-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photo-lines button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.2rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.photo-lines button:hover {
+  background: var(--accent-soft);
+}
+
 /* ---- handwriting ---- */
 
 .handwriting-panel {
