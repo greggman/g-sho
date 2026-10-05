@@ -13,9 +13,11 @@
  * Tatoeba's word index with its Japanese and English sentences (more example
  * sentences, .cache/tatoeba/),
  * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
- * definitions, .cache/jawiktionary/).
+ * definitions, .cache/jawiktionary/), and PaddleOCR's text detection and
+ * recognition models as converted by RapidOCR (.cache/ocr/), pinned by hash.
  */
 import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -36,6 +38,30 @@ const HANDWRITING_MODEL = {
   revision: '7e4fa1096b1fd4dc1afb9f8ffc5b9d936adb2839',
   files: ['model.fp16.onnx', 'labels.json'],
 };
+
+/**
+ * PaddleOCR PP-OCRv6 (Apache 2.0), as ONNX by RapidOCR: the tiny text
+ * detector, the small recognizer and its character list. Pinned by hash.
+ */
+const RAPIDOCR =
+  'https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2';
+const OCR_FILES = [
+  {
+    file: 'det.onnx',
+    url: `${RAPIDOCR}/onnx/PP-OCRv6/det/PP-OCRv6_det_tiny.onnx`,
+    sha256: 'f42c0fbd294d95eac1a550e131b277dac97462c8025fa4b6c3cec1b7894bd3d5',
+  },
+  {
+    file: 'rec.onnx',
+    url: `${RAPIDOCR}/onnx/PP-OCRv6/rec/PP-OCRv6_rec_small.onnx`,
+    sha256: '6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884',
+  },
+  {
+    file: 'dict.txt',
+    url: `${RAPIDOCR}/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt`,
+    sha256: 'b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d',
+  },
+];
 
 interface Release {
   tag_name: string;
@@ -67,6 +93,24 @@ async function downloadHandwritingModel() {
     path.join(CACHE_DIR, 'handwriting', 'current.json'),
     JSON.stringify({repo, revision}, null, 2) + '\n',
   );
+}
+
+const sha256 = (data: Uint8Array) =>
+  createHash('sha256').update(data).digest('hex');
+
+async function downloadOcrModels() {
+  const dir = path.join(CACHE_DIR, 'ocr');
+  fs.mkdirSync(dir, {recursive: true});
+  for (const {file, url, sha256: want} of OCR_FILES) {
+    const out = path.join(dir, file);
+    if (fs.existsSync(out) && sha256(fs.readFileSync(out)) === want) continue;
+    console.log(`downloading ${url}`);
+    const data = new Uint8Array(await (await fetchOk(url)).arrayBuffer());
+    const got = sha256(data);
+    if (got !== want)
+      throw new Error(`${url}: sha256 ${got}, expected ${want}`);
+    fs.writeFileSync(out, data);
+  }
 }
 
 async function latestRelease(repo: string): Promise<Release> {
@@ -317,10 +361,10 @@ async function downloadDictionary() {
   console.log(`downloaded ${release.tag_name}`);
 }
 
-// `--handwriting`: only the (pinned) handwriting model, for building the app
-// with dictionary data from a data release (see .github/workflows/deploy.yml).
-if (process.argv.includes('--handwriting')) {
-  await downloadHandwritingModel();
+// `--models`: only the (pinned) handwriting and OCR models, for building the
+// app with dictionary data from a data release (.github/workflows/deploy.yml).
+if (process.argv.includes('--models')) {
+  await Promise.all([downloadHandwritingModel(), downloadOcrModels()]);
   process.exit(0);
 }
 
@@ -332,5 +376,6 @@ await Promise.all([
   downloadWordfreq(),
   downloadTatoebaTranscriptions(),
   downloadHandwritingModel(),
+  downloadOcrModels(),
   downloadKanjiVG(),
 ]);

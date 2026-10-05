@@ -11,8 +11,8 @@
  * - Dictionary data (/data/…?v=<version>): saved copy first; the URLs change
  *   when the data does. When meta.json lists new versions, older copies are
  *   deleted. meta.json itself is network first.
- * - The handwriting model and sql.js's wasm: saved copy, refreshed in the
- *   background.
+ * - The handwriting and OCR models and sql.js's wasm: saved copy, refreshed
+ *   in the background.
  * - /api/ (sign-in, sync): never cached, nor the packs the offline download
  *   unpacks into the data cache (offline/download-worker.ts).
  *
@@ -227,7 +227,11 @@ sw.addEventListener('fetch', event => {
     return;
   } else if (path.startsWith('/data/')) {
     event.respondWith(cacheFirst(request, DATA));
-  } else if (path.startsWith('/handwriting/') || path === '/sql-wasm.wasm') {
+  } else if (
+    path.startsWith('/handwriting/') ||
+    path.startsWith('/ocr/') ||
+    path === '/sql-wasm.wasm'
+  ) {
     event.respondWith(
       staleWhileRevalidate(request, RUNTIME, p => event.waitUntil(p)),
     );

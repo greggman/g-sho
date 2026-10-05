@@ -1,0 +1,41 @@
+{
+ "det.input": {
+  "offset": 0,
+  "shape": [
+   1,
+   3,
+   96,
+   160
+  ]
+ },
+ "det.output": {
+  "offset": 46080,
+  "shape": [
+   1,
+   1,
+   96,
+   160
+  ]
+ },
+ "rec.input": {
+  "offset": 61440,
+  "shape": [
+   1,
+   3,
+   48,
+   216
+  ]
+ },
+ "rec.best": {
+  "offset": 92544,
+  "shape": [
+   27
+  ]
+ },
+ "rec.bestProb": {
+  "offset": 92571,
+  "shape": [
+   27
+  ]
+ }
+}

@@ -22,7 +22,7 @@
     "dev:worker": "wrangler d1 migrations apply DB --local --env dev && wrangler dev --env dev",
     "deploy": "wrangler deploy --env=\"\"",
     "dev:server": "node scripts/build.ts --watch --serve",
-    "download:handwriting": "node scripts/download.ts --handwriting"
+    "download:models": "node scripts/download.ts --models"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

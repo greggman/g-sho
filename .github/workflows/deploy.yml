@@ -72,11 +72,11 @@ jobs:
           tar -xzf data.tar.gz -C dist
           rm data.tar.gz
 
-      - name: Download the handwriting model
+      - name: Download the handwriting and OCR models
         if: steps.data.outputs.tag
-        run: npm run download:handwriting
+        run: npm run download:models
 
-      - name: Download the dictionary sources and handwriting model
+      - name: Download the dictionary sources and the models
         if: steps.data.outputs.build
         run: npm run download
         env:

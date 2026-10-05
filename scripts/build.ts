@@ -12,6 +12,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {buildHandwriting} from './build-handwriting.ts';
+import {buildOcr} from './build-ocr.ts';
 import {buildWasm} from './build-wasm.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -22,8 +23,8 @@ const watch = process.argv.includes('--watch');
 const serve = process.argv.includes('--serve');
 
 /**
- * Copies the files served as-is (static/, the handwriting model) and builds
- * the WebAssembly kernels.
+ * Copies the files served as-is (static/, the handwriting and OCR models)
+ * and builds the WebAssembly kernels.
  */
 function copyStatic() {
   fs.cpSync(STATIC, DIST, {recursive: true});
@@ -35,6 +36,9 @@ function copyStatic() {
   buildWasm(DIST);
   if (!buildHandwriting(DIST)) {
     console.warn('warning: handwriting model missing; run `npm run download`');
+  }
+  if (!buildOcr(DIST)) {
+    console.warn('warning: OCR models missing; run `npm run download:models`');
   }
 }
 
