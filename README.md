@@ -138,9 +138,11 @@ photo to read just that.
 
 ## Anki
 
-Open **Settings** (the gear) and connect in the Anki section: with the Anki app running and the
+Open **Settings** (the gear) and turn on **Add words to Anki**: with the Anki app running and the
 [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on installed,
 Anki asks whether to allow the site. Then every entry has a [+] to add it.
+If Anki isn't running, one notice above the results says so (with Retry and
+Turn off); turned off, nothing about Anki is shown.
 See PLAN.md for details.
 
 ## Study, sync, and Anki decks

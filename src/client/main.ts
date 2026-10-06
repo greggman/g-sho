@@ -1,5 +1,9 @@
 import {hasJapanese, isKanji} from '../shared/kana.ts';
-import {loadSettings, type AnkiSettings} from './anki/settings.ts';
+import {
+  loadSettings,
+  saveSettings,
+  type AnkiSettings,
+} from './anki/settings.ts';
 import type {Meta} from '../shared/types.ts';
 import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
@@ -439,8 +443,40 @@ const panels: [HTMLButtonElement, HTMLElement][] = [
 
 /** Turns the add-to-Anki buttons on or off for the settings. */
 async function applyAnki(dict: Dict, settings: AnkiSettings) {
+  const notice = $<HTMLElement>('anki-notice');
+  notice.hidden = true;
   ankiActions = settings.enabled
-    ? (await import('./anki/controller.ts')).createAnkiActions(settings, dict)
+    ? (await import('./anki/controller.ts')).createAnkiActions(settings, dict, {
+        // One notice for the page when Anki can't be reached.
+        show(message, retry) {
+          notice.replaceChildren(
+            h('span', {class: 'anki-notice-mark', 'aria-hidden': 'true'}, '!'),
+            h(
+              'span',
+              {title: message},
+              'Anki isn’t reachable, so words can’t be added. Is Anki running?',
+            ),
+            h('button', {type: 'button', onclick: retry}, 'Retry'),
+            h(
+              'button',
+              {
+                type: 'button',
+                onclick: async () => {
+                  const off = {...loadSettings(), enabled: false};
+                  saveSettings(off);
+                  await applyAnki(dict, off);
+                  void route(dict);
+                },
+              },
+              'Turn off Anki',
+            ),
+          );
+          notice.hidden = false;
+        },
+        hide() {
+          notice.hidden = true;
+        },
+      })
     : undefined;
 }
 

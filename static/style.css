@@ -529,6 +529,71 @@ a:hover {
   margin: 0 0 10px;
 }
 
+.anki-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.anki-title .panel-title {
+  margin: 0;
+}
+
+.anki-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.anki-switch input {
+  accent-color: var(--accent);
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* One notice for the page when Anki is on but can't be reached. */
+.anki-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 1100px;
+  margin: 0 auto 8px;
+  padding: 0 16px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.anki-notice[hidden] {
+  display: none;
+}
+
+.anki-notice-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c0392b;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.anki-notice button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .anki-settings label {
   display: flex;
   align-items: center;

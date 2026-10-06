@@ -11,7 +11,15 @@ type State =
   | {kind: 'absent'}
   | {kind: 'present'; noteIds: number[]}
   | {kind: 'busy'}
-  | {kind: 'error'; message: string};
+  | {kind: 'error'; message: string}
+  /** Anki couldn't be reached: no control (one notice for the page) */
+  | {kind: 'offline'};
+
+/** The one notice on the page when Anki can't be reached. */
+export interface AnkiNotice {
+  show(message: string, retry: () => void): void;
+  hide(): void;
+}
 
 /**
  * The add-to-Anki control on each entry: "+" adds the word; once it's in
@@ -25,9 +33,11 @@ class AnkiButtons {
   private readonly states = new Map<number, State>();
   private readonly entries = new Map<number, Entry>();
   private toCheck: Entry[] = [];
+  private readonly notice: AnkiNotice;
 
-  constructor(notes: AnkiNotes) {
+  constructor(notes: AnkiNotes, notice: AnkiNotice) {
     this.notes = notes;
+    this.notice = notice;
   }
 
   readonly actions: EntryActions = entry => {
@@ -40,7 +50,7 @@ class AnkiButtons {
     set.add(el);
     this.entries.set(entry.id, entry);
     const known = this.states.get(entry.id);
-    if (known && known.kind !== 'error') {
+    if (known && known.kind !== 'error' && known.kind !== 'offline') {
       this.render(el, entry, known);
     } else {
       this.render(el, entry, {kind: 'checking'});
@@ -62,11 +72,22 @@ class AnkiButtons {
           noteIds.length ? {kind: 'present', noteIds} : {kind: 'absent'},
         );
       }
+      this.notice.hide();
     } catch (err) {
-      for (const e of entries) {
-        this.set(e, {kind: 'error', message: (err as Error).message});
-      }
+      for (const e of entries) this.set(e, {kind: 'offline'});
+      this.notice.show((err as Error).message, () => this.retry());
     }
+  }
+
+  /** Checks again every entry that couldn't be checked. */
+  private retry() {
+    for (const [id, state] of this.states) {
+      const entry = this.entries.get(id);
+      if (state.kind !== 'offline' || !entry) continue;
+      this.states.delete(id);
+      this.toCheck.push(entry);
+    }
+    void this.check();
   }
 
   private set(entry: Entry, state: State) {
@@ -102,6 +123,9 @@ class AnkiButtons {
     const word = headword(entry).text;
     el.dataset.state = state.kind;
     switch (state.kind) {
+      case 'offline':
+        el.replaceChildren();
+        break;
       case 'checking':
       case 'busy':
         el.replaceChildren(
@@ -198,6 +222,7 @@ class AnkiButtons {
 export function createAnkiActions(
   settings: AnkiSettings,
   dict: Dict,
+  notice: AnkiNotice,
 ): EntryActions {
   const anki = new AnkiConnect(settings.url, settings.apiKey);
   const site = new URL(location.pathname, location.origin);
@@ -209,5 +234,5 @@ export function createAnkiActions(
       link: `${site.href}?q=${encodeURIComponent(headword(entry).text)}`,
     }),
   );
-  return new AnkiButtons(notes).actions;
+  return new AnkiButtons(notes, notice).actions;
 }

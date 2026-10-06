@@ -13,8 +13,9 @@ import {saveSettings, type AnkiSettings} from './settings.ts';
 const ADDON_URL = 'https://ankiweb.net/shared/info/2055492159';
 
 /**
- * Anki settings: connect (Anki asks you to allow this site), then choose the
- * deck and note type. Every change is saved and reported to onChange.
+ * Anki settings: a switch for the whole integration; when it's on, connect
+ * (Anki asks you to allow this site), then choose the deck and note type.
+ * Every change is saved and reported to onChange.
  */
 export function createAnkiPanel(
   initial: AnkiSettings,
@@ -22,10 +23,29 @@ export function createAnkiPanel(
 ): HTMLElement {
   let settings = {...initial};
   const body = h('div', {class: 'anki-settings'});
+  const toggle = h('input', {
+    type: 'checkbox',
+    role: 'switch',
+    onchange: () => {
+      if (toggle.checked) {
+        update({enabled: true});
+        void connect(settings.url, settings.apiKey);
+      } else {
+        update({enabled: false});
+        showDisconnected();
+      }
+    },
+  });
+  toggle.checked = settings.enabled;
   const panel = h(
     'div',
     {class: 'anki-panel'},
-    h('h2', {class: 'panel-title'}, 'Anki'),
+    h(
+      'div',
+      {class: 'anki-title'},
+      h('h2', {class: 'panel-title'}, 'Anki'),
+      h('label', {class: 'anki-switch'}, toggle, 'Add words to Anki'),
+    ),
     body,
   );
 
@@ -60,22 +80,22 @@ export function createAnkiPanel(
           {href: ADDON_URL, target: '_blank', rel: 'noopener'},
           'AnkiConnect add-on',
         ),
-        '. When you connect, Anki asks whether to allow this site.',
+        '. Turn it on to connect; Anki asks whether to allow this site.',
       ),
       ...(message ? [message] : []),
-      h(
-        'button',
-        {
-          type: 'button',
-          class: 'primary',
-          onclick: () =>
-            void connect(
-              url.value.trim() || settings.url,
-              key.value.trim() || undefined,
+      ...(settings.enabled
+        ? [
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'primary',
+                onclick: () => void connect(settings.url, settings.apiKey),
+              },
+              'Try again',
             ),
-        },
-        'Connect to Anki',
-      ),
+          ]
+        : []),
       h(
         'details',
         {class: 'anki-advanced'},
@@ -84,6 +104,20 @@ export function createAnkiPanel(
         h('label', null, 'API key', key),
       ),
     );
+    const saveAddress = () =>
+      update({
+        url: url.value.trim() || settings.url,
+        apiKey: key.value.trim() || undefined,
+      });
+    url.addEventListener('change', saveAddress);
+    key.addEventListener('change', saveAddress);
+  }
+
+  /** Turns the switch off (Anki refused, or the setup is incomplete). */
+  function turnOff(message: HTMLElement) {
+    update({enabled: false});
+    toggle.checked = false;
+    showDisconnected(message);
   }
 
   async function connect(url: string, apiKey?: string) {
@@ -94,7 +128,7 @@ export function createAnkiPanel(
     try {
       const permission = await anki.requestPermission();
       if (permission.permission !== 'granted') {
-        showDisconnected(
+        turnOff(
           status(
             'Anki didn’t allow this site. Try again and choose Yes in Anki.',
             'error',
@@ -103,7 +137,7 @@ export function createAnkiPanel(
         return;
       }
       if (permission.requireApikey && !apiKey) {
-        showDisconnected(
+        turnOff(
           status(
             'Your AnkiConnect needs an API key. Enter it under Advanced.',
             'error',
@@ -111,9 +145,9 @@ export function createAnkiPanel(
         );
         return;
       }
-      update({enabled: true, url, apiKey});
       await showConnected(anki);
     } catch (e) {
+      // Stays on: Anki may just not be running now.
       showDisconnected(
         status(
           e instanceof AnkiUnreachable
@@ -207,17 +241,6 @@ export function createAnkiPanel(
       h('label', null, 'Deck', deckSelect),
       h('label', null, 'Note type', modelSelect),
       fieldsTable,
-      h(
-        'button',
-        {
-          type: 'button',
-          onclick: () => {
-            update({enabled: false});
-            showDisconnected();
-          },
-        },
-        'Disconnect',
-      ),
     );
     await showFields(settings.noteType, true);
   }
