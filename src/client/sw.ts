@@ -55,6 +55,27 @@ const RUNTIME = 'g-sho-runtime';
 const KEEP_OLD_CHUNKS_MS = 7 * 24 * 60 * 60 * 1000;
 /** How long meta.json waits for the network before using the saved copy. */
 const META_WAIT_MS = 1500;
+/** Each install download: time limit, and how many tries. */
+const INSTALL_FETCH_MS = 20000;
+const INSTALL_TRIES = 3;
+
+/**
+ * Fetches a file for the install, retrying: one failed or stuck request
+ * would otherwise fail the whole install, leaving the old version in place.
+ */
+async function fetchPatiently(file: string): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(file, {
+        cache: 'no-cache',
+        signal: AbortSignal.timeout(INSTALL_FETCH_MS),
+      });
+    } catch (e) {
+      if (attempt >= INSTALL_TRIES) throw e;
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
 
 sw.addEventListener('install', event => {
   event.waitUntil(
@@ -63,7 +84,7 @@ sw.addEventListener('install', event => {
       const chunks = await caches.open(CHUNKS);
       await Promise.all(
         FILES.map(async file => {
-          const res = await fetch(file, {cache: 'no-cache'});
+          const res = await fetchPatiently(file);
           // Pages (/about) are nice to have; code must all be there.
           const page = !/\.\w+$/.test(file);
           if (!res.ok || res.redirected) {
