@@ -1,16 +1,20 @@
 /**
  * The service worker: lets g-sho open and work offline.
  *
- * - App files (the pages, app.js, style.css, workers, icons): network first,
- *   so you always get the current deploy when online; the saved copy when
- *   offline. The whole current build is saved when this worker installs,
- *   so every screen opens offline, not only ones you've visited.
+ * - App files (the pages, app.js, style.css, workers, icons): the saved copy
+ *   first, so the app opens at once even on a slow network (a home-screen
+ *   app waited for the network before drawing anything). The whole build is
+ *   saved when this worker installs, so the saved files always belong
+ *   together. A new deploy is a new sw.js: it installs in the background,
+ *   takes over, and the page reloads into it if you haven't started using
+ *   it yet (main.ts), or you get it the next time you open the app.
  * - Code chunks (content-hashed names): saved copy first. Old builds' chunks
  *   are kept for a week, so a page opened before a deploy can still load
  *   its chunks.
  * - Dictionary data (/data/…?v=<version>): saved copy first; the URLs change
  *   when the data does. When meta.json lists new versions, older copies are
- *   deleted. meta.json itself is network first.
+ *   deleted. meta.json itself is network first, but only briefly: the
+ *   saved copy if the network takes longer than a moment.
  * - The handwriting and OCR models and sql.js's wasm: saved copy, refreshed
  *   in the background.
  * - /api/ (sign-in, sync): never cached, nor the packs the offline download
@@ -49,6 +53,8 @@ const CHUNKS = 'g-sho-chunks';
 const DATA = 'g-sho-data';
 const RUNTIME = 'g-sho-runtime';
 const KEEP_OLD_CHUNKS_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long meta.json waits for the network before using the saved copy. */
+const META_WAIT_MS = 1500;
 
 sw.addEventListener('install', event => {
   event.waitUntil(
@@ -102,26 +108,33 @@ sw.addEventListener('activate', event => {
   );
 });
 
-/** From the network, saving a copy; the saved copy if offline. */
-async function networkFirst(
+/**
+ * From the network, saving a copy, unless that takes longer than `wait`:
+ * then the saved copy (the network's answer is still saved when it comes).
+ */
+async function networkBriefly(
   request: Request,
   cacheName: string,
-  fallbacks: string[] = [],
+  wait: number,
+  keep: (p: Promise<unknown>) => void,
+  onFresh: (res: Response) => void,
 ): Promise<Response> {
   const cache = await caches.open(cacheName);
-  try {
-    const res = await fetch(request);
-    if (res.ok && res.type === 'basic') {
+  const network = fetch(request).then(async res => {
+    if (res.ok) {
       await cache.put(request, res.clone());
+      onFresh(res.clone());
     }
     return res;
-  } catch (e) {
-    for (const key of [request, ...fallbacks]) {
-      const saved = await cache.match(key, {ignoreSearch: true});
-      if (saved) return saved;
-    }
-    throw e;
-  }
+  });
+  keep(network.catch(() => {}));
+  const timeout = new Promise<undefined>(resolve =>
+    setTimeout(() => resolve(undefined), wait),
+  );
+  const first = await Promise.race([network.catch(() => undefined), timeout]);
+  if (first) return first;
+  const saved = await cache.match(request, {ignoreSearch: true});
+  return saved ?? network;
 }
 
 /** The saved copy, or from the network (then saved). */
@@ -193,19 +206,19 @@ sw.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
+        const cache = await caches.open(APP_CACHE);
+        // Any search (/?q=…) is the app's page; it reads the URL itself.
+        const saved = await cache.match(pageKey(url));
+        if (saved) return saved;
         try {
           const res = await fetch(request);
           if (res.ok && !res.redirected) {
-            const cache = await caches.open(APP_CACHE);
             await cache.put(pageKey(url), res.clone());
           }
           return res;
         } catch (e) {
-          const cache = await caches.open(APP_CACHE);
-          // Any search (/?q=…) is the app's page; it reads the URL itself.
-          const saved =
-            (await cache.match(pageKey(url))) ?? (await cache.match('/'));
-          if (saved) return saved;
+          const fallback = await cache.match('/');
+          if (fallback) return fallback;
           throw e;
         }
       })(),
@@ -216,10 +229,13 @@ sw.addEventListener('fetch', event => {
     event.respondWith(cacheFirst(request, CHUNKS));
   } else if (path === '/data/meta.json') {
     event.respondWith(
-      networkFirst(request, DATA).then(res => {
-        if (res.ok) event.waitUntil(pruneData(res.clone()).catch(() => {}));
-        return res;
-      }),
+      networkBriefly(
+        request,
+        DATA,
+        META_WAIT_MS,
+        p => event.waitUntil(p),
+        res => event.waitUntil(pruneData(res).catch(() => {})),
+      ),
     );
   } else if (path.startsWith('/data/pack/')) {
     // Packs are unpacked into the data cache by the offline download; no
@@ -236,6 +252,7 @@ sw.addEventListener('fetch', event => {
       staleWhileRevalidate(request, RUNTIME, p => event.waitUntil(p)),
     );
   } else {
-    event.respondWith(networkFirst(request, APP_CACHE));
+    // This build's files, saved at install.
+    event.respondWith(cacheFirst(request, APP_CACHE));
   }
 });

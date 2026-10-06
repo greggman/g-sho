@@ -721,8 +721,29 @@ function registerServiceWorker() {
       return;
     }
   }
-  navigator.serviceWorker.register('/sw.js').catch(e => {
-    console.warn('service worker not registered', e);
+  navigator.serviceWorker
+    .register('/sw.js')
+    .then(reg => {
+      // A home-screen app can stay open for days: look for a new deploy
+      // whenever it comes back to the front.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') void reg.update();
+      });
+    })
+    .catch(e => {
+      console.warn('service worker not registered', e);
+    });
+
+  // The app opens from saved files, so a new deploy arrives a moment later
+  // (a new service worker takes over). Switch to it right away if nothing
+  // has been done on the page yet; otherwise it's there next time.
+  const hadController = !!navigator.serviceWorker.controller;
+  let used = false;
+  for (const type of ['pointerdown', 'keydown']) {
+    addEventListener(type, () => (used = true), {once: true, capture: true});
+  }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !used) location.reload();
   });
 }
 
