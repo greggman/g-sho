@@ -6,6 +6,7 @@
  * own lookups go first. Finished packs are recorded, so it resumes.
  */
 
+import '../worker-version.ts'; // first: answers version requests
 import {readPack} from '../../shared/pack.ts';
 
 export interface DownloadRequest {

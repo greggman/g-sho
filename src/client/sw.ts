@@ -20,9 +20,11 @@
  * - /api/ (sign-in, sync): never cached, nor the packs the offline download
  *   unpacks into the data cache (offline/download-worker.ts).
  *
- * Built by scripts/build.ts, which defines BUILD (this build's id) and
- * FILES (the files to save at install).
+ * Built by scripts/build.ts, which defines BUILD (this build's id, a hash
+ * of its files), FILES (the files to save at install) and VERSION.
  */
+
+import {VERSION_REQUEST, version} from './version.ts';
 
 declare const BUILD: string;
 declare const FILES: string[];
@@ -42,6 +44,10 @@ interface ServiceWorkerScope {
     listener: (event: ExtendableEvent) => void,
   ): void;
   addEventListener(type: 'fetch', listener: (event: FetchEvent) => void): void;
+  addEventListener(
+    type: 'message',
+    listener: (event: MessageEvent) => void,
+  ): void;
   skipWaiting(): Promise<void>;
   clients: {claim(): Promise<void>};
 }
@@ -103,6 +109,15 @@ sw.addEventListener('install', event => {
       await sw.skipWaiting();
     })(),
   );
+});
+
+// Which build this worker is, for Settings → Version (versions.ts): the
+// commit, and the id of the saved copy of the app it serves.
+sw.addEventListener('message', event => {
+  const data = event.data as {type?: string} | undefined;
+  if (data?.type === VERSION_REQUEST && event.ports[0]) {
+    event.ports[0].postMessage({...version, build: BUILD});
+  }
 });
 
 sw.addEventListener('activate', event => {

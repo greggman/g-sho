@@ -7,6 +7,7 @@
 import type {Meta} from '../../shared/types.ts';
 import {h} from '../dom.ts';
 import type {DownloadMessage, DownloadRequest} from './download-worker.ts';
+import {trackWorker} from '../versions.ts';
 
 export type OfflineState =
   | {kind: 'unsupported'}
@@ -76,6 +77,7 @@ export class OfflineDictionary {
       type: 'module',
     });
     this.worker = worker;
+    trackWorker('Offline download', worker);
     worker.onmessage = (e: MessageEvent<DownloadMessage>) => {
       const m = e.data;
       if (m.type === 'progress') {

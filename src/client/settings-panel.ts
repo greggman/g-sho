@@ -1,5 +1,6 @@
 import {h} from './dom.ts';
 import {SETTING_LABELS, type DisplaySettings} from './settings.ts';
+import {createVersionPanel} from './version-panel.ts';
 
 /**
  * The settings panel: display toggles, then the account and Anki sections
@@ -64,5 +65,6 @@ export function createSettingsPanel(
     accountSection,
     offline && h('div', {class: 'settings-offline'}, offline),
     ankiSection,
+    h('div', {class: 'settings-version'}, createVersionPanel()),
   );
 }

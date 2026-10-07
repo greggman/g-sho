@@ -3,6 +3,7 @@
  * available engine, and turns strokes into ranked candidates off the main
  * thread.
  */
+import '../worker-version.ts'; // first: answers version requests
 import {runCpu} from '../nn/cpu.ts';
 import {loadModel, type Model} from '../nn/model.ts';
 import {WasmEngine} from '../nn/wasm.ts';

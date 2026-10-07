@@ -2519,6 +2519,50 @@ body {
   padding: 12px 0;
 }
 
+.settings-version {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding: 12px 0 0;
+  font-size: 0.9rem;
+}
+
+.version-page {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.version-parts {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.version-name {
+  color: var(--muted);
+}
+
+.version-parts .differs,
+.version-warning {
+  color: #c0392b;
+}
+
+.version-panel button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.version-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
 .offline-panel .offline-status {
   margin: 6px 0;
 }

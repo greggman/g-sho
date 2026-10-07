@@ -3,6 +3,7 @@
  * big deck doesn't freeze the page. Gets the file's bytes; answers with the
  * collection, or an error message.
  */
+import '../worker-version.ts'; // first: answers version requests
 import {decompress} from 'fzstd';
 import initSqlJs from 'sql.js';
 import {readApkg} from './import/read.ts';

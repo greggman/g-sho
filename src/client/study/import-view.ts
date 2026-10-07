@@ -22,6 +22,7 @@ import {
 import type {AnkiCollection} from '../anki/import/read.ts';
 import {readAnkiText} from '../anki/import/read-text.ts';
 import type {Store} from '../store/store.ts';
+import {trackWorker} from '../versions.ts';
 
 export const IMPORTABLE = /\.(apkg|colpkg|txt|tsv|csv)$/i;
 
@@ -31,6 +32,7 @@ function readPackage(file: File): Promise<AnkiCollection> {
     const worker = new Worker(new URL('import-worker.js', document.baseURI), {
       type: 'module',
     });
+    trackWorker('Anki import', worker);
     worker.onmessage = (
       e: MessageEvent<{collection?: AnkiCollection; error?: string}>,
     ) => {

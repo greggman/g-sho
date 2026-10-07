@@ -3,6 +3,7 @@
  * reads the lines of text in photos, off the main thread. Lines are posted
  * as they're read, so the page can show them one by one.
  */
+import '../worker-version.ts'; // first: answers version requests
 import {loadGraph, type Graph, type Tensor} from '../nn/graph.ts';
 import {runGraphCpu, type Kernels} from '../nn/graph-cpu.ts';
 import {WasmKernels} from '../nn/graph-wasm.ts';

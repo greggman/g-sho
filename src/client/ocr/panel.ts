@@ -6,6 +6,7 @@
 import {h} from '../dom.ts';
 import type {Point, Quad} from './pipeline.ts';
 import type {FromWorker, ToWorker} from './protocol.ts';
+import {trackWorker} from '../versions.ts';
 
 const SVG = 'http://www.w3.org/2000/svg';
 /** Photos are scaled down to this (long side) before reading. */
@@ -68,6 +69,7 @@ export class PhotoPanel {
     this.worker = new Worker(new URL('ocr-worker.js', document.baseURI), {
       type: 'module',
     });
+    trackWorker('Photo reading (OCR)', this.worker);
     this.ready = new Promise((resolve, reject) => {
       this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
         const msg = e.data;

@@ -7,6 +7,7 @@
  *
  * The dictionary data (dist/data) is built separately by build-data.ts.
  */
+import {execFileSync} from 'node:child_process';
 import * as crypto from 'node:crypto';
 import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
@@ -20,6 +21,25 @@ const DIST = path.join(ROOT, 'dist');
 const STATIC = path.join(ROOT, 'static');
 
 const watch = process.argv.includes('--watch');
+
+/**
+ * Which build this is (src/client/version.ts): the commit, "-dirty" if
+ * tracked files have uncommitted changes, and the commit's date.
+ */
+function version(): {commit: string; date: string} {
+  const git = (...args: string[]) =>
+    execFileSync('git', args, {cwd: ROOT, encoding: 'utf8'}).trim();
+  try {
+    const dirty = git('status', '--porcelain', '--untracked-files=no') !== '';
+    return {
+      commit: git('rev-parse', '--short', 'HEAD') + (dirty ? '-dirty' : ''),
+      date: git('log', '-1', '--format=%cI'),
+    };
+  } catch {
+    return {commit: 'unknown', date: ''};
+  }
+}
+const VERSION = JSON.stringify(version());
 const serve = process.argv.includes('--serve');
 
 /**
@@ -84,6 +104,7 @@ async function buildServiceWorker(outputs: string[]) {
     target: ['es2022', 'chrome100', 'firefox100', 'safari15'],
     minify: !watch,
     define: {
+      VERSION,
       BUILD: JSON.stringify(hash.digest('base64url').slice(0, 12)),
       FILES: JSON.stringify(files),
     },
@@ -126,6 +147,7 @@ const options: esbuild.BuildOptions = {
   plugins: [copyStaticPlugin],
   // Lists the outputs, for the service worker's file list.
   metafile: true,
+  define: {VERSION},
 };
 
 fs.mkdirSync(DIST, {recursive: true});
