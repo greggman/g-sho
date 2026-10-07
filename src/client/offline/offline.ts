@@ -8,6 +8,7 @@ import type {Meta} from '../../shared/types.ts';
 import {h} from '../dom.ts';
 import type {DownloadMessage, DownloadRequest} from './download-worker.ts';
 import {trackWorker} from '../versions.ts';
+import {clearAll} from './data-store.ts';
 
 export type OfflineState =
   | {kind: 'unsupported'}
@@ -37,7 +38,7 @@ export class OfflineDictionary {
 
   constructor(meta: Meta) {
     this.meta = meta;
-    if (!('caches' in window) || !meta.packs || !meta.versions) {
+    if (!('indexedDB' in window) || !meta.packs || !meta.versions) {
       this.state = {kind: 'unsupported'};
     } else if (!this.enabled) {
       this.state = {kind: 'off'};
@@ -111,8 +112,7 @@ export class OfflineDictionary {
     } catch {
       // Not remembered.
     }
-    await caches.delete('g-sho-data');
-    await caches.delete('g-sho-offline');
+    await clearAll().catch(() => {});
     this.set({kind: 'off'});
   }
 

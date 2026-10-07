@@ -11,19 +11,22 @@
  * - Code chunks (content-hashed names): saved copy first. Old builds' chunks
  *   are kept for a week, so a page opened before a deploy can still load
  *   its chunks.
- * - Dictionary data (/data/…?v=<version>): saved copy first; the URLs change
- *   when the data does. When meta.json lists new versions, older copies are
- *   deleted. meta.json itself is network first, but only briefly: the
- *   saved copy if the network takes longer than a moment.
+ * - Dictionary data (/data/…?v=<version>): saved copy first, in IndexedDB
+ *   (offline/data-store.ts: Safari's Cache Storage got very slow with the
+ *   whole dictionary in it); the URLs change when the data does. When
+ *   meta.json lists new versions, older copies are deleted. meta.json itself
+ *   is network first, but only briefly: the saved copy if the network takes
+ *   longer than a moment.
  * - The handwriting and OCR models and sql.js's wasm: saved copy, refreshed
  *   in the background.
  * - /api/ (sign-in, sync): never cached, nor the packs the offline download
- *   unpacks into the data cache (offline/download-worker.ts).
+ *   unpacks into the data store (offline/download-worker.ts).
  *
  * Built by scripts/build.ts, which defines BUILD (this build's id, a hash
  * of its files), FILES (the files to save at install) and VERSION.
  */
 
+import {getFile, prune, putFiles} from './offline/data-store.ts';
 import {VERSION_REQUEST, version} from './version.ts';
 
 declare const BUILD: string;
@@ -56,7 +59,8 @@ const sw = self as unknown as ServiceWorkerScope;
 
 const APP_CACHE = `g-sho-app-${BUILD}`;
 const CHUNKS = 'g-sho-chunks';
-const DATA = 'g-sho-data';
+/** Where data used to be saved, in Cache Storage: deleted (see dataFile). */
+const OLD_CACHES = ['g-sho-data', 'g-sho-offline'];
 const RUNTIME = 'g-sho-runtime';
 const KEEP_OLD_CHUNKS_MS = 7 * 24 * 60 * 60 * 1000;
 /** How long meta.json waits for the network before using the saved copy. */
@@ -103,7 +107,7 @@ sw.addEventListener('install', event => {
       // meta.json too: the page that installed this worker fetched it
       // before the worker was running, and the app can't start without it.
       const meta = await fetch('/data/meta.json', {cache: 'no-cache'});
-      if (meta.ok) await (await caches.open(DATA)).put('/data/meta.json', meta);
+      if (meta.ok) await putFiles([['meta.json', await meta.text()]], '');
       // Take over right away; pages already open keep working (their
       // chunks are kept, and a missing one makes them reload once).
       await sw.skipWaiting();
@@ -144,33 +148,74 @@ sw.addEventListener('activate', event => {
   );
 });
 
+const json = (text: string) =>
+  new Response(text, {headers: {'content-type': 'application/json'}});
+
 /**
- * From the network, saving a copy, unless that takes longer than `wait`:
- * then the saved copy (the network's answer is still saved when it comes).
+ * meta.json: from the network, saving a copy, unless that takes longer than
+ * META_WAIT_MS: then the saved copy (the network's answer is still saved).
+ * New versions in it make older saved data out of date.
  */
-async function networkBriefly(
+async function metaFile(
   request: Request,
-  cacheName: string,
-  wait: number,
   keep: (p: Promise<unknown>) => void,
-  onFresh: (res: Response) => void,
 ): Promise<Response> {
-  const cache = await caches.open(cacheName);
   const network = fetch(request).then(async res => {
     if (res.ok) {
-      await cache.put(request, res.clone());
-      onFresh(res.clone());
+      const text = await res.clone().text();
+      keep(
+        (async () => {
+          if ((await getFile('meta.json', '')) === text) return;
+          await putFiles([['meta.json', text]], '');
+          const versions = (
+            JSON.parse(text) as {versions?: Record<string, string>}
+          ).versions;
+          if (versions) await prune(versions);
+        })().catch(() => {}),
+      );
     }
     return res;
   });
   keep(network.catch(() => {}));
   const timeout = new Promise<undefined>(resolve =>
-    setTimeout(() => resolve(undefined), wait),
+    setTimeout(() => resolve(undefined), META_WAIT_MS),
   );
   const first = await Promise.race([network.catch(() => undefined), timeout]);
   if (first) return first;
-  const saved = await cache.match(request, {ignoreSearch: true});
-  return saved ?? network;
+  const saved = await getFile('meta.json', '').catch(() => undefined);
+  return saved !== undefined ? json(saved) : network;
+}
+
+/** A data file: the saved copy, or from the network (then saved). */
+async function dataFile(
+  request: Request,
+  url: URL,
+  keep: (p: Promise<unknown>) => void,
+): Promise<Response> {
+  const path = url.pathname.slice('/data/'.length);
+  const v = url.searchParams.get('v') ?? '';
+  const saved = await getFile(path, v).catch(() => undefined);
+  if (saved !== undefined) return json(saved);
+  const res = await fetch(request);
+  if (res.ok) {
+    const text = await res.clone().text();
+    keep(putFiles([[path, text]], v).catch(() => {}));
+  }
+  return res;
+}
+
+let oldCachesDeleted = false;
+
+/**
+ * Deletes the data saved in Cache Storage by earlier versions. Once: it
+ * can take a while in Safari (that's why it moved).
+ */
+function deleteOldCaches(keep: (p: Promise<unknown>) => void) {
+  if (oldCachesDeleted) return;
+  oldCachesDeleted = true;
+  keep(
+    Promise.all(OLD_CACHES.map(name => caches.delete(name))).catch(() => {}),
+  );
 }
 
 /** The saved copy, or from the network (then saved). */
@@ -205,26 +250,6 @@ async function staleWhileRevalidate(
   return update;
 }
 
-/**
- * meta.json lists each data set's version; saved data files of other
- * versions are out of date.
- */
-async function pruneData(meta: Response) {
-  const versions = ((await meta.json()) as {versions?: Record<string, string>})
-    .versions;
-  if (!versions) return;
-  const cache = await caches.open(DATA);
-  for (const req of await cache.keys()) {
-    const url = new URL(req.url);
-    const rest = url.pathname.slice('/data/'.length);
-    const set = rest.includes('/')
-      ? rest.split('/')[0]
-      : rest.replace(/\.json$/, '');
-    const v = url.searchParams.get('v');
-    if (versions[set] && v && v !== versions[set]) await cache.delete(req);
-  }
-}
-
 /** Where a page's saved copy is: /about.html and /about are the same page. */
 function pageKey(url: URL): string {
   const path = url.pathname.replace(/\.html$/, '').replace(/\/index$/, '/');
@@ -238,6 +263,7 @@ sw.addEventListener('fetch', event => {
   if (url.origin !== location.origin) return;
   const path = url.pathname;
   if (path.startsWith('/api/')) return;
+  deleteOldCaches(p => event.waitUntil(p));
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -264,21 +290,13 @@ sw.addEventListener('fetch', event => {
   if (path.startsWith('/chunks/')) {
     event.respondWith(cacheFirst(request, CHUNKS));
   } else if (path === '/data/meta.json') {
-    event.respondWith(
-      networkBriefly(
-        request,
-        DATA,
-        META_WAIT_MS,
-        p => event.waitUntil(p),
-        res => event.waitUntil(pruneData(res).catch(() => {})),
-      ),
-    );
+    event.respondWith(metaFile(request, p => event.waitUntil(p)));
   } else if (path.startsWith('/data/pack/')) {
-    // Packs are unpacked into the data cache by the offline download; no
+    // Packs are unpacked into the data store by the offline download; no
     // need to keep them too.
     return;
   } else if (path.startsWith('/data/')) {
-    event.respondWith(cacheFirst(request, DATA));
+    event.respondWith(dataFile(request, url, p => event.waitUntil(p)));
   } else if (
     path.startsWith('/handwriting/') ||
     path.startsWith('/ocr/') ||

@@ -183,13 +183,20 @@ jisho.org uses).
   so every deploy changes it):
   - At install, it saves the whole current build: the pages, app.js, CSS,
     workers, icons and every chunk. So every screen opens offline.
-  - App files and pages are network first: online you always get the
-    current deploy (no stale app.js); the saved copy only when offline. A
-    search URL (`/?q=…`) offline is the saved app page.
+  - App files and pages: this build's saved copy first, so the app opens
+    at once even on a slow network (network first made a home-screen app
+    show a black screen for ~10 s). A new deploy is a new sw.js, installed
+    in the background; the page reloads into it if it hasn't been used yet.
+    A search URL (`/?q=…`) is the saved app page.
   - Chunks: saved copy first. Old builds' chunks are kept for a week, so a
     page opened before a deploy still loads them (and stale.ts reloads it if
     one is missing anyway).
-  - Data: saved copy first (versioned URLs). When `meta.json` lists new
+  - Data: saved copy first (versioned URLs), in IndexedDB
+    (`src/client/offline/data-store.ts`), not Cache Storage: Safari reads a
+    cache's whole index the first time it's opened after a launch, and with
+    the whole dictionary saved (~17,600 files) that took ~6 s before the
+    page could show, and another ~6 s before results (measured in the iOS
+    simulator: definitions at 13.7 s, now ~2 s). When `meta.json` lists new
     versions, saved files of other versions are deleted. So words you've
     looked up work offline. The handwriting model and sql.js's wasm: saved,
     refreshed in the background. `/api/` is never cached.
@@ -202,8 +209,8 @@ jisho.org uses).
   service worker is running, a background worker downloads every data set
   as "packs" (`data/pack/<set>-<i>.txt`, ~4 MB each, 28 in all; format in
   `src/shared/pack.ts`; counts in `meta.json` → `packs`). It unpacks each
-  into the service worker's data cache under the exact URLs the app asks
-  for. That's about 34 MB to download (Brotli; 49 MB if fetched file by
+  into the data store the service worker serves from, one transaction per
+  pack. That's about 34 MB to download (Brotli; 49 MB if fetched file by
   file) and ~120 MB stored. It goes one pack at a time at low fetch
   priority, so the user's own lookups go first, in the order search indexes,
   entries, kanji, strokes, Japanese definitions, examples. Finished packs

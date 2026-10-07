@@ -1,13 +1,14 @@
 /**
  * Saves the whole dictionary for offline use, in the background: downloads
  * each pack (data/pack/<set>-<i>.txt, see scripts/build-data.ts) and puts
- * its files in the cache the service worker serves data from, at the same
- * URLs the app asks for. One pack at a time, at low priority, so the user's
+ * its files in the data store the service worker serves data from
+ * (data-store.ts). One pack at a time, at low priority, so the user's
  * own lookups go first. Finished packs are recorded, so it resumes.
  */
 
 import '../worker-version.ts'; // first: answers version requests
 import {readPack} from '../../shared/pack.ts';
+import {hasPack, putFiles, putPack} from './data-store.ts';
 
 export interface DownloadRequest {
   /** the data folder's URL, ending in / */
@@ -23,9 +24,6 @@ export type DownloadMessage =
   | {type: 'complete'; total: number}
   | {type: 'error'; message: string; quota: boolean};
 
-const DATA = 'g-sho-data';
-const DONE = 'g-sho-offline';
-
 const post = (m: DownloadMessage) => self.postMessage(m);
 
 self.onmessage = async (e: MessageEvent<DownloadRequest>) => {
@@ -34,29 +32,20 @@ self.onmessage = async (e: MessageEvent<DownloadRequest>) => {
   const total = sets.reduce((n, s) => n + packs[s], 0);
   let done = 0;
   try {
-    const data = await caches.open(DATA);
-    const finished = await caches.open(DONE);
     // The meta.json these versions came from, so the app can start offline.
     const meta = await fetch(`${base}meta.json`, {cache: 'no-cache'});
-    if (meta.ok) await data.put(`${base}meta.json`, meta);
+    if (meta.ok) await putFiles([['meta.json', await meta.text()]], '');
     for (const set of sets) {
       const v = versions[set];
       for (let i = 0; i < packs[set]; i++) {
         const key = `/${set}-${i}-${v}`;
-        if (!(await finished.match(key))) {
+        if (!(await hasPack(key))) {
           const res = await fetch(`${base}pack/${set}-${i}.txt?v=${v}`, {
             priority: 'low',
           } as RequestInit);
           if (!res.ok) throw new Error(`pack ${set}-${i}: ${res.status}`);
-          for (const [file, text] of readPack(await res.text())) {
-            await data.put(
-              `${base}${file}?v=${v}`,
-              new Response(text, {
-                headers: {'content-type': 'application/json'},
-              }),
-            );
-          }
-          await finished.put(key, new Response('1'));
+          await putFiles(readPack(await res.text()), v);
+          await putPack(key);
         }
         post({type: 'progress', done: ++done, total});
       }
