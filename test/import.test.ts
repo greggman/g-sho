@@ -243,7 +243,13 @@ describe('importing', () => {
     const studied = cards.filter(c => c.state !== CardState.New);
     assert.equal(studied.length, 4);
     const review = cards.find(c => c.state === CardState.Review)!;
-    assert.ok(review.stability > 8 && review.due > Date.now());
+    // Due after its last review (not "after now": the fixture's dates are
+    // fixed, and this one has passed).
+    assert.ok(review.stability > 8, String(review.stability));
+    assert.ok(
+      review.due > review.lastReview!,
+      `${review.due} ${review.lastReview}`,
+    );
     assert.ok(cards.some(c => c.suspended));
     assert.equal(store.reviews.all().length, 4);
     assert.ok(await store.backend.getMedia('neko.png'));
