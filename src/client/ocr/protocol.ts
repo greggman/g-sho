@@ -11,10 +11,15 @@ export type ToWorker =
       /** force an engine ("webgpu", "wasm", "js"), for testing */
       engine?: string;
     }
-  /** Find and read every line; the photo stays in the worker for 'region'. */
+  /**
+   * Find and read every line; the photo stays in the worker for 'region'
+   * (the last two do, the one on screen and the camera's next).
+   */
   | {type: 'read'; id: number; image: ImageBitmap}
-  /** Read just this part of the last photo (a box the user drew). */
-  | {type: 'region'; id: number; box: Quad};
+  /** Read just this part of a photo (a box the user drew). */
+  | {type: 'region'; id: number; photo: number; box: Quad}
+  /** Stop reading the latest photo. */
+  | {type: 'cancel'};
 
 export type FromWorker =
   | {type: 'ready'; engine: string}

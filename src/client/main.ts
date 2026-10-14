@@ -486,40 +486,45 @@ function openPanel(panel: HTMLElement | null) {
     p.hidden = p !== panel;
     t.setAttribute('aria-expanded', String(p === panel));
   }
+  if (panel !== photoPanel) stopCamera();
 }
 
+/** Turns the camera off when the photo panel closes. */
+let stopCamera = () => {};
+
 /**
- * The camera button takes a photo (picks an image on computers) and opens
- * the photo panel to read it; the panel loads on first use.
+ * The camera button opens the photo panel reading what the camera sees
+ * (where there's no camera to use, it picks an image instead); the panel
+ * loads on first use.
  */
 function setupPhoto() {
   let panel: Promise<import('./ocr/panel.ts').PhotoPanel> | undefined;
-  photoToggle.addEventListener('click', () => {
-    if (!photoPanel.hidden) openPanel(null);
-    else photoInput.click();
-  });
-  photoInput.addEventListener('change', async () => {
-    const file = photoInput.files?.[0];
-    photoInput.value = '';
-    if (!file) return;
+  const open = async () => {
     openPanel(photoPanel);
     if (!panel) {
       photoPanel.replaceChildren(h('p', {class: 'panel-loading'}, 'Loading…'));
-      panel = import('./ocr/panel.ts').then(
-        ({PhotoPanel}) =>
-          new PhotoPanel(
-            text => {
-              undo.set(text);
-              form.requestSubmit();
-            },
-            () => photoInput.click(),
-          ),
-      );
+      panel = import('./ocr/panel.ts').then(({PhotoPanel}) => {
+        const p = new PhotoPanel(
+          text => {
+            undo.set(text);
+            form.requestSubmit();
+            // The panel is docked now: put it at the top of the screen,
+            // with the results under it, rather than at the page's top.
+            window.scrollTo(
+              0,
+              photoPanel.getBoundingClientRect().top + scrollY,
+            );
+          },
+          () => photoInput.click(),
+        );
+        stopCamera = () => p.freeze();
+        return p;
+      });
     }
     try {
       const p = await panel;
       photoPanel.replaceChildren(p.element);
-      await p.show(file);
+      return p;
     } catch (e) {
       panel = undefined;
       if (reloadIfStale(e)) return;
@@ -527,7 +532,19 @@ function setupPhoto() {
       photoPanel.replaceChildren(
         h('p', {class: 'error'}, 'Couldn’t load this panel.'),
       );
+      return;
     }
+  };
+  photoToggle.addEventListener('click', async () => {
+    if (!photoPanel.hidden) openPanel(null);
+    else if (!navigator.mediaDevices?.getUserMedia) photoInput.click();
+    else await (await open())?.startCamera();
+  });
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files?.[0];
+    photoInput.value = '';
+    if (!file) return;
+    await (await open())?.show(file);
   });
 }
 

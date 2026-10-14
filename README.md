@@ -113,8 +113,9 @@ Add `?engine=wasm` or `?engine=js` to the URL to force an engine.
 
 ## Reading text in photos
 
-The camera button reads text in a photo (a label, a sign, a page), also in
-the browser on our own inference code. It uses PaddleOCR's PP-OCRv6 models
+The camera button reads text through the camera (a label, a sign, a page),
+a picture every half second or so, also in the browser on our own inference
+code; Freeze holds the picture, and "Choose photo" reads one from files. It uses PaddleOCR's PP-OCRv6 models
 (as ONNX from RapidOCR): a tiny detector that finds the lines of text and a
 small recognizer that reads each one (Japanese and Chinese characters, kana,
 Latin letters). Tap a line to search it, or drag a box around part of the

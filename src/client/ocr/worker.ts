@@ -24,8 +24,8 @@ interface Models {
 }
 
 let ready: Promise<Models> | undefined;
-/** the last photo, for reading regions of it */
-let photo: Rgba | undefined;
+/** the last two photos by id, for reading regions of them */
+const photos = new Map<number, Rgba>();
 /** the latest photo's request; older ones stop between lines */
 let latest = 0;
 
@@ -133,11 +133,20 @@ onmessage = async (e: MessageEvent<ToWorker>) => {
     ready.catch(err => post({type: 'error', message: String(err)}));
     return;
   }
+  if (msg.type === 'cancel') {
+    latest = 0;
+    return;
+  }
   if (msg.type === 'read') latest = msg.id;
   try {
     const {det, rec, dict} = await ready!;
-    if (msg.type === 'read') photo = pixels(msg.image);
-    const img = photo;
+    if (msg.type === 'read') {
+      photos.set(msg.id, pixels(msg.image));
+      for (const id of photos.keys()) {
+        if (photos.size > 2) photos.delete(id);
+      }
+    }
+    const img = photos.get(msg.type === 'read' ? msg.id : msg.photo);
     if (!img) throw new Error('no photo');
     const boxes = msg.type === 'read' ? await detect(img, det) : [msg.box];
     post({type: 'boxes', id: msg.id, boxes});
