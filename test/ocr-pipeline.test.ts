@@ -16,6 +16,7 @@ import {
   ctcDecode,
   detSize,
   minAreaRect,
+  OPTIONS,
   readText,
   rotateLeft,
 } from '../src/client/ocr/pipeline.ts';
@@ -42,8 +43,8 @@ describe('OCR pipeline', {skip: !have && 'models not downloaded'}, () => {
     .readFileSync(path.join(MODELS, 'dict.txt'), 'utf8')
     .replace(/\n$/, '')
     .split('\n');
-  const read = async (file: string) =>
-    (await readText(readPng(fs.readFileSync(file)), det, rec, dict)).map(
+  const read = async (file: string, opts = OPTIONS) =>
+    (await readText(readPng(fs.readFileSync(file)), det, rec, dict, opts)).map(
       l => l.text,
     );
 
@@ -61,6 +62,23 @@ describe('OCR pipeline', {skip: !have && 'models not downloaded'}, () => {
       assert.deepEqual(await read(path.join(FIXTURES, `${name}.png`)), want);
     });
   }
+
+  // A cheese box (from test/images/ocr/IMG_6781.jpeg): the big 4 on its
+  // badge is found only by the coarse pass; peppercorns aren't read as text.
+  test('large text', async () => {
+    const file = path.join(FIXTURES, 'large-text.png');
+    const lines = await read(file);
+    assert.deepEqual(lines, [
+      '明治北海道',
+      '十勝',
+      '4',
+      'スマトチズ',
+      '個入り',
+      '黒胡椒',
+    ]);
+    const fine = await read(file, {...OPTIONS, coarseMax: 0});
+    assert.ok(!fine.includes('4'), fine.join(' | '));
+  });
 
   test(
     'a phone photo',

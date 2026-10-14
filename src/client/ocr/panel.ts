@@ -48,6 +48,7 @@ export class PhotoPanel {
   readonly element: HTMLElement;
   private readonly status: HTMLElement;
   private readonly cameraButton: HTMLButtonElement;
+  private readonly saveButton: HTMLButtonElement;
   private readonly stage: HTMLElement;
   private readonly video: HTMLVideoElement;
   private readonly svg: SVGSVGElement;
@@ -79,6 +80,12 @@ export class PhotoPanel {
       hidden: !navigator.mediaDevices?.getUserMedia,
       onclick: () => (this.stream ? this.freeze() : this.startCamera()),
     });
+    // A held camera picture can be saved, e.g. to report text not found.
+    this.saveButton = h(
+      'button',
+      {type: 'button', class: 'photo-new', onclick: () => this.save()},
+      'Save picture',
+    );
     this.video = h('video', {class: 'photo-image'});
     // iOS plays camera video inline only with these.
     this.video.muted = true;
@@ -98,6 +105,7 @@ export class PhotoPanel {
           {type: 'button', class: 'photo-new', onclick: () => choosePhoto()},
           'Choose photo',
         ),
+        this.saveButton,
         this.status,
       ),
       this.stage,
@@ -282,6 +290,21 @@ export class PhotoPanel {
 
   private setButtons() {
     this.cameraButton.textContent = this.stream ? 'Freeze' : 'Camera';
+    this.saveButton.hidden =
+      !!this.stream || !(this.shown?.media instanceof HTMLCanvasElement);
+  }
+
+  /** Downloads the held camera picture as a PNG. */
+  private save() {
+    const media = this.shown?.media;
+    if (!(media instanceof HTMLCanvasElement)) return;
+    media.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+      h('a', {href: url, download: `g-sho-${stamp}.png`}).click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }, 'image/png');
   }
 
   private newPhoto(

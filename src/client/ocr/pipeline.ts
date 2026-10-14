@@ -42,6 +42,14 @@ export const OPTIONS = {
   detSide: 736,
   /** …but the long side no more than this (RapidOCR allows 2000) */
   detMax: 960,
+  /**
+   * A second, coarse pass with the long side this size (0: none), for very
+   * large characters the detector misses at full size. It adds only lines
+   * the first pass didn't find, and only big ones…
+   */
+  coarseMax: 320,
+  /** …at least this many pixels tall and wide at the coarse size. */
+  coarseMinSide: 24,
   /** a pixel is text above this probability */
   thresh: 0.3,
   /** a region is a line if its mean probability is above this */
@@ -245,7 +253,67 @@ export async function detect(
   det: RunModel,
   opts = OPTIONS,
 ): Promise<Quad[]> {
-  const {w, h} = detSize(img.width, img.height, opts);
+  const lines = await detectAt(
+    img,
+    det,
+    detSize(img.width, img.height, opts),
+    opts,
+  );
+  const coarse = opts.coarseMax;
+  if (coarse && Math.max(img.width, img.height) > coarse * 1.5) {
+    const size = detSize(img.width, img.height, {
+      ...opts,
+      detSide: coarse,
+      detMax: coarse,
+    });
+    // The coarse map's pixels in image pixels.
+    const minSide = (opts.coarseMinSide * img.width) / size.w;
+    const fine = lines.map(bounds);
+    for (const quad of await detectAt(img, det, size, opts)) {
+      const b = bounds(quad);
+      if (Math.min(b.x1 - b.x0, b.y1 - b.y0) < minSide) continue;
+      // Found already (or it covers lines that were: several merged).
+      if (fine.some(f => overlap(b, f) > 0.5)) continue;
+      lines.push(quad);
+    }
+  }
+  return readingOrder(lines);
+}
+
+interface Bounds {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+function bounds(q: Quad): Bounds {
+  const xs = q.map(p => p[0]);
+  const ys = q.map(p => p[1]);
+  return {
+    x0: Math.min(...xs),
+    y0: Math.min(...ys),
+    x1: Math.max(...xs),
+    y1: Math.max(...ys),
+  };
+}
+
+/** How much two boxes overlap, as a part of the smaller one. */
+function overlap(a: Bounds, b: Bounds) {
+  const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+  const h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+  if (w <= 0 || h <= 0) return 0;
+  const area = (r: Bounds) => (r.x1 - r.x0) * (r.y1 - r.y0);
+  return (w * h) / Math.max(1, Math.min(area(a), area(b)));
+}
+
+/** The detector at one size (w × h): lines, in image coordinates. */
+async function detectAt(
+  img: Rgba,
+  det: RunModel,
+  {w, h}: {w: number; h: number},
+  opts = OPTIONS,
+): Promise<Quad[]> {
   const out = await det(toInput(resize(img, w, h), w, h));
   const boxes = boxesFromMap(out.data, w, h, opts).map(box =>
     box.map(([x, y]) => [
@@ -267,7 +335,7 @@ export async function detect(
     }
     lines.push(quad);
   }
-  return readingOrder(lines);
+  return lines;
 }
 
 const clamp = (v: number, lo: number, hi: number) =>
