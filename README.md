@@ -11,15 +11,15 @@ find kanji by radical.
 * Anki import/export
 * Japanese->Japanese dictionary
 * Easier Handwriting Recognition
+* Photo/Video reading
 
 ## Why?
 
-The number one reason probably boils
-down to jisho.org is not open source. if it was I would have made a pull request.
+The number one reason probably boils down to jisho.org is not open source. if it was I would have made a pull request.
 
 For me the issue is frictions. I needed to quickly look up a kanji in a book. There are lots of ways to do this including taking a picture of the book and have my phone let me select the character. But, sometimes that seems a longer path than sketching a single kanji into an app. So I sketched it into jisho.org. Unfortunately, just guessing, like many Japanese input systems, it’s stroke count, order, and direction sensitive. Get one wrong and it won’t find the character. Which, is arguably bad for a person trying to learn since it requires them to already know what they are trying to look up.
 
-You can see here me trying to look up a character and jisho.org shows nothing close
+You can see here, me trying to look up a character and jisho.org shows nothing close
 
 <img src="screenshots/jisho-handwriting-01.png" width="678">
 
@@ -46,7 +46,7 @@ It would be great if jisho.org could add this.
 
 Another issue I ran into. I use a couple of dictionaries on my phone. I can paste a whole sentence into them and they’ll look up all the words in a scrolling list, one line per word. This makes it much MUCH faster to work though a sentence. jisho puts up the sentence but only looks up the first word, the you have to click each word to look that one up. This small friction adds to the learning effort. g-sho gives you the list.
 
-g-sho also integrates with Anki Connect. I’m not entirely sure if that’s useful given Yomitan does that to but it was easy too add
+g-sho also integrates with Anki Connect. I’m not entirely sure if that’s useful given Yomitan does that to but it was easy too add.
 
 Maybe the biggest take away is how easy it is in September 2026. The data is all public and open source so I asked Claude to use jisho as inspiration. I asked it to make it work as a static site and shard the dictionary. Less than a hour later it was ready to use. Another hour added the handwriting, strokes, Anki and definition order. A few minutes more added options and history.
 
@@ -63,7 +63,7 @@ g-sho can sync across devices. Currently it needs a github account. Will try to 
 more services later. Note: It only uses github for a user id. It does not keep your email address
 or any other account data. It does keep your word history and flashcards because otherwise
 what would be the point? Note that I'm paying for syncing. I added syncing because I needed
-it. If it gets abused I real remove it and set it up just for myself SO PLEASE DON'T ABUSE IT!
+it. If it gets abused I will remove it and set it up just for myself SO PLEASE DON'T ABUSE IT!
 
 ## Development
 
@@ -118,8 +118,7 @@ a picture every half second or so, also in the browser on our own inference
 code; Freeze holds the picture, and "Choose photo" reads one from files. It uses PaddleOCR's PP-OCRv6 models
 (as ONNX from RapidOCR): a tiny detector that finds the lines of text and a
 small recognizer that reads each one (Japanese and Chinese characters, kana,
-Latin letters). Tap a line to search it, or drag a box around part of the
-photo to read just that.
+Latin letters). Tap a line to search it; pinch to zoom in on the picture.
 
 - `scripts/convert-graph.ts` converts the models to a general graph format
   (`src/client/nn/graph.ts`: ONNX's operators over n-dimensional tensors);

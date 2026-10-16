@@ -489,6 +489,9 @@ function openPanel(panel: HTMLElement | null) {
   if (panel !== photoPanel) stopCamera();
 }
 
+/** The next search keeps the page where it is (a line picked in a photo). */
+let keepScroll = false;
+
 /** Turns the camera off when the photo panel closes. */
 let stopCamera = () => {};
 
@@ -507,13 +510,9 @@ function setupPhoto() {
         const p = new PhotoPanel(
           text => {
             undo.set(text);
+            // Search it where the page is: no jump to the top.
+            keepScroll = true;
             form.requestSubmit();
-            // The panel is docked now: put it at the top of the screen,
-            // with the results under it, rather than at the page's top.
-            window.scrollTo(
-              0,
-              photoPanel.getBoundingClientRect().top + scrollY,
-            );
           },
           () => photoInput.click(),
         );
@@ -650,7 +649,8 @@ async function main() {
   form.addEventListener('submit', e => {
     e.preventDefault();
     const q = input.value.trim();
-    navigate(dict, q ? searchUrl(q) : location.pathname);
+    navigate(dict, q ? searchUrl(q) : location.pathname, !keepScroll);
+    keepScroll = false;
   });
 
   // Handle in-app search links without a page load.

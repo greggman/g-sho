@@ -1,20 +1,22 @@
 /**
  * The photo panel: reads text through the camera, a picture at a time, with
  * a box on every line of text found and a list of what each says. Freeze
- * holds the picture; tap a box or a line to search it, or drag a box around
- * just the part you want to read that. A photo chosen from files is read
- * the same way.
+ * holds the picture; tap a box or a line to search it, and pinch to zoom in.
+ * A photo chosen from files is read the same way.
  */
 import {h} from '../dom.ts';
 import type {Point, Quad} from './pipeline.ts';
 import type {FromWorker, ToWorker} from './protocol.ts';
 import {trackWorker} from '../versions.ts';
+import {free, RecentFrames, type Crop} from './frames.ts';
 
 const SVG = 'http://www.w3.org/2000/svg';
 /** Photos are scaled down to this (long side) before reading. */
 const MAX_SIDE = 2048;
 /** Pointer movement (CSS px) that makes a drag rather than a tap. */
-const DRAG = 8;
+const TAP_SLOP = 8;
+/** How far the picture can be pinched in. */
+const MAX_ZOOM = 6;
 /** The camera's pictures are read at most this often (ms). */
 const PERIOD = 500;
 
@@ -38,12 +40,6 @@ interface Photo {
   started: number;
 }
 
-/** A box the user drew, being read. */
-interface Region {
-  photo: Photo;
-  found?: Found;
-}
-
 export class PhotoPanel {
   readonly element: HTMLElement;
   private readonly status: HTMLElement;
@@ -51,6 +47,13 @@ export class PhotoPanel {
   private readonly saveButton: HTMLButtonElement;
   private readonly stage: HTMLElement;
   private readonly video: HTMLVideoElement;
+  /**
+   * The live view: each camera frame drawn by the same code that keeps the
+   * frames, so a held picture is exactly what was on screen (the video
+   * itself, scaled by CSS, needn't show the same part).
+   */
+  private readonly live: HTMLCanvasElement;
+  private readonly frames: RecentFrames;
   private readonly svg: SVGSVGElement;
   private readonly list: HTMLOListElement;
   private readonly worker: Worker;
@@ -61,12 +64,15 @@ export class PhotoPanel {
   private shown?: Photo;
   /** with the camera on: the newer picture being read behind it */
   private next?: Photo;
-  private regions = new Map<number, Region>();
   private stream?: MediaStream;
   /** bumped by every new photo or camera start, to drop older ones */
   private session = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private url = '';
+  /** Pinch zoom: scale, and offset as a fraction of the picture's size. */
+  private zoom = {z: 1, x: 0, y: 0};
+  /** The camera's video size (e.g. "1920x1080"), for saved pictures. */
+  private streamSize = '';
 
   private readonly onPick: (text: string) => void;
 
@@ -78,7 +84,7 @@ export class PhotoPanel {
       // Under the picture, in reach of a thumb.
       class: 'photo-shutter',
       hidden: !navigator.mediaDevices?.getUserMedia,
-      onclick: () => (this.stream ? this.freeze() : this.startCamera()),
+      onclick: () => (this.stream ? this.freeze(true) : this.startCamera()),
     });
     // A held camera picture can be saved, e.g. to report text not found.
     this.saveButton = h(
@@ -86,10 +92,15 @@ export class PhotoPanel {
       {type: 'button', class: 'photo-new', onclick: () => this.save()},
       'Save picture',
     );
-    this.video = h('video', {class: 'photo-image'});
+    // Only a source of frames: in the page (iOS may not play it otherwise)
+    // but unseen.
+    this.video = h('video', {class: 'photo-source'});
     // iOS plays camera video inline only with these.
     this.video.muted = true;
     this.video.playsInline = true;
+    this.live = h('canvas', {class: 'photo-image'});
+    this.frames = new RecentFrames(this.video, () => this.crop());
+    this.frames.onFrame = frame => this.showLive(frame);
     this.svg = document.createElementNS(SVG, 'svg');
     this.svg.classList.add('photo-overlay');
     this.stage = h('div', {class: 'photo-stage'}, this.svg);
@@ -105,19 +116,23 @@ export class PhotoPanel {
           {type: 'button', class: 'photo-new', onclick: () => choosePhoto()},
           'Choose photo',
         ),
-        this.saveButton,
         this.status,
       ),
       this.stage,
       h(
         'div',
         {class: 'photo-bottom'},
-        h('div', {class: 'photo-shutter-row'}, this.cameraButton),
+        h(
+          'div',
+          {class: 'photo-shutter-row'},
+          this.cameraButton,
+          this.saveButton,
+        ),
         this.list,
       ),
     );
     this.setButtons();
-    this.setupDrag();
+    this.setupGestures();
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.freeze();
     });
@@ -162,6 +177,10 @@ export class PhotoPanel {
   async startCamera() {
     this.reset();
     const session = this.session;
+    // The camera's box at its size from the start (it never changes).
+    this.live.width = this.live.height = 0;
+    this.stage.replaceChildren(this.live, this.svg);
+    this.stage.classList.add('camera');
     this.status.textContent = 'Starting the camera…';
     let stream: MediaStream;
     try {
@@ -178,10 +197,12 @@ export class PhotoPanel {
       const name = (e as Error).name;
       this.status.textContent =
         name === 'NotAllowedError'
-          ? 'The camera isn’t allowed for this site. Choose a photo instead.'
+          ? 'The camera isn’t allowed here. Choose a photo instead.'
           : name === 'NotFoundError'
             ? 'No camera found. Choose a photo instead.'
             : `Couldn’t start the camera: ${(e as Error).message}`;
+      this.stage.replaceChildren(this.svg);
+      this.stage.classList.remove('camera');
       return;
     }
     if (session !== this.session) {
@@ -190,8 +211,7 @@ export class PhotoPanel {
     }
     this.stream = stream;
     this.video.srcObject = stream;
-    this.stage.replaceChildren(this.video, this.svg);
-    this.stage.classList.add('camera');
+    this.stage.replaceChildren(this.video, this.live, this.svg);
     this.setButtons();
     this.update();
     try {
@@ -199,15 +219,35 @@ export class PhotoPanel {
     } catch {
       // Autoplay of muted inline video is allowed; if not, frames still come.
     }
+    if (session !== this.session || !this.stream) return;
+    this.frames.start();
     this.tick();
   }
 
   /**
-   * Stops the camera and holds the last picture read (or, if none was yet,
-   * the one being read).
+   * Stops the camera and holds a picture: with `now` (the Freeze button)
+   * what's on screen, a sharp frame from the last moment, which is then
+   * read; otherwise (a box or line tapped) the last picture read, which the
+   * boxes belong to (or, if none was yet, the one being read).
    */
-  freeze() {
+  freeze(now = false) {
     if (!this.stream) return;
+    const held = now ? this.frames.take() : undefined;
+    if (held) {
+      this.stopCamera();
+      // Whatever is being read is of an older frame.
+      this.send({type: 'cancel'});
+      this.discard(this.next);
+      this.discard(this.shown);
+      this.next = undefined;
+      held.className = 'photo-image';
+      const photo = this.newPhoto(held, held.width, held.height);
+      this.shown = photo;
+      this.draw();
+      this.update();
+      void this.read(photo, held);
+      return;
+    }
     if (!this.shown && !this.next && this.video.videoWidth) {
       const photo = this.capture();
       this.shown = photo;
@@ -217,6 +257,7 @@ export class PhotoPanel {
     if (this.next) {
       if (this.shown) {
         this.send({type: 'cancel'});
+        this.discard(this.next);
       } else {
         this.shown = this.next;
       }
@@ -267,11 +308,13 @@ export class PhotoPanel {
   /** Forgets the photo on screen, and stops the camera. */
   private reset() {
     this.session++;
+    this.setZoom(1, 0, 0);
     this.dock(false);
     this.stopCamera();
     if (this.shown || this.next) this.send({type: 'cancel'});
+    this.discard(this.shown);
+    this.discard(this.next);
     this.shown = this.next = undefined;
-    this.regions.clear();
     this.stage.replaceChildren(this.svg);
     this.stage.classList.remove('camera');
     this.svg.replaceChildren();
@@ -281,7 +324,10 @@ export class PhotoPanel {
 
   private stopCamera() {
     clearTimeout(this.timer);
+    this.frames.stop();
     if (!this.stream) return;
+    const {videoWidth: vw, videoHeight: vh} = this.video;
+    this.streamSize = vw ? `${vw}x${vh}` : '';
     for (const t of this.stream.getTracks()) t.stop();
     this.stream = undefined;
     this.video.srcObject = null;
@@ -302,7 +348,9 @@ export class PhotoPanel {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
-      h('a', {href: url, download: `g-sho-${stamp}.png`}).click();
+      // The camera's own size too: is a blurry picture a small stream?
+      const size = this.streamSize ? `-${this.streamSize}` : '';
+      h('a', {href: url, download: `g-sho-${stamp}${size}.png`}).click();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }, 'image/png');
   }
@@ -324,33 +372,53 @@ export class PhotoPanel {
     };
   }
 
-  /** The camera's current picture, scaled for reading. */
-  private capture(): Photo {
-    // Just the part on screen: the video fills a box of the panel's own
-    // shape (style.css), showing its middle.
+  /**
+   * The part of the video on screen: it fills a box of the panel's own
+   * shape (style.css), showing its middle. Kept at up to MAX_SIDE.
+   */
+  private crop(): Crop {
     const {videoWidth: vw, videoHeight: vh} = this.video;
     const box = this.stage.getBoundingClientRect();
     const k = Math.max(box.width / vw, box.height / vh) || 1;
     const sw = Math.min(vw, box.width / k || vw);
     const sh = Math.min(vh, box.height / k || vh);
     const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+    return {
+      sx: (vw - sw) / 2,
+      sy: (vh - sh) / 2,
+      sw,
+      sh,
+      width: Math.round(sw * scale),
+      height: Math.round(sh * scale),
+    };
+  }
+
+  /** Puts a camera frame in the live view, at the screen's resolution. */
+  private showLive(frame: HTMLCanvasElement) {
+    const box = this.stage.getBoundingClientRect();
+    const scale = Math.min(
+      1,
+      (box.width * devicePixelRatio) / frame.width || 1,
+    );
+    const w = Math.round(frame.width * scale);
+    const h = Math.round(frame.height * scale);
+    if (this.live.width !== w || this.live.height !== h) {
+      this.live.width = w;
+      this.live.height = h;
+    }
+    this.live.getContext('2d')!.drawImage(frame, 0, 0, w, h);
+  }
+
+  /** The camera's current picture, for reading. */
+  private capture(): Photo {
+    const c = this.crop();
     const canvas = document.createElement('canvas');
     canvas.className = 'photo-image';
-    canvas.width = Math.round(sw * scale);
-    canvas.height = Math.round(sh * scale);
+    canvas.width = c.width;
+    canvas.height = c.height;
     canvas
       .getContext('2d')!
-      .drawImage(
-        this.video,
-        (vw - sw) / 2,
-        (vh - sh) / 2,
-        sw,
-        sh,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      );
+      .drawImage(this.video, c.sx, c.sy, c.sw, c.sh, 0, 0, c.width, c.height);
     return this.newPhoto(canvas, canvas.width, canvas.height);
   }
 
@@ -373,9 +441,21 @@ export class PhotoPanel {
     this.timer = setTimeout(() => this.tick(), Math.max(0, wait));
   }
 
+  /** Frees a camera picture that's done with (see frames.ts MAX_KEPT). */
+  private discard(photo: Photo | undefined) {
+    if (photo?.media instanceof HTMLCanvasElement) free(photo.media);
+  }
+
   private async read(photo: Photo, source: ImageBitmap | HTMLCanvasElement) {
-    const image =
-      source instanceof ImageBitmap ? source : await createImageBitmap(source);
+    let image: ImageBitmap;
+    try {
+      image =
+        source instanceof ImageBitmap
+          ? source
+          : await createImageBitmap(source);
+    } catch {
+      return; // freed meanwhile (a newer picture replaced it)
+    }
     try {
       await this.ready;
     } catch {
@@ -392,15 +472,16 @@ export class PhotoPanel {
   /** Puts the picture on screen with what's been found in it. */
   private draw() {
     const photo = this.shown;
-    const media = this.stream ? this.video : photo?.media;
-    if (media && this.stage.firstChild !== media) {
-      this.stage.replaceChildren(media, this.svg);
+    const media = this.stream ? this.live : photo?.media;
+    if (media && !this.stage.contains(media)) {
+      this.stage.replaceChildren(
+        ...(this.stream ? [this.video] : []),
+        media,
+        this.svg,
+      );
     }
     // The camera's pictures fill a fixed box; photos show whole.
-    this.stage.classList.toggle(
-      'camera',
-      media === this.video || media instanceof HTMLCanvasElement,
-    );
+    this.stage.classList.toggle('camera', media instanceof HTMLCanvasElement);
     this.setButtons();
     if (!photo) return;
     this.svg.setAttribute('viewBox', `0 0 ${photo.width} ${photo.height}`);
@@ -425,23 +506,15 @@ export class PhotoPanel {
       const n = photo.found.length;
       text = n ? `Reading ${n} line${n === 1 ? '' : 's'}…` : 'Finding text…';
     } else if (photo.lines) {
-      text =
-        'Tap a line to search it, or drag a box around just the part you want.';
+      text = 'Tap a line to search it.';
     } else {
-      text = photo.found.length
-        ? 'Couldn’t read any text. Drag a box around some text to try.'
-        : 'No text found. Drag a box around some text to read it.';
+      text = photo.found.length ? 'Couldn’t read any text.' : 'No text found.';
     }
     this.status.textContent = text;
   }
 
   private onMessage(msg: FromWorker) {
     if (msg.type === 'ready' || msg.id === undefined) return;
-    const region = this.regions.get(msg.id);
-    if (region) {
-      this.onRegion(msg.id, region, msg);
-      return;
-    }
     const photo = [this.shown, this.next].find(p => p?.id === msg.id);
     if (!photo) return;
     if (msg.type === 'boxes') {
@@ -456,6 +529,7 @@ export class PhotoPanel {
       }
       if (photo === this.next) {
         // The camera's newer picture replaces the one on screen.
+        this.discard(this.shown);
         this.shown = photo;
         this.next = undefined;
         this.draw();
@@ -467,28 +541,6 @@ export class PhotoPanel {
       }
     }
     if (photo === this.shown) this.update();
-  }
-
-  private onRegion(id: number, region: Region, msg: FromWorker) {
-    if (msg.type === 'boxes') {
-      region.found = this.newFound(msg.boxes[0]);
-      region.photo.found.push(region.found);
-      if (region.photo === this.shown) {
-        this.svg.append(region.found.shape);
-        this.list.append(region.found.item);
-      }
-    } else if (msg.type === 'line' && region.found) {
-      const f = region.found;
-      if (this.setLine(f, msg.text)) region.photo.lines++;
-      if (region.photo !== this.shown) return;
-      if (f.text) this.pick(f);
-      this.status.textContent = f.text ? '' : 'Couldn’t read that.';
-    } else if (msg.type === 'done' || msg.type === 'error') {
-      this.regions.delete(id);
-      if (msg.type === 'error' && region.photo === this.shown) {
-        this.status.textContent = `Couldn’t read that: ${msg.message}`;
-      }
-    }
   }
 
   private newFound(box: Quad): Found {
@@ -546,63 +598,112 @@ export class PhotoPanel {
     ];
   }
 
-  /** Taps pick a box; drags draw one, which is then read. */
-  private setupDrag() {
-    let start: {x: number; y: number; at: Point} | undefined;
-    let drawn: SVGPolygonElement | undefined;
-    const rect = (a: Point, b: Point): Quad => {
-      const [x0, x1] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
-      const [y0, y1] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
-      return [
-        [x0, y0],
-        [x1, y0],
-        [x1, y1],
-        [x0, y1],
-      ];
+  /** Zooms the picture and its boxes (style.css), kept covering the box. */
+  private setZoom(z: number, x: number, y: number) {
+    if (z < 1.02) [z, x, y] = [1, 0, 0];
+    x = Math.min(0, Math.max(1 - z, x));
+    y = Math.min(0, Math.max(1 - z, y));
+    this.zoom = {z, x, y};
+    const st = this.stage.style;
+    st.setProperty('--z', String(z));
+    st.setProperty('--zx', String(x));
+    st.setProperty('--zy', String(y));
+  }
+
+  /** A point on screen as a fraction of the picture's box. */
+  private toStage(x: number, y: number): Point {
+    const r = this.stage.getBoundingClientRect();
+    return [(x - r.left) / r.width, (y - r.top) / r.height];
+  }
+
+  /** Zooms by `factor`, keeping the point on screen at (x, y) in place. */
+  private zoomAround(x: number, y: number, factor: number) {
+    const [u, v] = this.toStage(x, y);
+    const {z, x: zx, y: zy} = this.zoom;
+    const z2 = Math.min(MAX_ZOOM, Math.max(1, z * factor));
+    this.setZoom(z2, u - ((u - zx) / z) * z2, v - ((v - zy) / z) * z2);
+  }
+
+  /**
+   * One finger: a tap picks the line under it; a drag moves a zoomed-in
+   * picture. Two: pinch to zoom and move it (also a trackpad pinch).
+   */
+  private setupGestures() {
+    let start: {x: number; y: number; zx: number; zy: number} | undefined;
+    let moved = false;
+    const pointers = new Map<number, Point>();
+    /** a pinch: finger spread, the picture point between them, the zoom */
+    let pinch: {d: number; at: Point; z: number} | undefined;
+    /** two fingers were down: nothing else until all are lifted */
+    let gesture = false;
+    const fingers = () => {
+      const [[ax, ay], [bx, by]] = [...pointers.values()];
+      return {
+        x: (ax + bx) / 2,
+        y: (ay + by) / 2,
+        d: Math.hypot(ax - bx, ay - by),
+      };
     };
-    this.svg.addEventListener('pointerdown', e => {
+    this.stage.addEventListener('pointerdown', e => {
       if (!this.shown || e.button !== 0) return;
       // Touching the picture holds it, so what's under the finger stays.
       this.freeze();
-      start = {x: e.clientX, y: e.clientY, at: this.toPhoto(e)};
-      this.svg.setPointerCapture(e.pointerId);
-    });
-    this.svg.addEventListener('pointermove', e => {
-      if (!start) return;
-      const far = Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRAG;
-      if (!far && !drawn) return;
-      if (!drawn) {
-        drawn = document.createElementNS(SVG, 'polygon');
-        drawn.classList.add('photo-box', 'drawing');
-        this.svg.append(drawn);
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      try {
+        this.stage.setPointerCapture(e.pointerId);
+      } catch {
+        // Not a live pointer (e.g. a synthetic event): no capture needed.
       }
-      const q = rect(start.at, this.toPhoto(e));
-      drawn.setAttribute('points', q.map(p => p.join(',')).join(' '));
+      if (pointers.size === 2) {
+        start = undefined;
+        gesture = true;
+        const f = fingers();
+        const [u, v] = this.toStage(f.x, f.y);
+        const {z, x, y} = this.zoom;
+        pinch = {d: f.d, at: [(u - x) / z, (v - y) / z], z};
+      }
+      if (gesture) return;
+      start = {x: e.clientX, y: e.clientY, zx: this.zoom.x, zy: this.zoom.y};
+      moved = false;
     });
-    const end = (e: PointerEvent, cancelled: boolean) => {
-      if (!start) return;
-      const from = start.at;
-      start = undefined;
-      const photo = this.shown;
-      if (!photo) return;
-      if (drawn) {
-        drawn.remove();
-        drawn = undefined;
-        if (cancelled) return;
-        const box = rect(from, this.toPhoto(e)).map(([x, y]) => [
-          Math.round(Math.min(photo.width - 1, Math.max(0, x))),
-          Math.round(Math.min(photo.height - 1, Math.max(0, y))),
-        ]) as Quad;
-        if (box[1][0] - box[0][0] < 4 || box[3][1] - box[0][1] < 4) return;
-        this.status.textContent = 'Reading…';
-        const id = this.nextId++;
-        this.regions.set(id, {photo});
-        this.send({type: 'region', id, photo: photo.id, box});
+    this.stage.addEventListener('pointermove', e => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pinch && pointers.size >= 2) {
+        const f = fingers();
+        const z = Math.min(
+          MAX_ZOOM,
+          Math.max(1, (pinch.z * f.d) / Math.max(1, pinch.d)),
+        );
+        const [u, v] = this.toStage(f.x, f.y);
+        this.setZoom(z, u - pinch.at[0] * z, v - pinch.at[1] * z);
         return;
       }
-      if (cancelled) return;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!moved && Math.hypot(dx, dy) <= TAP_SLOP) return;
+      moved = true;
+      const r = this.stage.getBoundingClientRect();
+      this.setZoom(
+        this.zoom.z,
+        start.zx + dx / r.width,
+        start.zy + dy / r.height,
+      );
+    });
+    const end = (e: PointerEvent, cancelled: boolean) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = undefined;
+      if (gesture) {
+        if (!pointers.size) gesture = false;
+        return;
+      }
+      if (!start) return;
+      start = undefined;
+      const photo = this.shown;
+      if (!photo || moved || cancelled) return;
       // A tap: the line under it (the smallest, if boxes overlap).
-      const [x, y] = from;
+      const [x, y] = this.toPhoto(e);
       let best: Found | undefined;
       for (const f of photo.found) {
         if (!f.text || !inside(f.box, x, y)) continue;
@@ -610,8 +711,28 @@ export class PhotoPanel {
       }
       if (best) this.pick(best);
     };
-    this.svg.addEventListener('pointerup', e => end(e, false));
-    this.svg.addEventListener('pointercancel', e => end(e, true));
+    this.stage.addEventListener('pointerup', e => end(e, false));
+    this.stage.addEventListener('pointercancel', e => end(e, true));
+    // A trackpad pinch arrives as a wheel event with Ctrl.
+    this.stage.addEventListener(
+      'wheel',
+      e => {
+        if (!e.ctrlKey || !this.shown) return;
+        e.preventDefault();
+        this.freeze();
+        this.zoomAround(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+      },
+      {passive: false},
+    );
+    // Safari's own pinch would zoom the whole page.
+    this.stage.addEventListener('gesturestart', e => e.preventDefault());
+    this.stage.addEventListener(
+      'touchmove',
+      e => {
+        if (e.touches.length > 1) e.preventDefault();
+      },
+      {passive: false},
+    );
   }
 }
 

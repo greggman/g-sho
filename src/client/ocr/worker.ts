@@ -24,8 +24,6 @@ interface Models {
 }
 
 let ready: Promise<Models> | undefined;
-/** the last two photos by id, for reading regions of them */
-const photos = new Map<number, Rgba>();
 /** the latest photo's request; older ones stop between lines */
 let latest = 0;
 
@@ -137,24 +135,20 @@ onmessage = async (e: MessageEvent<ToWorker>) => {
     latest = 0;
     return;
   }
-  if (msg.type === 'read') latest = msg.id;
+  latest = msg.id;
   try {
     const {det, rec, dict} = await ready!;
-    if (msg.type === 'read') {
-      photos.set(msg.id, pixels(msg.image));
-      for (const id of photos.keys()) {
-        if (photos.size > 2) photos.delete(id);
-      }
+    if (latest !== msg.id) {
+      msg.image.close();
+      return;
     }
-    const img = photos.get(msg.type === 'read' ? msg.id : msg.photo);
-    if (!img) throw new Error('no photo');
-    const boxes = msg.type === 'read' ? await detect(img, det) : [msg.box];
+    const img = pixels(msg.image);
+    const boxes = await detect(img, det);
     post({type: 'boxes', id: msg.id, boxes});
     for (const [index, box] of boxes.entries()) {
-      // Let other requests in between lines (a region drawn meanwhile, or a
-      // new photo, which makes this one stale).
+      // Let a newer photo in between lines (it makes this one stale).
       await new Promise(resolve => setTimeout(resolve));
-      if (msg.type === 'read' && latest !== msg.id) return;
+      if (latest !== msg.id) return;
       const line = await readLine(img, box, rec, dict);
       const ok = line.score >= OPTIONS.textScore;
       post({
