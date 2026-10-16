@@ -356,13 +356,12 @@ a:hover {
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.4;
-  /* Always two lines tall, so the picture below never moves. */
+  /* Always two lines tall, so the picture below never moves; a one-line
+     message is centered in it. */
   height: 2.8em;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  display: flex;
+  align-items: center;
 }
 
 /* The photo, at most most of the screen tall; the overlay matches it. */
@@ -419,18 +418,6 @@ a:hover {
   object-fit: contain;
 }
 
-/* Docked, a held camera picture shows small, whole. */
-.photo-panel.docked .photo-stage.camera {
-  width: fit-content;
-  height: auto;
-}
-
-.photo-panel.docked .photo-stage.camera .photo-image {
-  width: auto;
-  height: auto;
-  max-height: 30vh;
-}
-
 /* Pinch zoom (panel.ts setZoom): the picture and its boxes together. */
 .photo-stage > .photo-image,
 .photo-stage > .photo-overlay {
@@ -469,89 +456,6 @@ a:hover {
   fill: rgb(63 155 82 / 0.3);
   stroke: var(--accent-strong);
   stroke-width: 3px;
-}
-
-.photo-lines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.photo-lines button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 1.2rem;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
-.photo-lines button:hover {
-  background: var(--accent-soft);
-}
-
-/*
- * Docked (after picking a line): the panel stays at the top of the screen,
- * compact, and the search results scroll under it.
- */
-#photo-panel:has(.photo-panel.docked) {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--bg);
-  padding-top: 8px;
-  padding-bottom: 8px;
-  margin-bottom: 0;
-}
-
-.photo-panel.docked {
-  padding: 8px;
-}
-
-.photo-panel.docked .photo-toolbar {
-  display: none;
-}
-
-.photo-panel.docked .photo-image {
-  max-height: 30vh;
-}
-
-/* The camera button and the lines share one row, which scrolls sideways. */
-.photo-panel.docked .photo-bottom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.photo-panel.docked .photo-shutter-row {
-  display: block;
-  margin: 0;
-}
-
-.photo-panel.docked .photo-shutter-row .photo-new {
-  display: none;
-}
-
-.photo-panel.docked .photo-shutter {
-  min-width: 0;
-  min-height: 40px;
-  padding: 0 14px;
-  font-size: 1rem;
-}
-
-.photo-panel.docked .photo-lines {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  margin: 0;
-}
-
-.photo-panel.docked .photo-lines li {
-  flex: none;
 }
 
 /* ---- handwriting ---- */

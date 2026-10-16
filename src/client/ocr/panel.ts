@@ -1,6 +1,6 @@
 /**
  * The photo panel: reads text through the camera, a picture at a time, with
- * a box on every line of text found and a list of what each says. Freeze
+ * a box on every line of text found. Freeze
  * holds the picture; tap a box or a line to search it, and pinch to zoom in.
  * A photo chosen from files is read the same way.
  */
@@ -24,7 +24,6 @@ interface Found {
   box: Quad;
   text?: string;
   shape: SVGPolygonElement;
-  item: HTMLLIElement;
 }
 
 /** A picture: being read, or on screen with what was found in it. */
@@ -55,7 +54,6 @@ export class PhotoPanel {
   private readonly live: HTMLCanvasElement;
   private readonly frames: RecentFrames;
   private readonly svg: SVGSVGElement;
-  private readonly list: HTMLOListElement;
   private readonly worker: Worker;
   private readonly ready: Promise<string>;
   private loaded = false;
@@ -104,7 +102,6 @@ export class PhotoPanel {
     this.svg = document.createElementNS(SVG, 'svg');
     this.svg.classList.add('photo-overlay');
     this.stage = h('div', {class: 'photo-stage'}, this.svg);
-    this.list = h('ol', {class: 'photo-lines', lang: 'ja'});
     this.element = h(
       'div',
       {class: 'photo-panel'},
@@ -121,14 +118,9 @@ export class PhotoPanel {
       this.stage,
       h(
         'div',
-        {class: 'photo-bottom'},
-        h(
-          'div',
-          {class: 'photo-shutter-row'},
-          this.cameraButton,
-          this.saveButton,
-        ),
-        this.list,
+        {class: 'photo-shutter-row'},
+        this.cameraButton,
+        this.saveButton,
       ),
     );
     this.setButtons();
@@ -309,7 +301,6 @@ export class PhotoPanel {
   private reset() {
     this.session++;
     this.setZoom(1, 0, 0);
-    this.dock(false);
     this.stopCamera();
     if (this.shown || this.next) this.send({type: 'cancel'});
     this.discard(this.shown);
@@ -318,7 +309,6 @@ export class PhotoPanel {
     this.stage.replaceChildren(this.svg);
     this.stage.classList.remove('camera');
     this.svg.replaceChildren();
-    this.list.replaceChildren();
     this.setButtons();
   }
 
@@ -486,7 +476,6 @@ export class PhotoPanel {
     if (!photo) return;
     this.svg.setAttribute('viewBox', `0 0 ${photo.width} ${photo.height}`);
     this.svg.replaceChildren(...photo.found.map(f => f.shape));
-    this.list.replaceChildren(...photo.found.map(f => f.item));
   }
 
   private update() {
@@ -547,8 +536,7 @@ export class PhotoPanel {
     const shape = document.createElementNS(SVG, 'polygon');
     shape.setAttribute('points', box.map(p => p.join(',')).join(' '));
     shape.classList.add('photo-box', 'pending');
-    const item = h('li', {hidden: true});
-    return {box, shape, item};
+    return {box, shape};
   }
 
   /** Shows what a line says; true if it could be read. */
@@ -557,13 +545,8 @@ export class PhotoPanel {
     f.shape.classList.remove('pending');
     if (!text) {
       f.shape.classList.add('unread');
-      f.item.remove();
       return false;
     }
-    f.item.replaceChildren(
-      h('button', {type: 'button', onclick: () => this.pick(f)}, text),
-    );
-    f.item.hidden = false;
     f.shape.append(title(text));
     return true;
   }
@@ -576,16 +559,7 @@ export class PhotoPanel {
       s.classList.remove('selected');
     }
     f.shape.classList.add('selected');
-    this.dock(true);
     this.onPick(f.text);
-  }
-
-  /**
-   * Docked, the panel is compact and stays at the top of the screen (see
-   * style.css), so the search results scroll under the picture.
-   */
-  private dock(on: boolean) {
-    this.element.classList.toggle('docked', on);
   }
 
   /** The photo's coordinates under a pointer. */
