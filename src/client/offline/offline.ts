@@ -7,7 +7,7 @@
 import type {Meta} from '../../shared/types.ts';
 import {h} from '../dom.ts';
 import type {DownloadMessage, DownloadRequest} from './download-worker.ts';
-import {trackWorker} from '../versions.ts';
+import {trackWorker, workerEnded} from '../versions.ts';
 import {clearAll} from './data-store.ts';
 
 export type OfflineState =
@@ -86,6 +86,10 @@ export class OfflineDictionary {
       } else {
         worker.terminate();
         this.worker = undefined;
+        workerEnded(
+          'Offline download',
+          m.type === 'complete' ? 'has finished' : 'stopped (see Offline)',
+        );
         this.set(
           m.type === 'complete'
             ? {kind: 'saved'}
@@ -107,6 +111,7 @@ export class OfflineDictionary {
   async turnOff() {
     this.worker?.terminate();
     this.worker = undefined;
+    workerEnded('Offline download');
     try {
       localStorage.setItem(KEY, 'off');
     } catch {

@@ -8,9 +8,22 @@ import {VERSION_REQUEST, type Version} from './version.ts';
 
 /** The workers the page has started, by name (the latest of each). */
 const workers = new Map<string, Worker>();
+/** Workers that have done their job and stopped: how it ended. */
+const ended = new Map<string, string>();
 
 export function trackWorker(name: string, worker: Worker) {
+  ended.delete(name);
   workers.set(name, worker);
+}
+
+/**
+ * A worker stopped: shown with `note` (e.g. "has finished") instead of a
+ * version, or not at all without one.
+ */
+export function workerEnded(name: string, note?: string) {
+  workers.delete(name);
+  if (note) ended.set(name, note);
+  else ended.delete(name);
 }
 
 /** Asks a worker or service worker for its version; undefined if no answer. */
@@ -37,6 +50,8 @@ export interface PartVersion {
   name: string;
   /** undefined: not running (or didn't answer) */
   version?: Version & {build?: string};
+  /** a worker that stopped: how it ended */
+  note?: string;
 }
 
 /** The service worker in charge, and one being installed or waiting. */
@@ -63,7 +78,8 @@ export async function serviceWorkerVersions(): Promise<PartVersion[]> {
 
 /** Every worker the page has started. */
 export async function workerVersions(): Promise<PartVersion[]> {
-  return Promise.all(
+  const running = await Promise.all(
     [...workers].map(async ([name, w]) => ({name, version: await ask(w)})),
   );
+  return [...running, ...[...ended].map(([name, note]) => ({name, note}))];
 }

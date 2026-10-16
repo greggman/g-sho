@@ -24,7 +24,8 @@ const watch = process.argv.includes('--watch');
 
 /**
  * Which build this is (src/client/version.ts): the commit, "-dirty" if
- * tracked files have uncommitted changes, and the commit's date.
+ * tracked files have uncommitted changes, and the commit's date (or, when
+ * dirty, now: test builds all share the commit).
  */
 function version(): {commit: string; date: string} {
   const git = (...args: string[]) =>
@@ -33,7 +34,7 @@ function version(): {commit: string; date: string} {
     const dirty = git('status', '--porcelain', '--untracked-files=no') !== '';
     return {
       commit: git('rev-parse', '--short', 'HEAD') + (dirty ? '-dirty' : ''),
-      date: git('log', '-1', '--format=%cI'),
+      date: dirty ? new Date().toISOString() : git('log', '-1', '--format=%cI'),
     };
   } catch {
     return {commit: 'unknown', date: ''};
