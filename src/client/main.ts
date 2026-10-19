@@ -4,11 +4,12 @@ import {
   saveSettings,
   type AnkiSettings,
 } from './anki/settings.ts';
-import type {Meta} from '../shared/types.ts';
+import type {Meta, Entry} from '../shared/types.ts';
 import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
+import type {HistoryItem} from './history.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
   renderEntry,
@@ -125,21 +126,24 @@ function searchUrl(
   return `?${params}`;
 }
 
+/** A word as history shows it: its headword, reading and first meanings. */
+function wordSnapshot(entry: Entry): NonNullable<HistoryItem['word']> {
+  const word = headword(entry);
+  return {
+    text: word.text,
+    ...(word.reading && {reading: word.reading}),
+    meaning: entry.s[0].g.slice(0, 3).join('; '),
+  };
+}
+
 /** Remembers a search in the history, with a snapshot of its top result. */
 function recordHistory(query: string, result: SearchResult) {
   const top = result.words[0];
   if (!top && !result.sentence) return;
-  const word = top && headword(top.entry);
   historyStore.add({
     q: query,
     t: Date.now(),
-    ...(word && {
-      word: {
-        text: word.text,
-        ...(word.reading && {reading: word.reading}),
-        meaning: top.entry.s[0].g.slice(0, 3).join('; '),
-      },
-    }),
+    ...(top && {word: wordSnapshot(top.entry)}),
   });
 }
 
@@ -639,6 +643,12 @@ async function main() {
   watchDue(opened);
   void startSync(opened);
   const dict = await Dict.open(loadJson);
+  historyStore.attachStars(opened.marks, async wordId => {
+    const entry = await dict.entry(wordId);
+    if (!entry) return undefined;
+    const word = wordSnapshot(entry);
+    return {wordId, q: word.text, t: 0, word};
+  });
   // Including changes synced from another device.
   opened.settings.onChange(() =>
     showDisplaySettings(dict, loadDisplaySettings(opened.settings)),
