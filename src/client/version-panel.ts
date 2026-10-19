@@ -4,7 +4,7 @@
  * to look for an update.
  */
 import {h} from './dom.ts';
-import {version, versionText, type Version} from './version.ts';
+import {sameBuild, version, versionText} from './version.ts';
 import {
   serviceWorkerVersions,
   workerVersions,
@@ -159,12 +159,4 @@ function settled(worker: ServiceWorker): Promise<ServiceWorkerState> {
     worker.addEventListener('statechange', done);
     done();
   });
-}
-
-/**
- * Whether two parts are the same build: the commit, and its date (for a
- * build with uncommitted changes, when it was built; version.ts).
- */
-function sameBuild(a: Version, b: Version) {
-  return a.commit === b.commit && a.date === b.date;
 }

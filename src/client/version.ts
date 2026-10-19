@@ -30,3 +30,16 @@ export function versionText(v: Version): string {
 
 /** The message that asks a worker for its version, with a port to answer on. */
 export const VERSION_REQUEST = 'g-sho-version';
+
+/**
+ * Whether two parts are the same build: the commit, and its date (for a
+ * build with uncommitted changes, when it was built).
+ */
+export function sameBuild(a: Version, b: Version) {
+  return a.commit === b.commit && a.date === b.date;
+}
+
+/** Whether `a` is a newer build than `b`. */
+export function newerBuild(a: Version, b: Version) {
+  return !sameBuild(a, b) && a.date > b.date;
+}

@@ -9,6 +9,8 @@ import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
+import {newerBuild, version} from './version.ts';
+import {serviceWorkerVersions} from './versions.ts';
 import type {HistoryItem} from './history.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
@@ -752,10 +754,13 @@ function registerServiceWorker() {
     .register('/sw.js')
     .then(reg => {
       // A home-screen app can stay open for days: look for a new deploy
-      // whenever it comes back to the front.
+      // whenever it comes back to the front, and once a day.
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') void reg.update();
       });
+      setInterval(() => void reg.update(), UPDATE_CHECK_MS);
+      // The saved copy may already be newer than this page.
+      void offerUpdateIfNewer();
     })
     .catch(e => {
       console.warn('service worker not registered', e);
@@ -763,7 +768,7 @@ function registerServiceWorker() {
 
   // The app opens from saved files, so a new deploy arrives a moment later
   // (a new service worker takes over). Switch to it right away if nothing
-  // has been done on the page yet; otherwise it's there next time.
+  // has been done on the page yet; otherwise the logo offers it.
   const hadController = !!navigator.serviceWorker.controller;
   let used = false;
   for (const type of ['pointerdown', 'keydown']) {
@@ -771,6 +776,35 @@ function registerServiceWorker() {
   }
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (hadController && !used) location.reload();
+    else void offerUpdateIfNewer();
+  });
+}
+
+/** How often an open page looks for a new deploy. */
+const UPDATE_CHECK_MS = 24 * 60 * 60 * 1000;
+
+/** Offers the update (offerUpdate) if the saved copy is a newer build. */
+async function offerUpdateIfNewer() {
+  const [saved] = await serviceWorkerVersions();
+  if (saved?.version && newerBuild(saved.version, version)) offerUpdate();
+}
+
+/**
+ * A newer version is saved: the logo becomes an update button. Tapping it
+ * opens the home page in the new version (history and everything else is
+ * saved, so nothing is lost).
+ */
+function offerUpdate() {
+  const logo = document.querySelector<HTMLAnchorElement>('.logo');
+  if (!logo || logo.classList.contains('update-ready')) return;
+  logo.classList.add('update-ready');
+  logo.title = 'New version: tap to update';
+  logo.setAttribute('aria-label', 'New version: tap to update');
+  logo.addEventListener('click', e => {
+    e.preventDefault();
+    logo.classList.add('updating');
+    logo.title = 'Updating…';
+    location.assign(logo.href);
   });
 }
 

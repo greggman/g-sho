@@ -99,6 +99,34 @@ a:hover {
   font-weight: 500;
 }
 
+/* A new version is ready (main.ts offerUpdate): the mark turns into an
+   update button. */
+.logo-update {
+  display: none;
+}
+
+.logo.update-ready .logo-mark {
+  background: #6a5cf6;
+}
+
+.logo.update-ready .logo-char {
+  display: none;
+}
+
+.logo.update-ready .logo-update {
+  display: block;
+}
+
+.logo.updating .logo-update {
+  animation: logo-spin 0.9s linear infinite;
+}
+
+@keyframes logo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .search {
   display: flex;
   flex: 1;
