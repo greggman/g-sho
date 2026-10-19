@@ -145,7 +145,9 @@ export function attachUndo(input: HTMLInputElement): InputUndo {
       input.setRangeText(text, start, end, 'end');
       stack.break();
       stack.record(read());
-      input.focus();
+      // Not on touch screens: focusing opens the keyboard, and the next tap
+      // (e.g. on another handwriting candidate) only closes it again.
+      if (!matchMedia('(pointer: coarse)').matches) input.focus();
     },
     set(value) {
       if (value === input.value) return;

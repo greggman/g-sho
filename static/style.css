@@ -565,8 +565,11 @@ a:hover {
     flex-direction: column;
   }
 
+  /* A little under full width, so the candidates and results below are
+     easier to see. */
   .handwriting-left {
-    width: 100%;
+    width: 82%;
+    margin: 0 auto;
   }
 }
 
@@ -1159,6 +1162,22 @@ a:hover {
     grid-template-columns: 250px minmax(0, 1fr) auto;
   }
 
+  /* Each in its place on one row, also when the home-screen app's back
+     button shows (it shares the logo's column; otherwise it was a fourth
+     item and pushed study and settings onto a second row). */
+  .site-header > .logo,
+  .site-header > .back-button {
+    grid-area: 1 / 1;
+  }
+
+  .site-header > .search {
+    grid-area: 1 / 2;
+  }
+
+  .site-header > .site-nav {
+    grid-area: 1 / 3;
+  }
+
   .home .history {
     display: none;
   }
@@ -1591,6 +1610,7 @@ mark {
 
 .home {
   max-width: 640px;
+  margin: 0 auto;
   padding: 24px 0;
 }
 
@@ -2571,6 +2591,13 @@ body {
 
   .back-button:not([hidden]) {
     display: inline-grid;
+  }
+}
+
+/* Wide, the back button shares the logo's grid cell: make room for it. */
+@media (display-mode: standalone) and (min-width: 1180px) {
+  .site-header:has(> .back-button:not([hidden])) > .logo {
+    margin-left: 36px;
   }
 }
 
