@@ -43,6 +43,8 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   LINE_CHANNEL_ID: string;
   LINE_CHANNEL_SECRET: string;
+  /** Turnstile, for accounts made with only a passkey; unset: not checked */
+  TURNSTILE_SECRET?: string;
   /** sign-in endpoints, per IP */
   AUTH_LIMIT?: RateLimit;
   /** other API calls, per user (or IP when signed out) */

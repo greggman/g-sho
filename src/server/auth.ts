@@ -11,6 +11,7 @@
 import type {Context, D1Database, Env} from './env.ts';
 import {
   cookie,
+  json,
   parseCookies,
   randomToken,
   redirect,
@@ -189,6 +190,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   github: 'GitHub',
   google: 'Google',
   line: 'LINE',
+  passkey: 'passkey',
   dev: 'dev',
 };
 
@@ -276,6 +278,11 @@ export function resumeFlow(
   return {flow, code};
 }
 
+/** A refused JSON request (passkeys): the message is for the person. */
+export function failureJson(message: string): Response {
+  return json({error: message}, {status: 400});
+}
+
 export function failure(message: string): Response {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign-in failed</title><link rel="stylesheet" href="/style.css">
@@ -310,8 +317,8 @@ export async function finishSignIn(
   const url = new URL(request.url);
   const cookies = [clearStateCookie(url)];
   if (!flow.link) {
-    const userId = await findOrCreateUser(env.DB, identity, now);
-    cookies.unshift(await startSession(env.DB, url, userId, now));
+    const {sessionCookie} = await startSessionFor(request, env, identity, now);
+    cookies.unshift(sessionCookie);
     return redirect(flow.back, cookies);
   }
 
@@ -319,43 +326,67 @@ export async function finishSignIn(
   if (!session) {
     return failure('You were signed out. Sign in, then add the sign-in again.');
   }
+  const refused = await linkIdentity(env, session.user.id, identity, now);
+  return refused ? failure(refused) : redirect(flow.back, cookies);
+}
+
+/** Signs in as the identity's user (creating it the first time). */
+export async function startSessionFor(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<{userId: string; sessionCookie: string}> {
+  const userId = await findOrCreateUser(env.DB, identity, now);
+  const url = new URL(request.url);
+  return {userId, sessionCookie: await startSession(env.DB, url, userId, now)};
+}
+
+/**
+ * Adds a sign-in to the user's account. Why not, if it can't be: it
+ * already belongs to another account, or the account has one from that
+ * provider.
+ */
+export async function linkIdentity(
+  env: Env,
+  userId: string,
+  identity: Identity,
+  now: number,
+): Promise<string | undefined> {
   const label = PROVIDER_LABELS[identity.provider] ?? identity.provider;
   const owner = await env.DB.prepare(
     'SELECT user_id FROM identities WHERE provider = ? AND subject = ?',
   )
     .bind(identity.provider, identity.subject)
     .first<{user_id: string}>();
-  if (owner && owner.user_id !== session.user.id) {
-    return failure(
+  if (owner && owner.user_id !== userId) {
+    return (
       `That ${label} account already signs in to a different g-sho account. ` +
-        'To use it here instead, sign in with it and delete that account first.',
+      'To use it here instead, sign in with it and delete that account first.'
     );
   }
-  if (!owner) {
-    const already = await env.DB.prepare(
-      'SELECT 1 AS x FROM identities WHERE user_id = ? AND provider = ?',
-    )
-      .bind(session.user.id, identity.provider)
-      .first();
-    if (already) {
-      return failure(
-        `Your account already has a ${label} sign-in. Remove it first to use a different one.`,
-      );
-    }
-    await env.DB.prepare(
-      'INSERT INTO identities (provider, subject, user_id, login, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    )
-      .bind(
-        identity.provider,
-        identity.subject,
-        session.user.id,
-        identity.login ?? null,
-        identity.name,
-        now,
-      )
-      .run();
+  if (owner) return undefined;
+  const already = await env.DB.prepare(
+    'SELECT 1 AS x FROM identities WHERE user_id = ? AND provider = ?',
+  )
+    .bind(userId, identity.provider)
+    .first();
+  if (already) {
+    return `Your account already has a ${label} sign-in. Remove it first to use a different one.`;
   }
-  return redirect(flow.back, cookies);
+  await env.DB.prepare(
+    'INSERT INTO identities (provider, subject, user_id, login, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      identity.provider,
+      identity.subject,
+      userId,
+      identity.login ?? null,
+      identity.name,
+      now,
+    )
+    .run();
+  return undefined;
 }
 
 /**
@@ -373,11 +404,15 @@ export async function unlinkProvider(
     .bind(userId, provider)
     .first<{n: number}>();
   if (!row?.n) return false;
-  await env.DB.prepare(
-    'DELETE FROM identities WHERE user_id = ? AND provider = ?',
-  )
-    .bind(userId, provider)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare(
+      'DELETE FROM identities WHERE user_id = ? AND provider = ?',
+    ).bind(userId, provider),
+    // A passkey's key goes with it.
+    ...(provider === 'passkey'
+      ? [env.DB.prepare('DELETE FROM passkeys WHERE user_id = ?').bind(userId)]
+      : []),
+  ]);
   return true;
 }
 

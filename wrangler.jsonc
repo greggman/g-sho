@@ -26,8 +26,8 @@
     "GOOGLE_CLIENT_ID": "898219373200-kun8u4vglpr1nfvkgcql80acnq1ofp4q.apps.googleusercontent.com",
     "LINE_CHANNEL_ID": "2012121014",
   },
-  // GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET and LINE_CHANNEL_SECRET are
-  // secrets:
+  // GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_SECRET and
+  // TURNSTILE_SECRET are secrets:
   // `wrangler secret put … --env=""`, and .dev.vars locally.
   //
   // Bindings aren't inherited by environments, so env.dev repeats these.

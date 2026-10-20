@@ -47,6 +47,7 @@ export const PROVIDERS = [
 ] as const;
 
 export function providerLabel(id: string): string {
+  if (id === 'passkey') return 'Passkey';
   return PROVIDERS.find(p => p.id === id)?.label ?? id;
 }
 

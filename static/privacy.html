@@ -32,7 +32,7 @@
       </p>
 
       <h2>If you sign in</h2>
-      <p>Signing in is optional. You sign in with Google, GitHub or LINE, and we keep:</p>
+      <p>Signing in is optional. You sign in with Google, GitHub, LINE or a passkey, and we keep:</p>
       <ul>
         <li>
           for Google: your Google account ID (a number) and your name, from the sign-in. We ask
@@ -41,6 +41,13 @@
         <li>
           for LINE: your LINE user ID and display name, from the sign-in. We don't ask LINE for
           your email address or anything else;
+        </li>
+        <li>
+          for a passkey: its ID and public key, the name you gave, and when it was made and last
+          used. The passkey's private part never leaves your device or password manager. When you
+          make an account with only a passkey, Cloudflare Turnstile checks that you're a person
+          (<a href="https://www.cloudflare.com/turnstile-privacy-policy/">Turnstile's privacy
+          policy</a>);
         </li>
         <li>
           for GitHub: your GitHub user ID (a number), username and display name, read from your

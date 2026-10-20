@@ -15,6 +15,7 @@ import {
 import type {Context, Env, RateLimit} from './env.ts';
 import {error, json} from './http.ts';
 import {oidcCallback, oidcProviders, oidcStart} from './oidc.ts';
+import {passkeyOptions, passkeyRegister, passkeySignIn} from './passkey.ts';
 
 export type {Env} from './env.ts';
 
@@ -58,7 +59,7 @@ async function deleteAccount(env: Env, userId: string) {
   );
   if (!res.ok) throw new Error(`deleting user data: ${res.status}`);
   await env.DB.batch(
-    ['sessions', 'identities']
+    ['sessions', 'passkeys', 'identities']
       .map(table =>
         env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId),
       )
@@ -113,6 +114,17 @@ async function api(
       }
       if (path === `/api/auth/${p.id}/callback` && method === 'GET') {
         return oidcCallback(p, request, env);
+      }
+    }
+    if (method === 'POST') {
+      if (path === '/api/auth/passkey/options') {
+        return passkeyOptions(request, env);
+      }
+      if (path === '/api/auth/passkey/register') {
+        return passkeyRegister(request, env);
+      }
+      if (path === '/api/auth/passkey/signin') {
+        return passkeySignIn(request, env);
       }
     }
     if (

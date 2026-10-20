@@ -10,7 +10,21 @@ import {
   type AccountState,
 } from './account.ts';
 import {h} from './dom.ts';
+import {
+  createPasskey,
+  PasskeyError,
+  passkeysSupported,
+  signInWithPasskey,
+} from './passkey.ts';
 import type {Sync, SyncStatus} from './sync.ts';
+import {turnstileWidget} from './turnstile.ts';
+
+/** What to tell the person when a passkey step fails. */
+function passkeyMessage(e: unknown): string {
+  return e instanceof PasskeyError
+    ? e.message
+    : 'Something went wrong with the passkey. Please try again.';
+}
 
 function syncText(s: SyncStatus): string {
   switch (s.state) {
@@ -29,8 +43,9 @@ function syncText(s: SyncStatus): string {
 }
 
 /**
- * The Account section of Settings: sign in with Google, GitHub or LINE, or
- * (signed in) add or remove sign-ins, sign out, download your data, delete
+ * The Account section of Settings: sign in with Google, GitHub, LINE or a
+ * passkey, or make an account with a passkey; or (signed in) add or remove
+ * sign-ins, sign out, download your data, delete
  * the account. null when the site has no account server.
  */
 export async function createAccountPanel(
@@ -55,32 +70,120 @@ export async function createAccountPanel(
     );
   };
 
-  const signedOut = () => [
-    h(
-      'p',
-      null,
-      'Optional. Sign in to keep your history, starred and known words, ' +
-        'notes and settings in sync across your devices.',
-    ),
-    h(
-      'div',
-      {class: 'account-buttons'},
-      ...PROVIDERS.map(p =>
-        h(
-          'a',
-          {class: 'button primary', href: signInUrl(p.id)},
-          `Sign in with ${p.label}`,
-        ),
+  const signedOut = () => {
+    const status = h('p', {class: 'account-status', role: 'status'});
+    const fail = (e: unknown) => {
+      status.textContent = passkeyMessage(e);
+      status.classList.add('error');
+    };
+    const passkeys = passkeysSupported();
+    return [
+      h(
+        'p',
+        null,
+        'Optional. Sign in to keep your history, starred and known words, ' +
+          'notes and settings in sync across your devices.',
       ),
-    ),
-    h(
-      'p',
-      {class: 'hint'},
-      'We store only your user ID and name there (and your GitHub username), ' +
-        'not your email address. ',
-      h('a', {href: '/privacy.html'}, 'Privacy'),
-    ),
-  ];
+      h(
+        'div',
+        {class: 'account-buttons'},
+        ...PROVIDERS.map(p =>
+          h(
+            'a',
+            {class: 'button primary', href: signInUrl(p.id)},
+            `Sign in with ${p.label}`,
+          ),
+        ),
+        passkeys &&
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'primary',
+              onclick: async () => {
+                try {
+                  if (await signInWithPasskey()) show(await loadAccount());
+                } catch (e) {
+                  fail(e);
+                }
+              },
+            },
+            'Sign in with a passkey',
+          ),
+      ),
+      ...(passkeys ? [passkeySignUp(fail)] : []),
+      status,
+      h(
+        'p',
+        {class: 'hint'},
+        'We store only your user ID and name there (and your GitHub username), ' +
+          'not your email address. With a passkey, only its public key. ',
+        h('a', {href: '/privacy.html'}, 'Privacy'),
+      ),
+    ];
+  };
+
+  /**
+   * "No account? Make one with a passkey": a name, the Turnstile check,
+   * then the browser's passkey dialog.
+   */
+  const passkeySignUp = (fail: (e: unknown) => void) => {
+    const form = h('form', {class: 'passkey-sign-up', hidden: true});
+    const name = h('input', {
+      type: 'text',
+      maxlength: 60,
+      autocomplete: 'name',
+      placeholder: 'Your name (optional)',
+      'aria-label': 'Your name',
+    });
+    const check = h('div', {class: 'turnstile'});
+    const make = h(
+      'button',
+      {type: 'submit', class: 'primary', disabled: true},
+      'Make a passkey',
+    );
+    form.append(name, check, make);
+    let widget: Awaited<ReturnType<typeof turnstileWidget>> | undefined;
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      make.disabled = true;
+      try {
+        const made = await createPasskey({
+          name: name.value.trim(),
+          turnstile: widget?.token(),
+        });
+        if (made) {
+          show(await loadAccount());
+          return;
+        }
+      } catch (e) {
+        fail(e);
+      }
+      // Each Turnstile token is good once.
+      widget?.reset();
+    });
+    const open = h(
+      'button',
+      {
+        type: 'button',
+        class: 'link-button',
+        onclick: async () => {
+          open.hidden = true;
+          form.hidden = false;
+          name.focus();
+          try {
+            widget = await turnstileWidget(check, passed => {
+              make.disabled = !passed;
+            });
+          } catch (e) {
+            fail(e);
+          }
+        },
+      },
+      'Make one with a passkey',
+    );
+    return h('div', {class: 'passkey-new'}, 'No account? ', open, form);
+  };
 
   const signedIn = (account: Account) => {
     const status = h('p', {class: 'account-status'});
@@ -96,8 +199,8 @@ export async function createAccountPanel(
       try {
         await fn();
         await show(await loadAccount());
-      } catch {
-        status.textContent = failed;
+      } catch (e) {
+        status.textContent = e instanceof PasskeyError ? e.message : failed;
         status.classList.add('error');
       }
     };
@@ -161,19 +264,36 @@ export async function createAccountPanel(
     const ids = account.identities;
     const providers = [
       ...PROVIDERS.map(p => p.id),
+      ...(passkeysSupported() || ids.some(i => i.provider === 'passkey')
+        ? ['passkey']
+        : []),
       // e.g. the dev sign-in
       ...ids
         .map(i => i.provider)
-        .filter(id => !PROVIDERS.some(p => p.id === id)),
+        .filter(id => id !== 'passkey' && !PROVIDERS.some(p => p.id === id)),
     ];
     const row = (provider: string) => {
       const label = providerLabel(provider);
       const i = ids.find(i => i.provider === provider);
       const who = !i
         ? h('span', {class: 'hint'}, '—')
-        : (i.name ?? (i.login ? `@${i.login}` : ''));
+        : provider === 'passkey'
+          ? `Added ${new Date(i.createdAt).toLocaleDateString()}`
+          : (i.name ?? (i.login ? `@${i.login}` : ''));
       const action = !i
-        ? h('a', {class: 'button', href: signInUrl(provider, true)}, 'Link')
+        ? provider === 'passkey'
+          ? h(
+              'button',
+              {
+                type: 'button',
+                onclick: () =>
+                  void act(async () => {
+                    await createPasskey({name: account.name, link: true});
+                  }, 'Couldn’t add the passkey. Try again.'),
+              },
+              'Add',
+            )
+          : h('a', {class: 'button', href: signInUrl(provider, true)}, 'Link')
         : ids.length > 1 &&
           h(
             'button',
