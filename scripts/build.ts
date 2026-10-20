@@ -103,6 +103,7 @@ async function buildServiceWorker(outputs: string[]) {
     '/',
     '/about',
     '/privacy',
+    '/terms',
     ...[
       'app.js',
       'style.css',
