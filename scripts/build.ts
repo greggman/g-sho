@@ -25,7 +25,9 @@ const watch = process.argv.includes('--watch');
 /**
  * Which build this is (src/client/version.ts): the commit, "-dirty" if
  * tracked files have uncommitted changes, and the commit's date (or, when
- * dirty, now: test builds all share the commit).
+ * dirty, now: test builds all share the commit). Worked out again when a
+ * rebuild in watch mode has changed sources, so each change is a new version
+ * (one the update check can find), dated when it was built.
  */
 function version(): {commit: string; date: string} {
   const git = (...args: string[]) =>
@@ -40,7 +42,35 @@ function version(): {commit: string; date: string} {
     return {commit: 'unknown', date: ''};
   }
 }
-const VERSION = JSON.stringify(version());
+/** This build's version, for the app, its workers and the service worker. */
+let current = version();
+/** The last build's source files, and the newest one's time. */
+let inputs: string[] = [];
+let newestInput = 0;
+
+/**
+ * Starts a new version if a source has changed since the last build. The
+ * dev server also rebuilds for page requests; those must keep the version
+ * (and so the chunks' names), or a page would ask for chunks that are gone.
+ */
+function updateVersion() {
+  const newest = newestMtime();
+  if (newest <= newestInput) return;
+  newestInput = newest;
+  current = version();
+}
+
+function newestMtime() {
+  let newest = 0;
+  for (const f of inputs) {
+    try {
+      newest = Math.max(newest, fs.statSync(f).mtimeMs);
+    } catch {
+      return Infinity; // deleted or renamed
+    }
+  }
+  return newest;
+}
 const serve = process.argv.includes('--serve');
 
 /**
@@ -104,8 +134,8 @@ async function buildServiceWorker(outputs: string[]) {
     format: 'iife',
     target: ['es2022', 'chrome100', 'firefox100', 'safari15'],
     minify: !watch,
+    plugins: [versionPlugin],
     define: {
-      VERSION,
       BUILD: JSON.stringify(hash.digest('base64url').slice(0, 12)),
       FILES: JSON.stringify(files),
     },
@@ -113,13 +143,50 @@ async function buildServiceWorker(outputs: string[]) {
   });
 }
 
+/**
+ * Builds version.ts with this build's version in place of its `declare
+ * const VERSION` (esbuild reloads it on every rebuild, unlike a define).
+ */
+const versionPlugin: esbuild.Plugin = {
+  name: 'version',
+  setup(build) {
+    build.onLoad({filter: /[\\/]src[\\/]client[\\/]version\.ts$/}, args => {
+      const source = fs.readFileSync(args.path, 'utf8');
+      const declared = 'declare const VERSION: Version;';
+      if (!source.includes(declared)) {
+        throw new Error(`version.ts no longer has "${declared}"`);
+      }
+      return {
+        contents: source.replace(
+          declared,
+          `const VERSION: Version = ${JSON.stringify(current)};`,
+        ),
+        loader: 'ts',
+      };
+    });
+  },
+};
+
 /** Copies static/ again after every rebuild, so edits to it show up in watch mode. */
 const copyStaticPlugin: esbuild.Plugin = {
   name: 'copy-static',
   setup(build) {
+    // A new version when sources changed (the service worker's, in onEnd,
+    // too).
+    build.onStart(updateVersion);
     build.onEnd(async result => {
+      inputs = Object.keys(result.metafile?.inputs ?? {}).map(f =>
+        path.resolve(f),
+      );
+      // The first build: its version was worked out at startup.
+      if (!newestInput) newestInput = newestMtime();
       if (result.errors.length === 0) {
         copyStatic();
+        // What the app asks the server for to see if it's up to date.
+        fs.writeFileSync(
+          path.join(DIST, 'version.json'),
+          JSON.stringify(current) + '\n',
+        );
         await buildServiceWorker(Object.keys(result.metafile?.outputs ?? {}));
       }
     });
@@ -145,10 +212,9 @@ const options: esbuild.BuildOptions = {
   minify: !watch,
   sourcemap: true,
   logLevel: 'info',
-  plugins: [copyStaticPlugin],
+  plugins: [copyStaticPlugin, versionPlugin],
   // Lists the outputs, for the service worker's file list.
   metafile: true,
-  define: {VERSION},
 };
 
 fs.mkdirSync(DIST, {recursive: true});

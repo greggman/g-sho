@@ -19,3 +19,7 @@
 /data/meta.json
   ! Cache-Control
   Cache-Control: no-cache
+
+# Which version is deployed (update.ts): always asked of the server.
+/version.json
+  Cache-Control: no-store

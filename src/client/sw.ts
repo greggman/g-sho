@@ -23,7 +23,8 @@
  *   unpacks into the data store (offline/download-worker.ts).
  *
  * Built by scripts/build.ts, which defines BUILD (this build's id, a hash
- * of its files), FILES (the files to save at install) and VERSION.
+ * of its files) and FILES (the files to save at install); version.ts has
+ * its version.
  */
 
 import {getFile, prune, putFiles} from './offline/data-store.ts';
@@ -262,7 +263,8 @@ sw.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== location.origin) return;
   const path = url.pathname;
-  if (path.startsWith('/api/')) return;
+  // Never saved: they say what's on the server now.
+  if (path.startsWith('/api/') || path === '/version.json') return;
   deleteOldCaches(p => event.waitUntil(p));
 
   if (request.mode === 'navigate') {

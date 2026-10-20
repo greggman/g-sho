@@ -9,8 +9,7 @@ import {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
-import {newerBuild, version} from './version.ts';
-import {serviceWorkerVersions} from './versions.ts';
+import {applyUpdate, newVersion, onNewVersion} from './update.ts';
 import type {HistoryItem} from './history.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
@@ -753,14 +752,11 @@ function registerServiceWorker() {
   navigator.serviceWorker
     .register('/sw.js')
     .then(reg => {
-      // A home-screen app can stay open for days: look for a new deploy
-      // whenever it comes back to the front, and once a day.
+      // Fetch a new deploy's files in the background whenever the app
+      // comes back to the front (watchForUpdates offers to switch).
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') void reg.update();
       });
-      setInterval(() => void reg.update(), UPDATE_CHECK_MS);
-      // The saved copy may already be newer than this page.
-      void offerUpdateIfNewer();
     })
     .catch(e => {
       console.warn('service worker not registered', e);
@@ -780,19 +776,32 @@ function registerServiceWorker() {
   });
 }
 
-/** How often an open page looks for a new deploy. */
+/** How often an open page asks the server for a new version. */
 const UPDATE_CHECK_MS = 24 * 60 * 60 * 1000;
 
-/** Offers the update (offerUpdate) if the saved copy is a newer build. */
+/**
+ * A home-screen app can stay open for days: ask the server whether there's
+ * a new version (update.ts) when the page opens, whenever it comes back to
+ * the front, and once a day.
+ */
+function watchForUpdates() {
+  onNewVersion(offerUpdate);
+  void offerUpdateIfNewer();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void offerUpdateIfNewer();
+  });
+  setInterval(() => void offerUpdateIfNewer(), UPDATE_CHECK_MS);
+}
+
+/** Asks the server; a new version makes the logo offer it (onNewVersion). */
 async function offerUpdateIfNewer() {
-  const [saved] = await serviceWorkerVersions();
-  if (saved?.version && newerBuild(saved.version, version)) offerUpdate();
+  await newVersion();
 }
 
 /**
- * A newer version is saved: the logo becomes an update button. Tapping it
- * opens the home page in the new version (history and everything else is
- * saved, so nothing is lost).
+ * There's a new version: the logo becomes an update button. Tapping it
+ * gets the new version and opens the home page in it (history and
+ * everything else is saved, so nothing is lost).
  */
 function offerUpdate() {
   const logo = document.querySelector<HTMLAnchorElement>('.logo');
@@ -804,11 +813,12 @@ function offerUpdate() {
     e.preventDefault();
     logo.classList.add('updating');
     logo.title = 'Updating…';
-    location.assign(logo.href);
+    void applyUpdate(logo.href);
   });
 }
 
 registerServiceWorker();
+watchForUpdates();
 
 // A dynamic import failing anywhere else (study pages, Anki, …).
 window.addEventListener('unhandledrejection', e => reloadIfStale(e.reason));
