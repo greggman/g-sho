@@ -1,5 +1,6 @@
 /**
- * The optional g-sho account (sign in with GitHub), via the Worker's /api.
+ * The optional g-sho account (sign in with Google, GitHub or LINE), via
+ * the Worker's /api.
  * On a plain static host there's no /api, and the account is "unavailable":
  * the app works the same, just without sign-in.
  */
@@ -8,7 +9,13 @@ export interface Account {
   id: string;
   name: string;
   createdAt: number;
-  identities: {provider: string; login: string | null; createdAt: number}[];
+  identities: {
+    provider: string;
+    login: string | null;
+    /** their name there (null: not signed in with it since that was kept) */
+    name: string | null;
+    createdAt: number;
+  }[];
 }
 
 export type AccountState =
@@ -32,10 +39,27 @@ export async function loadAccount(): Promise<AccountState> {
   return {kind: 'unavailable'};
 }
 
-/** Where "Sign in with GitHub" goes; comes back to this page afterwards. */
-export function signInUrl(): string {
+/** The ways to sign in, as the server names them. */
+export const PROVIDERS = [
+  {id: 'google', label: 'Google'},
+  {id: 'github', label: 'GitHub'},
+  {id: 'line', label: 'LINE'},
+] as const;
+
+export function providerLabel(id: string): string {
+  return PROVIDERS.find(p => p.id === id)?.label ?? id;
+}
+
+/**
+ * Where "Sign in with …" goes, or (`link`) adding that sign-in to this
+ * account; comes back to this page afterwards.
+ */
+export function signInUrl(provider: string, link = false): string {
   const back = location.pathname + location.search;
-  return `/api/auth/github/start?return=${encodeURIComponent(back)}`;
+  return (
+    `/api/auth/${provider}/start?return=${encodeURIComponent(back)}` +
+    (link ? '&link=1' : '')
+  );
 }
 
 async function send(method: string, path: string) {
@@ -45,3 +69,5 @@ async function send(method: string, path: string) {
 
 export const signOut = () => send('POST', '/api/auth/logout');
 export const deleteAccount = () => send('DELETE', '/api/me');
+export const unlink = (provider: string) =>
+  send('DELETE', `/api/me/identities/${encodeURIComponent(provider)}`);

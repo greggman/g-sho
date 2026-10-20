@@ -23,9 +23,12 @@
   "observability": {"enabled": true},
   "vars": {
     "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
+    "GOOGLE_CLIENT_ID": "898219373200-kun8u4vglpr1nfvkgcql80acnq1ofp4q.apps.googleusercontent.com",
+    "LINE_CHANNEL_ID": "2012121014",
   },
-  // GITHUB_CLIENT_SECRET is a secret: `wrangler secret put`, and .dev.vars
-  // locally.
+  // GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET and LINE_CHANNEL_SECRET are
+  // secrets:
+  // `wrangler secret put … --env=""`, and .dev.vars locally.
   //
   // Bindings aren't inherited by environments, so env.dev repeats these.
   "d1_databases": [
@@ -69,6 +72,8 @@
       "vars": {
         "STATIC_ORIGIN": "http://localhost:8000",
         "GITHUB_CLIENT_ID": "Ov23lifj4lBLFwpMbx93",
+        "GOOGLE_CLIENT_ID": "898219373200-kun8u4vglpr1nfvkgcql80acnq1ofp4q.apps.googleusercontent.com",
+        "LINE_CHANNEL_ID": "2012121014",
         // /api/auth/dev/start?name=amy signs in as a made-up user.
         "DEV_LOGIN": "1",
       },

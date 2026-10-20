@@ -39,6 +39,10 @@ export interface Env {
   USER_STORE: DurableObjectNamespace;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  LINE_CHANNEL_ID: string;
+  LINE_CHANNEL_SECRET: string;
   /** sign-in endpoints, per IP */
   AUTH_LIMIT?: RateLimit;
   /** other API calls, per user (or IP when signed out) */

@@ -10,19 +10,26 @@ import {
   githubCallback,
   githubStart,
   type Session,
+  unlinkProvider,
 } from './auth.ts';
 import type {Context, Env, RateLimit} from './env.ts';
 import {error, json} from './http.ts';
+import {oidcCallback, oidcProviders, oidcStart} from './oidc.ts';
 
 export type {Env} from './env.ts';
 
 /** The signed-in user's account, as the client sees it. */
 async function me(env: Env, session: Session) {
   const {results: identities} = await env.DB.prepare(
-    'SELECT provider, login, created_at FROM identities WHERE user_id = ? ORDER BY created_at',
+    'SELECT provider, login, name, created_at FROM identities WHERE user_id = ? ORDER BY created_at',
   )
     .bind(session.user.id)
-    .all<{provider: string; login: string | null; created_at: number}>();
+    .all<{
+      provider: string;
+      login: string | null;
+      name: string | null;
+      created_at: number;
+    }>();
   return {
     id: session.user.id,
     name: session.user.name,
@@ -30,6 +37,7 @@ async function me(env: Env, session: Session) {
     identities: identities.map(i => ({
       provider: i.provider,
       login: i.login,
+      name: i.name,
       createdAt: i.created_at,
     })),
   };
@@ -99,6 +107,14 @@ async function api(
     if (path === '/api/auth/github/callback' && method === 'GET') {
       return githubCallback(request, env, ctx);
     }
+    for (const p of oidcProviders) {
+      if (path === `/api/auth/${p.id}/start` && method === 'GET') {
+        return oidcStart(p, request, env);
+      }
+      if (path === `/api/auth/${p.id}/callback` && method === 'GET') {
+        return oidcCallback(p, request, env);
+      }
+    }
     if (
       path === '/api/auth/dev/start' &&
       method === 'GET' &&
@@ -134,6 +150,13 @@ async function api(
         {headers: {'set-cookie': clearSessionCookie(url)}},
       );
     }
+  }
+  const unlink = /^\/api\/me\/identities\/(\w+)$/.exec(path);
+  if (unlink && method === 'DELETE') {
+    if (!(await unlinkProvider(env, session.user.id, unlink[1]))) {
+      return error(409, 'that’s your only way to sign in');
+    }
+    return json(await me(env, session), {headers});
   }
   if (path === '/api/sync' && method === 'POST') {
     const length = Number(request.headers.get('content-length') ?? NaN);

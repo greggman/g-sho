@@ -127,6 +127,10 @@ describe('two devices syncing through the Worker', () => {
       USER_STORE: testUserStores(),
       GITHUB_CLIENT_ID: 'id',
       GITHUB_CLIENT_SECRET: 'secret',
+      GOOGLE_CLIENT_ID: 'google-id',
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+      LINE_CHANNEL_ID: 'line-id',
+      LINE_CHANNEL_SECRET: 'line-secret',
       DEV_LOGIN: '1',
     };
   });

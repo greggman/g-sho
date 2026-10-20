@@ -1,8 +1,11 @@
 import {
   deleteAccount,
   loadAccount,
+  PROVIDERS,
+  providerLabel,
   signInUrl,
   signOut,
+  unlink,
   type Account,
   type AccountState,
 } from './account.ts';
@@ -26,9 +29,9 @@ function syncText(s: SyncStatus): string {
 }
 
 /**
- * The Account section of Settings: sign in with GitHub, or (signed in) sign
- * out, download your data, delete the account. null when the site has no
- * account server.
+ * The Account section of Settings: sign in with Google, GitHub or LINE, or
+ * (signed in) add or remove sign-ins, sign out, download your data, delete
+ * the account. null when the site has no account server.
  */
 export async function createAccountPanel(
   /** the running sync, if signed in */
@@ -43,7 +46,11 @@ export async function createAccountPanel(
     unwatch?.();
     unwatch = undefined;
     panel.replaceChildren(
-      h('h2', {class: 'panel-title'}, 'Account'),
+      h(
+        'h2',
+        {class: 'panel-title'},
+        state.kind === 'signed-in' ? 'Account: signed in' : 'Account',
+      ),
       ...(state.kind === 'signed-in' ? signedIn(state.account) : signedOut()),
     );
   };
@@ -55,17 +62,27 @@ export async function createAccountPanel(
       'Optional. Sign in to keep your history, starred and known words, ' +
         'notes and settings in sync across your devices.',
     ),
-    h('a', {class: 'button primary', href: signInUrl()}, 'Sign in with GitHub'),
+    h(
+      'div',
+      {class: 'account-buttons'},
+      ...PROVIDERS.map(p =>
+        h(
+          'a',
+          {class: 'button primary', href: signInUrl(p.id)},
+          `Sign in with ${p.label}`,
+        ),
+      ),
+    ),
     h(
       'p',
       {class: 'hint'},
-      'We store only your GitHub user ID, username and name. ',
+      'We store only your user ID and name there (and your GitHub username), ' +
+        'not your email address. ',
       h('a', {href: '/privacy.html'}, 'Privacy'),
     ),
   ];
 
   const signedIn = (account: Account) => {
-    const github = account.identities.find(i => i.provider === 'github');
     const status = h('p', {class: 'account-status'});
     const syncLine = h('p', {class: 'sync-status hint'});
     const showSync = (s: SyncStatus | undefined) => {
@@ -85,18 +102,7 @@ export async function createAccountPanel(
       }
     };
     return [
-      h(
-        'p',
-        null,
-        'Signed in as ',
-        h('strong', null, account.name),
-        !github
-          ? ''
-          : github.login && github.login !== account.name
-            ? ` (@${github.login} on GitHub)`
-            : ' with GitHub',
-        '.',
-      ),
+      signIns(account, act),
       h(
         'div',
         {class: 'account-buttons'},
@@ -142,6 +148,67 @@ export async function createAccountPanel(
       syncLine,
       status,
     ];
+  };
+
+  /**
+   * A row for each way to sign in: linked ones with who you are there (and
+   * Remove, unless it's the only one), the others with Link.
+   */
+  const signIns = (
+    account: Account,
+    act: (fn: () => Promise<void>, failed: string) => Promise<void>,
+  ) => {
+    const ids = account.identities;
+    const providers = [
+      ...PROVIDERS.map(p => p.id),
+      // e.g. the dev sign-in
+      ...ids
+        .map(i => i.provider)
+        .filter(id => !PROVIDERS.some(p => p.id === id)),
+    ];
+    const row = (provider: string) => {
+      const label = providerLabel(provider);
+      const i = ids.find(i => i.provider === provider);
+      const who = !i
+        ? h('span', {class: 'hint'}, '—')
+        : (i.name ?? (i.login ? `@${i.login}` : ''));
+      const action = !i
+        ? h('a', {class: 'button', href: signInUrl(provider, true)}, 'Link')
+        : ids.length > 1 &&
+          h(
+            'button',
+            {
+              type: 'button',
+              onclick: () => {
+                if (confirm(`Stop signing in with ${label}?`)) {
+                  void act(
+                    () => unlink(provider),
+                    `Couldn’t remove ${label}. Try again.`,
+                  );
+                }
+              },
+            },
+            'Remove',
+          );
+      return h(
+        'tr',
+        null,
+        h('th', {scope: 'row'}, label),
+        h('td', null, who),
+        h('td', null, action),
+      );
+    };
+    return h(
+      'div',
+      {class: 'sign-ins'},
+      h('table', null, h('tbody', null, ...providers.map(row))),
+      ids.length < 2 &&
+        h(
+          'p',
+          {class: 'hint'},
+          'Link more than one, in case you lose access to one.',
+        ),
+    );
   };
 
   const state = await loadAccount();

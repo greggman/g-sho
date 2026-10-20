@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {afterEach, beforeEach, describe, test} from 'node:test';
 import {SESSION_LIFETIME} from '../src/server/auth.ts';
-import {safeReturnPath} from '../src/server/http.ts';
+import {safeReturnPath, sha256} from '../src/server/http.ts';
 import {handle, type Env} from '../src/server/worker.ts';
 import {createTestDb, testUserStores} from './d1-shim.ts';
 
@@ -12,6 +12,13 @@ let realFetch: typeof fetch;
 /** what the fake GitHub returns for /user */
 let githubUser: {id: number; login: string; name: string | null};
 let revoked: string[];
+/**
+ * what the fake Google (or LINE) puts in the ID token (nonce: the one asked
+ * for; issuer and audience: that provider's)
+ */
+let googleClaims: Record<string, unknown>;
+/** the last OpenID Connect authorize request's nonce and code_challenge */
+let googleAsked: {nonce: string; challenge: string};
 
 beforeEach(() => {
   env = {
@@ -20,9 +27,20 @@ beforeEach(() => {
     USER_STORE: testUserStores(),
     GITHUB_CLIENT_ID: 'client-id',
     GITHUB_CLIENT_SECRET: 'client-secret',
+    GOOGLE_CLIENT_ID: 'google-id',
+    GOOGLE_CLIENT_SECRET: 'google-secret',
+    LINE_CHANNEL_ID: 'line-id',
+    LINE_CHANNEL_SECRET: 'line-secret',
   };
   githubUser = {id: 42, login: 'octocat', name: 'The Octocat'};
   revoked = [];
+  googleClaims = {
+    iss: 'https://accounts.google.com',
+    aud: 'google-id',
+    sub: '1001',
+    name: '山田 花子',
+  };
+  googleAsked = {nonce: '', challenge: ''};
   realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -43,6 +61,41 @@ beforeEach(() => {
     if (url === 'https://api.github.com/applications/client-id/token') {
       revoked.push(JSON.parse(String(init?.body)).access_token);
       return new Response(null, {status: 204});
+    }
+    const oidc = {
+      'https://oauth2.googleapis.com/token': {
+        secret: 'google-secret',
+        iss: 'https://accounts.google.com',
+        aud: 'google-id',
+      },
+      'https://api.line.me/oauth2/v2.1/token': {
+        secret: 'line-secret',
+        iss: 'https://access.line.me',
+        aud: 'line-id',
+      },
+    }[url];
+    if (oidc) {
+      const body = new URLSearchParams(String(init?.body));
+      if (
+        body.get('code') !== 'good-code' ||
+        body.get('client_secret') !== oidc.secret ||
+        (await sha256(body.get('code_verifier') ?? '')) !==
+          googleAsked.challenge
+      ) {
+        return Response.json({error: 'invalid_grant'}, {status: 400});
+      }
+      const claims = {
+        iss: oidc.iss,
+        aud: oidc.aud,
+        nonce: googleAsked.nonce,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        ...googleClaims,
+      };
+      const part = (o: object) =>
+        Buffer.from(JSON.stringify(o)).toString('base64url');
+      return Response.json({
+        id_token: `${part({alg: 'RS256'})}.${part(claims)}.sig`,
+      });
     }
     throw new Error(`unexpected fetch ${url}`);
   };
@@ -82,24 +135,57 @@ function setCookies(res: Response): Map<string, string> {
   return out;
 }
 
-/** Signs in through the GitHub flow; returns the session cookie. */
-async function signIn(returnPath = '/?q=猫'): Promise<string> {
+/**
+ * Goes through a provider's sign-in, to its callback's response. `session`:
+ * already signed in (to link).
+ */
+async function roundTrip(
+  provider: string,
+  {
+    returnPath = '/?q=猫',
+    link = false,
+    session,
+  }: {returnPath?: string; link?: boolean; session?: string} = {},
+): Promise<Response> {
   const start = await request(
-    `/api/auth/github/start?return=${encodeURIComponent(returnPath)}`,
+    `/api/auth/${provider}/start?return=${encodeURIComponent(returnPath)}` +
+      (link ? '&link=1' : ''),
   );
   assert.equal(start.status, 302);
   const authorize = new URL(start.headers.get('location')!);
   const state = authorize.searchParams.get('state')!;
+  if (provider === 'google' || provider === 'line') {
+    googleAsked = {
+      nonce: authorize.searchParams.get('nonce')!,
+      challenge: authorize.searchParams.get('code_challenge')!,
+    };
+  }
   const stateCookie = `oauth-state=${setCookies(start).get('oauth-state')}`;
-  const back = await request(
-    `/api/auth/github/callback?code=good-code&state=${state}`,
-    {cookies: [stateCookie]},
+  return request(
+    `/api/auth/${provider}/callback?code=good-code&state=${state}`,
+    {cookies: [stateCookie, ...(session ? [session] : [])]},
   );
+}
+
+/** Signs in through a provider's flow; returns the session cookie. */
+async function signIn(
+  returnPath = '/?q=猫',
+  provider = 'github',
+): Promise<string> {
+  const back = await roundTrip(provider, {returnPath});
   assert.equal(back.status, 302);
   assert.equal(back.headers.get('location'), safeReturnPath(returnPath));
   const token = setCookies(back).get('__Host-session');
   assert.ok(token);
   return `__Host-session=${token}`;
+}
+
+/** A state cookie for a flow, as a start request would set it. */
+const flowCookie = (state: string, back = '/') =>
+  `oauth-state=${state}.${encodeURIComponent(JSON.stringify({back}))}`;
+
+async function me(cookie: string) {
+  return (await request('/api/me', {cookies: [cookie]})).json();
 }
 
 describe('GitHub sign-in', () => {
@@ -117,7 +203,11 @@ describe('GitHub sign-in', () => {
     );
     assert.equal(url.searchParams.has('scope'), false);
     const cookie = res.headers.getSetCookie()[0];
-    assert.match(cookie, /^oauth-state=[\w-]+\.%2Fabout\.html;/);
+    const value = cookie.slice('oauth-state='.length, cookie.indexOf(';'));
+    const flow = JSON.parse(
+      decodeURIComponent(value.slice(value.indexOf('.') + 1)),
+    );
+    assert.deepEqual(flow, {back: '/about.html'});
     assert.match(cookie, /Path=\/api\/auth\/; HttpOnly; SameSite=Lax; Secure/);
   });
 
@@ -170,7 +260,7 @@ describe('GitHub sign-in', () => {
   test('a wrong or missing state is refused', async () => {
     const res = await request(
       '/api/auth/github/callback?code=good-code&state=forged',
-      {cookies: ['oauth-state=real./']},
+      {cookies: [flowCookie('real')]},
     );
     assert.equal(res.status, 400);
     assert.equal(setCookies(res).has('__Host-session'), false);
@@ -182,7 +272,7 @@ describe('GitHub sign-in', () => {
 
   test('a code GitHub rejects fails', async () => {
     const res = await request('/api/auth/github/callback?code=bad&state=s', {
-      cookies: ['oauth-state=s./'],
+      cookies: [flowCookie('s')],
     });
     assert.equal(res.status, 400);
   });
@@ -190,10 +280,172 @@ describe('GitHub sign-in', () => {
   test('cancelling on GitHub goes back without signing in', async () => {
     const res = await request(
       '/api/auth/github/callback?error=access_denied&state=s',
-      {cookies: ['oauth-state=s.%2Fabout.html']},
+      {cookies: [flowCookie('s', '/about.html')]},
     );
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('location'), '/about.html');
+  });
+});
+
+describe('Google sign-in', () => {
+  test('start asks for openid profile, with PKCE and a nonce', async () => {
+    const res = await request('/api/auth/google/start?return=/x');
+    const url = new URL(res.headers.get('location')!);
+    assert.equal(
+      url.origin + url.pathname,
+      'https://accounts.google.com/o/oauth2/v2/auth',
+    );
+    const p = url.searchParams;
+    assert.equal(p.get('client_id'), 'google-id');
+    assert.equal(p.get('scope'), 'openid profile');
+    assert.equal(p.get('response_type'), 'code');
+    assert.equal(p.get('code_challenge_method'), 'S256');
+    assert.ok(p.get('nonce') && p.get('code_challenge'));
+    assert.equal(
+      p.get('redirect_uri'),
+      'https://g-sho.org/api/auth/google/callback',
+    );
+  });
+
+  test('callback creates the user from the ID token', async () => {
+    const body = await me(await signIn('/', 'google'));
+    assert.equal(body.name, '山田 花子');
+    assert.deepEqual(
+      body.identities.map((i: {provider: string}) => i.provider),
+      ['google'],
+    );
+    const row = env.DB.raw.prepare('SELECT subject FROM identities').get();
+    assert.equal(row?.subject, '1001');
+    // Same Google account, same user.
+    assert.equal((await me(await signIn('/', 'google'))).id, body.id);
+  });
+
+  test('an ID token that is not for us is refused', async () => {
+    const bad: Record<string, unknown>[] = [
+      {aud: 'someone-else'},
+      {iss: 'https://evil.example'},
+      {exp: 1},
+      {nonce: 'replayed'},
+      {sub: undefined},
+    ];
+    for (const claims of bad) {
+      googleClaims = {...googleClaims, ...claims};
+      const res = await roundTrip('google');
+      assert.equal(res.status, 400, JSON.stringify(claims));
+      assert.equal(setCookies(res).has('__Host-session'), false);
+      googleClaims = {
+        iss: 'https://accounts.google.com',
+        aud: 'google-id',
+        sub: '1001',
+      };
+    }
+  });
+
+  test('a code redeemed without the PKCE verifier fails', async () => {
+    const start = await request('/api/auth/google/start');
+    const state = new URL(start.headers.get('location')!).searchParams.get(
+      'state',
+    );
+    googleAsked = {nonce: '', challenge: 'not-this-one'};
+    const res = await request(
+      `/api/auth/google/callback?code=good-code&state=${state}`,
+      {cookies: [`oauth-state=${setCookies(start).get('oauth-state')}`]},
+    );
+    assert.equal(res.status, 400);
+  });
+});
+
+describe('LINE sign-in', () => {
+  test('signs in with the LINE channel, separately from Google', async () => {
+    const start = await request('/api/auth/line/start');
+    const url = new URL(start.headers.get('location')!);
+    assert.equal(
+      url.origin + url.pathname,
+      'https://access.line.me/oauth2/v2.1/authorize',
+    );
+    assert.equal(url.searchParams.get('client_id'), 'line-id');
+    assert.equal(url.searchParams.get('scope'), 'openid profile');
+    googleClaims = {sub: 'U4af4980629', name: 'ライン'};
+    const a = await me(await signIn('/', 'line'));
+    assert.equal(a.name, 'ライン');
+    assert.deepEqual(
+      a.identities.map((i: {provider: string}) => i.provider),
+      ['line'],
+    );
+    // The same subject at Google is someone else.
+    googleClaims = {sub: 'U4af4980629'};
+    assert.notEqual((await me(await signIn('/', 'google'))).id, a.id);
+  });
+
+  test('an ID token from Google is refused for LINE', async () => {
+    googleClaims = {iss: 'https://accounts.google.com', sub: '1'};
+    assert.equal((await roundTrip('line')).status, 400);
+  });
+});
+
+describe('linking sign-ins', () => {
+  test('a signed-in user can add Google, then sign in with either', async () => {
+    const github = await signIn();
+    const res = await roundTrip('google', {link: true, session: github});
+    assert.equal(res.status, 302);
+    // Linking doesn't start another session.
+    assert.equal(setCookies(res).has('__Host-session'), false);
+    const a = await me(github);
+    // Each keeps its own name there.
+    assert.deepEqual(
+      a.identities.map((i: {provider: string; name: string}) => [
+        i.provider,
+        i.name,
+      ]),
+      [
+        ['github', 'The Octocat'],
+        ['google', '山田 花子'],
+      ],
+    );
+    assert.equal((await me(await signIn('/', 'google'))).id, a.id);
+  });
+
+  test('a sign-in that belongs to another account is not moved', async () => {
+    const other = await me(await signIn('/', 'google'));
+    const github = await signIn();
+    const res = await roundTrip('google', {link: true, session: github});
+    assert.equal(res.status, 400);
+    assert.match(await res.text(), /different g-sho account/);
+    assert.equal((await me(await signIn('/', 'google'))).id, other.id);
+  });
+
+  test('only one sign-in per provider', async () => {
+    const github = await signIn();
+    await roundTrip('google', {link: true, session: github});
+    googleClaims.sub = '2002';
+    const res = await roundTrip('google', {link: true, session: github});
+    assert.equal(res.status, 400);
+    assert.match(await res.text(), /already has a Google sign-in/);
+  });
+
+  test('linking when signed out fails without signing in', async () => {
+    const res = await roundTrip('google', {link: true});
+    assert.equal(res.status, 400);
+    assert.equal(setCookies(res).has('__Host-session'), false);
+  });
+
+  test('a sign-in can be removed, but not the last one', async () => {
+    const github = await signIn();
+    await roundTrip('google', {link: true, session: github});
+    const remove = (provider: string) =>
+      request(`/api/me/identities/${provider}`, {
+        method: 'DELETE',
+        headers: {origin: ORIGIN},
+        cookies: [github],
+      });
+    const res = await remove('github');
+    assert.equal(res.status, 200);
+    assert.deepEqual(
+      (await res.json()).identities.map((i: {provider: string}) => i.provider),
+      ['google'],
+    );
+    assert.equal((await remove('google')).status, 409);
+    assert.equal((await me(github)).identities.length, 1);
   });
 });
 

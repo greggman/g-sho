@@ -72,11 +72,13 @@ phase (see Media).
 
 ## Accounts and abuse protection
 
-- **Sign in with GitHub (OAuth).** We never store passwords. Google sign-in
-  and email magic links can come later (magic links need an email sender).
+- **Sign in with GitHub (OAuth), or Google or LINE (OpenID Connect,
+  `openid profile` only).** We never store passwords. Passkeys are next;
+  email magic links can come later (they need an email sender).
 - Identities (`provider`, `subject`) map to a user. Accounts are never
   auto-linked by email address, because that allows account takeover.
-  A signed-in user can link a second provider.
+  A signed-in user can link more providers (one of each), and remove any
+  but the last.
 - **Sessions** are a random 256-bit token in an `HttpOnly; Secure;
   SameSite=Lax` cookie. D1 stores only its SHA-256, with an expiry. Requests
   that change something must also have a matching `Origin` and a JSON body.
@@ -328,9 +330,12 @@ placeholder. Later:
 | GET | `/api/health` | liveness |
 | GET | `/api/auth/github/start` | redirect to GitHub (state cookie) |
 | GET | `/api/auth/github/callback` | create or find the user, set the session cookie |
+| GET | `/api/auth/google/start`, `…/callback` | the same, with Google (and `line`) |
+| | `…/start?link=1` | add that sign-in to the signed-in account |
 | POST | `/api/auth/logout` | |
 | GET | `/api/me` | current user or 401 |
 | DELETE | `/api/me` | delete the account and all its data |
+| DELETE | `/api/me/identities/:provider` | remove a sign-in (409 if it's the last) |
 | GET | `/api/export` | all data as JSON |
 | POST | `/api/sync` | push + pull |
 | PUT/GET | `/api/media/:sha256` | later |

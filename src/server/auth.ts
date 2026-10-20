@@ -1,5 +1,6 @@
 /**
- * Sign-in with GitHub, and sessions.
+ * Sign-in (GitHub here, OpenID Connect providers in oidc.ts), linking more
+ * than one sign-in to an account, and sessions.
  *
  * A session is a random token in an HttpOnly cookie; D1 stores only its
  * SHA-256. Sessions last 90 days and are extended when used after 30.
@@ -146,9 +147,14 @@ export async function findOrCreateUser(
   if (existing) {
     await db
       .prepare(
-        'UPDATE identities SET login = ? WHERE provider = ? AND subject = ?',
+        'UPDATE identities SET login = ?, name = ? WHERE provider = ? AND subject = ?',
       )
-      .bind(identity.login ?? null, identity.provider, identity.subject)
+      .bind(
+        identity.login ?? null,
+        identity.name,
+        identity.provider,
+        identity.subject,
+      )
       .run();
     return existing.user_id;
   }
@@ -159,52 +165,118 @@ export async function findOrCreateUser(
       .bind(userId, identity.name, now),
     db
       .prepare(
-        'INSERT INTO identities (provider, subject, user_id, login, created_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO identities (provider, subject, user_id, login, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .bind(
         identity.provider,
         identity.subject,
         userId,
         identity.login ?? null,
+        identity.name,
         now,
       ),
   ]);
   return userId;
 }
 
-// ---- GitHub ----
+// ---- The sign-in round trip, shared by every provider ----
 
 const STATE_COOKIE = 'oauth-state';
 const STATE_PATH = '/api/auth/';
 
-function callbackUrl(url: URL) {
-  return `${url.origin}/api/auth/github/callback`;
+/** Shown to users: "That Google account …". */
+export const PROVIDER_LABELS: Record<string, string> = {
+  github: 'GitHub',
+  google: 'Google',
+  line: 'LINE',
+  dev: 'dev',
+};
+
+/** What a sign-in remembers (in the state cookie) until it comes back. */
+export interface Flow {
+  /** where to go afterwards */
+  back: string;
+  /** add this sign-in to the signed-in account, instead of signing in */
+  link?: boolean;
+  /** OpenID Connect: the ID token must carry this */
+  nonce?: string;
+  /** PKCE: proves the code is redeemed by whoever asked for it */
+  verifier?: string;
 }
 
-/** GET /api/auth/github/start?return=/path — off to GitHub. */
-export function githubStart(request: Request, env: Env): Response {
+export function callbackUrl(url: URL, provider: string) {
+  return `${url.origin}/api/auth/${provider}/callback`;
+}
+
+/** A new flow for a start request (?return=/path&link=1). */
+export function newFlow(url: URL, extra: Omit<Flow, 'back' | 'link'> = {}) {
+  const flow: Flow = {
+    back: safeReturnPath(url.searchParams.get('return')),
+    ...extra,
+  };
+  if (url.searchParams.get('link') === '1') flow.link = true;
+  return flow;
+}
+
+/** The state cookie for a flow: the state, then the flow. */
+export function stateCookie(url: URL, state: string, flow: Flow) {
+  return cookie(
+    STATE_COOKIE,
+    `${state}.${encodeURIComponent(JSON.stringify(flow))}`,
+    {path: STATE_PATH, maxAge: STATE_LIFETIME_S, secure: isSecure(url)},
+  );
+}
+
+function clearStateCookie(url: URL) {
+  return cookie(STATE_COOKIE, '', {
+    path: STATE_PATH,
+    maxAge: 0,
+    secure: isSecure(url),
+  });
+}
+
+/** The flow this browser started, and its state; empty if none. */
+function savedFlow(request: Request): {state: string; flow: Flow} {
+  const saved = parseCookies(request).get(STATE_COOKIE) ?? '';
+  const dot = saved.indexOf('.');
+  let flow: Flow = {back: '/'};
+  try {
+    const parsed = JSON.parse(decodeURIComponent(saved.slice(dot + 1)));
+    if (parsed && typeof parsed === 'object') flow = parsed as Flow;
+  } catch {
+    // Missing or mangled: start over.
+  }
+  return {
+    state: dot > 0 ? saved.slice(0, dot) : '',
+    flow: {...flow, back: safeReturnPath(flow.back)},
+  };
+}
+
+/**
+ * Checks a callback against the flow this browser started. Either the flow
+ * to carry on with, or the response to send (cancelled, or a forged or
+ * expired request).
+ */
+export function resumeFlow(
+  request: Request,
+): {flow: Flow; code: string} | Response {
   const url = new URL(request.url);
-  const state = randomToken(16);
-  const back = safeReturnPath(url.searchParams.get('return'));
-  const authorize = new URL(GITHUB_AUTHORIZE);
-  authorize.search = new URLSearchParams({
-    client_id: env.GITHUB_CLIENT_ID,
-    // The app has more than one redirect URI (production and localhost),
-    // so say which one.
-    redirect_uri: callbackUrl(url),
-    state,
-    allow_signup: 'true',
-  }).toString();
-  return redirect(authorize.toString(), [
-    cookie(STATE_COOKIE, `${state}.${encodeURIComponent(back)}`, {
-      path: STATE_PATH,
-      maxAge: STATE_LIFETIME_S,
-      secure: isSecure(url),
-    }),
-  ]);
+  const {state: savedState, flow} = savedFlow(request);
+  // Pressed "Cancel" on the provider's page.
+  if (url.searchParams.get('error') === 'access_denied') {
+    return redirect(flow.back, [clearStateCookie(url)]);
+  }
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  if (!code || !state || state !== savedState) {
+    return failure(
+      'The sign-in request expired or came from somewhere else. Please try again.',
+    );
+  }
+  return {flow, code};
 }
 
-function failure(message: string): Response {
+export function failure(message: string): Response {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign-in failed</title><link rel="stylesheet" href="/style.css">
 <main class="content prose"><h1>Sign-in failed</h1><p>${message}</p><p><a href="/">Back to g-sho</a></p></main>`;
@@ -215,6 +287,118 @@ function failure(message: string): Response {
       'cache-control': 'no-store',
     },
   });
+}
+
+export interface Identity {
+  provider: string;
+  subject: string;
+  login?: string;
+  name: string;
+}
+
+/**
+ * The provider said who this is: sign in as them (creating the account the
+ * first time), or, linking, add them to the signed-in account.
+ */
+export async function finishSignIn(
+  request: Request,
+  env: Env,
+  flow: Flow,
+  identity: Identity,
+  now = Date.now(),
+): Promise<Response> {
+  const url = new URL(request.url);
+  const cookies = [clearStateCookie(url)];
+  if (!flow.link) {
+    const userId = await findOrCreateUser(env.DB, identity, now);
+    cookies.unshift(await startSession(env.DB, url, userId, now));
+    return redirect(flow.back, cookies);
+  }
+
+  const session = await getSession(request, env, now);
+  if (!session) {
+    return failure('You were signed out. Sign in, then add the sign-in again.');
+  }
+  const label = PROVIDER_LABELS[identity.provider] ?? identity.provider;
+  const owner = await env.DB.prepare(
+    'SELECT user_id FROM identities WHERE provider = ? AND subject = ?',
+  )
+    .bind(identity.provider, identity.subject)
+    .first<{user_id: string}>();
+  if (owner && owner.user_id !== session.user.id) {
+    return failure(
+      `That ${label} account already signs in to a different g-sho account. ` +
+        'To use it here instead, sign in with it and delete that account first.',
+    );
+  }
+  if (!owner) {
+    const already = await env.DB.prepare(
+      'SELECT 1 AS x FROM identities WHERE user_id = ? AND provider = ?',
+    )
+      .bind(session.user.id, identity.provider)
+      .first();
+    if (already) {
+      return failure(
+        `Your account already has a ${label} sign-in. Remove it first to use a different one.`,
+      );
+    }
+    await env.DB.prepare(
+      'INSERT INTO identities (provider, subject, user_id, login, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        identity.provider,
+        identity.subject,
+        session.user.id,
+        identity.login ?? null,
+        identity.name,
+        now,
+      )
+      .run();
+  }
+  return redirect(flow.back, cookies);
+}
+
+/**
+ * Removes one of the user's sign-ins, unless it's their only one (they
+ * couldn't sign in again). False if it was their only one.
+ */
+export async function unlinkProvider(
+  env: Env,
+  userId: string,
+  provider: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM identities WHERE user_id = ? AND provider != ?',
+  )
+    .bind(userId, provider)
+    .first<{n: number}>();
+  if (!row?.n) return false;
+  await env.DB.prepare(
+    'DELETE FROM identities WHERE user_id = ? AND provider = ?',
+  )
+    .bind(userId, provider)
+    .run();
+  return true;
+}
+
+// ---- GitHub ----
+
+/** GET /api/auth/github/start?return=/path[&link=1] — off to GitHub. */
+export function githubStart(request: Request, env: Env): Response {
+  const url = new URL(request.url);
+  const state = randomToken(16);
+  const authorize = new URL(GITHUB_AUTHORIZE);
+  authorize.search = new URLSearchParams({
+    client_id: env.GITHUB_CLIENT_ID,
+    // The app has more than one redirect URI (production and localhost),
+    // so say which one.
+    redirect_uri: callbackUrl(url, 'github'),
+    state,
+    allow_signup: 'true',
+  }).toString();
+  return redirect(authorize.toString(), [
+    stateCookie(url, state, newFlow(url)),
+  ]);
 }
 
 interface GitHubUser {
@@ -231,29 +415,9 @@ export async function githubCallback(
   now = Date.now(),
 ): Promise<Response> {
   const url = new URL(request.url);
-  const saved = parseCookies(request).get(STATE_COOKIE) ?? '';
-  const dot = saved.indexOf('.');
-  const savedState = dot > 0 ? saved.slice(0, dot) : '';
-  const back = safeReturnPath(
-    dot > 0 ? decodeURIComponent(saved.slice(dot + 1)) : '/',
-  );
-  const clearState = cookie(STATE_COOKIE, '', {
-    path: STATE_PATH,
-    maxAge: 0,
-    secure: isSecure(url),
-  });
-
-  // Pressed "Cancel" on GitHub's page.
-  if (url.searchParams.get('error') === 'access_denied') {
-    return redirect(back, [clearState]);
-  }
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
-  if (!code || !state || state !== savedState) {
-    return failure(
-      'The sign-in request expired or came from somewhere else. Please try again.',
-    );
-  }
+  const resumed = resumeFlow(request);
+  if (resumed instanceof Response) return resumed;
+  const {flow, code} = resumed;
 
   const tokenRes = await fetch(GITHUB_TOKEN, {
     method: 'POST',
@@ -266,7 +430,7 @@ export async function githubCallback(
       client_id: env.GITHUB_CLIENT_ID,
       client_secret: env.GITHUB_CLIENT_SECRET,
       code,
-      redirect_uri: callbackUrl(url),
+      redirect_uri: callbackUrl(url, 'github'),
     }),
   });
   const token = (await tokenRes.json().catch(() => ({}))) as {
@@ -290,8 +454,10 @@ export async function githubCallback(
   }
   const gh = (await userRes.json()) as GitHubUser;
 
-  const userId = await findOrCreateUser(
-    env.DB,
+  return finishSignIn(
+    request,
+    env,
+    flow,
     {
       provider: 'github',
       subject: String(gh.id),
@@ -300,10 +466,6 @@ export async function githubCallback(
     },
     now,
   );
-  return redirect(back, [
-    clearState,
-    await startSession(env.DB, url, userId, now),
-  ]);
 }
 
 async function revokeGitHubToken(env: Env, accessToken: string) {
@@ -322,7 +484,7 @@ async function revokeGitHubToken(env: Env, accessToken: string) {
 }
 
 /**
- * GET /api/auth/dev/start?name=alice&return=/ — local dev only (DEV_LOGIN):
+ * GET /api/auth/dev/start?name=alice&return=/[&link=1] — local dev only (DEV_LOGIN):
  * signs in as a made-up user, to test without GitHub or with several users.
  */
 export async function devStart(
@@ -332,12 +494,11 @@ export async function devStart(
 ): Promise<Response> {
   const url = new URL(request.url);
   const name = url.searchParams.get('name') || 'dev';
-  const userId = await findOrCreateUser(
-    env.DB,
+  return finishSignIn(
+    request,
+    env,
+    newFlow(url),
     {provider: 'dev', subject: name, login: name, name},
     now,
   );
-  return redirect(safeReturnPath(url.searchParams.get('return')), [
-    await startSession(env.DB, url, userId, now),
-  ]);
 }

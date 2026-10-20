@@ -973,11 +973,35 @@ a:hover {
   text-decoration: none;
 }
 
-.account-panel > .button.primary {
-  margin-bottom: 10px;
+.account-panel .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+.sign-ins table {
+  border-collapse: collapse;
+  margin-bottom: 6px;
+}
+
+.sign-ins th,
+.sign-ins td {
+  padding: 4px 16px 4px 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.sign-ins th {
+  font-weight: 600;
+}
+
+.sign-ins td:last-child {
+  padding-right: 0;
+}
+
+.account-panel .sign-ins .button,
+.account-panel .sign-ins button {
+  padding: 2px 10px;
 }
 
 .account-panel button.danger {
