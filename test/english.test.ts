@@ -50,6 +50,10 @@ describe('English words (英和)', () => {
       went: {e: [entry('went', 'goの過去形', '動詞')], of: ['go']},
       walk: {e: [entry('walk', '歩く。', '動詞')]},
       'ice cream': {e: [entry('ice cream', 'アイスクリーム。')]},
+      serendipity: {
+        d: [{p: 'noun', s: [{d: 'good luck in making discoveries'}]}],
+        ipa: ['/ˌsɛɹ.ənˈdɪp.ɪ.ti/'],
+      },
       cat: {e: [entry('cat', '猫。'), entry('CAT', '中央アフリカ時間の略。')]},
     });
     const words = async (q: string) =>
@@ -64,6 +68,12 @@ describe('English words (英和)', () => {
     assert.deepEqual(await words('walked'), [['walk', true]]);
     assert.deepEqual(await words('  ice   cream '), [['ice cream', false]]);
     assert.deepEqual(await words('猫'), []);
+    // Only in WordNet: definitions in English, no 英和 entries.
+    assert.deepEqual(await words('serendipity'), [['serendipity', false]]);
+    const [only] = await lookupEnglish(dict, 'serendipity');
+    assert.equal(only.entries.length, 0);
+    assert.equal(only.definitions[0].s[0].d, 'good luck in making discoveries');
+    assert.deepEqual(only.ipa, ['/ˌsɛɹ.ənˈdɪp.ɪ.ti/']);
     assert.deepEqual(await words('unknownish'), []);
   });
 

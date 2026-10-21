@@ -2673,15 +2673,40 @@ html.show-japanese .ja-defs:empty {
   font-size: 0.85rem;
 }
 
-/* ---- English words in Japanese (英和) ---- */
+/* ---- English words: in Japanese (英和) and in English ---- */
 
 .english-words {
-  display: none;
   margin: 0 0 18px;
 }
 
-html.show-english-japanese .english-words {
+/* Each part shows with its setting; a word with nothing to show, hidden. */
+.en-ja,
+.en-en,
+.english-word {
+  display: none;
+}
+
+html.show-english-japanese .en-ja,
+html.show-english-english .en-en,
+html.show-english-japanese .english-word:not(.no-ja),
+html.show-english-english .english-word:not(.no-en) {
   display: block;
+}
+
+.en-source {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.en-ja + .en-en {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.en-synonyms {
+  color: var(--muted);
 }
 
 .english-word {

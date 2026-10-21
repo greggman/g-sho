@@ -16,6 +16,8 @@ export interface DisplaySettings {
   japanese: boolean;
   /** English words: their meanings in Japanese (英和; Japanese Wiktionary) */
   englishJapanese: boolean;
+  /** English words: definitions in English (Open English WordNet) */
+  englishEnglish: boolean;
   furigana: boolean;
   examples: boolean;
   kanji: boolean;
@@ -36,7 +38,11 @@ export const SETTING_LABELS: Record<SettingKey, [string, string]> = {
   ],
   englishJapanese: [
     'Japanese meanings (英和)',
-    'When you search in English: the English word explained in Japanese, above the Japanese words. From the Japanese Wiktionary.',
+    'When you search in English: the word explained in Japanese, above the Japanese words. From the Japanese Wiktionary.',
+  ],
+  englishEnglish: [
+    'English definitions',
+    'When you search in English: the word defined in English, with synonyms. From Open English WordNet.',
   ],
   furigana: ['Furigana', 'When off, readings show when you hover over a word.'],
   examples: ['Example sentences', ''],
@@ -51,7 +57,7 @@ export const SETTING_LABELS: Record<SettingKey, [string, string]> = {
 /** The settings panel's groups, in order. */
 export const SETTING_GROUPS: [string, SettingKey[]][] = [
   ['Japanese words', ['meanings', 'japanese']],
-  ['English words', ['englishJapanese']],
+  ['English words', ['englishJapanese', 'englishEnglish']],
   ['Show', ['furigana', 'examples', 'kanji', 'strokeOrder', 'history']],
 ];
 
@@ -74,6 +80,7 @@ function defaults(): DisplaySettings {
     meanings: true,
     japanese: false,
     englishJapanese: prefersJapanese(),
+    englishEnglish: false,
     furigana: true,
     examples: true,
     kanji: true,
@@ -127,6 +134,7 @@ export function applyDisplaySettings(settings: DisplaySettings) {
   root.toggle('hide-meanings', !settings.meanings);
   root.toggle('show-japanese', settings.japanese);
   root.toggle('show-english-japanese', settings.englishJapanese);
+  root.toggle('show-english-english', settings.englishEnglish);
   root.toggle('hide-furigana', !settings.furigana);
   root.toggle('hide-examples', !settings.examples);
   root.toggle('hide-kanji', !settings.kanji);

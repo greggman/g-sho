@@ -191,11 +191,29 @@ export interface EnglishSense {
   ex?: [string, string][];
 }
 
+/** An English word's definitions in English (Open English WordNet), by part of speech. */
+export interface EnglishDefinitions {
+  /** noun, verb, adjective, adverb */
+  p: string;
+  s: {
+    /** the definition */
+    d: string;
+    /** an example */
+    ex?: string;
+    /** other words with this meaning */
+    syn?: string[];
+  }[];
+}
+
 /**
- * enw/NNN.json: lowercased word → its entries, and the words it's a form
- * of ("went" → ["go"]).
+ * enw/NNN.json: lowercased word → its entries in Japanese (e), definitions
+ * in English (d), pronunciation from WordNet when the entries have none
+ * (ipa), and the words it's a form of ("went" → ["go"]).
  */
-export type EnglishShard = Record<string, {e?: EnglishEntry[]; of?: string[]}>;
+export type EnglishShard = Record<
+  string,
+  {e?: EnglishEntry[]; d?: EnglishDefinitions[]; ipa?: string[]; of?: string[]}
+>;
 
 export interface Meta {
   version: string;

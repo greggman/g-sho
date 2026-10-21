@@ -1,16 +1,20 @@
 /**
- * English words explained in Japanese (英和), from the Japanese Wiktionary
- * (as extracted by wiktextract, kaikki.org): the same file as the Japanese
- * definitions (build-jawiktionary.ts), whose English entries those skip.
+ * English words: explained in Japanese (英和), from the Japanese Wiktionary
+ * (as extracted by wiktextract, kaikki.org; the same file as the Japanese
+ * definitions in build-jawiktionary.ts, whose English entries those skip),
+ * and defined in English, from Open English WordNet.
  *
- * Shards `enw/NNN.json` by the lowercased word: its entries, and the words
- * it's a form of ("went" → go, "apples" → apple), from the base words'
- * listed forms and from entries that just say "goの過去形".
+ * Shards `enw/NNN.json` by the lowercased word: its entries, its
+ * definitions, and the words it's a form of ("went" → go, "apples" →
+ * apple), from the base words' listed forms, entries that just say
+ * "goの過去形", and WordNet's irregular forms.
  */
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import * as zlib from 'node:zlib';
+import {strFromU8, unzipSync} from 'fflate';
 import type {
+  EnglishDefinitions,
   EnglishEntry,
   EnglishSense,
   EnglishShard,
@@ -149,4 +153,126 @@ export async function readEnglish(
     for (const [form] of entry?.f ?? []) addOf(form, raw.word);
   }
   return out;
+}
+
+// ---- Open English WordNet ----
+
+interface WnSense {
+  synset: string;
+}
+
+interface WnEntry {
+  sense: WnSense[];
+  /** irregular forms ("went", "mice") */
+  form?: string[];
+  pronunciation?: {value: string; variety?: string}[];
+}
+
+interface WnSynset {
+  definition?: string[];
+  example?: (string | {text?: string})[];
+  members?: string[];
+}
+
+const WN_POS: Record<string, string> = {
+  n: 'noun',
+  v: 'verb',
+  a: 'adjective',
+  s: 'adjective',
+  r: 'adverb',
+};
+const MAX_DEFINITIONS = 8;
+const MAX_SYNONYMS = 4;
+const MAX_DEFINITION = 300;
+
+/**
+ * Definitions in English for every word in Open English WordNet's JSON
+ * edition (a zip of entries-*.json, word → part of speech → senses, and the
+ * synset files those point to), with irregular forms and pronunciations.
+ */
+export function readWordNet(zipFile: string): {
+  defs: Map<string, EnglishDefinitions[]>;
+  ipa: Map<string, string[]>;
+  /** irregular form → its words */
+  forms: Map<string, string[]>;
+} {
+  const files = unzipSync(fs.readFileSync(zipFile));
+  const synsets = new Map<string, WnSynset>();
+  const entries: [string, Record<string, WnEntry>][] = [];
+  for (const [name, data] of Object.entries(files)) {
+    const base = name.split('/').at(-1)!;
+    if (!base.endsWith('.json') || base === 'frames.json') continue;
+    const json = JSON.parse(strFromU8(data)) as Record<string, unknown>;
+    if (base.startsWith('entries-')) {
+      entries.push(
+        ...(Object.entries(json) as [string, Record<string, WnEntry>][]),
+      );
+    } else {
+      for (const [id, s] of Object.entries(json)) {
+        synsets.set(id, s as WnSynset);
+      }
+    }
+  }
+
+  const defs = new Map<string, EnglishDefinitions[]>();
+  const ipa = new Map<string, string[]>();
+  const forms = new Map<string, string[]>();
+  for (const [word, byPos] of entries) {
+    const key = word.toLowerCase();
+    const list = defs.get(key) ?? [];
+    /** all of a part of speech's senses, before the cap */
+    const senseCounts = new Map<EnglishDefinitions, number>();
+    for (const [pos, entry] of Object.entries(byPos)) {
+      const p = WN_POS[pos] ?? pos;
+      let group = list.find(g => g.p === p);
+      if (!group) list.push((group = {p, s: []}));
+      senseCounts.set(
+        group,
+        (senseCounts.get(group) ?? 0) + entry.sense.length,
+      );
+      for (const sense of entry.sense) {
+        if (group.s.length >= MAX_DEFINITIONS) break;
+        const synset = synsets.get(sense.synset);
+        const d = synset?.definition?.[0];
+        if (!d || group.s.some(x => x.d === d)) continue;
+        const def: EnglishDefinitions['s'][number] = {
+          d: clip(d, MAX_DEFINITION),
+        };
+        const ex = synset.example?.[0];
+        const exText = typeof ex === 'string' ? ex : ex?.text;
+        if (exText) def.ex = clip(exText, MAX_EXAMPLE);
+        const syn = (synset.members ?? [])
+          .filter(m => m.toLowerCase() !== key)
+          .slice(0, MAX_SYNONYMS);
+        if (syn.length) def.syn = syn;
+        group.s.push(def);
+      }
+      for (const f of entry.form ?? []) {
+        const k = f.toLowerCase();
+        if (k === key) continue;
+        const of = forms.get(k) ?? [];
+        if (!of.includes(word)) of.push(word);
+        forms.set(k, of);
+      }
+      if (!ipa.has(key) && entry.pronunciation?.length) {
+        // British and American, like the Wiktionary entries.
+        const p = entry.pronunciation
+          .filter(x => !x.variety || x.variety === 'GB' || x.variety === 'US')
+          .map(x => `/${x.value}/`);
+        if (p.length) ipa.set(key, [...new Set(p)].slice(0, MAX_IPA));
+      }
+    }
+    // The main use first: the part of speech with the most senses ("go":
+    // the verb, not "all systems are go").
+    const order = ['noun', 'verb', 'adjective', 'adverb'];
+    const kept = list
+      .filter(g => g.s.length)
+      .sort(
+        (a, b) =>
+          (senseCounts.get(b) ?? 0) - (senseCounts.get(a) ?? 0) ||
+          order.indexOf(a.p) - order.indexOf(b.p),
+      );
+    if (kept.length) defs.set(key, kept);
+  }
+  return {defs, ipa, forms};
 }

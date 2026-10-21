@@ -14,7 +14,9 @@
  * sentences, .cache/tatoeba/),
  * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
  * definitions, .cache/jawiktionary/), and PaddleOCR's text detection and
- * recognition models as converted by RapidOCR (.cache/ocr/), pinned by hash.
+ * recognition models as converted by RapidOCR (.cache/ocr/), pinned by hash,
+ * and Open English WordNet (English definitions, .cache/wordnet/), pinned by
+ * hash.
  */
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -254,6 +256,35 @@ async function downloadJaWiktionary() {
 }
 
 /**
+ * Open English WordNet, for English definitions of English words (CC BY
+ * 4.0). The JSON edition, about 10 MB; pinned by hash, like the models.
+ */
+const WORDNET = {
+  url: 'https://github.com/globalwordnet/english-wordnet/releases/download/2025-edition/english-wordnet-2025-json.zip',
+  file: 'english-wordnet-json.zip',
+  sha256: '7d749f6e2c39e6970e4997839dcf6e42fd281f3c2fae0171d2192bae8cfa4b51',
+};
+
+async function downloadWordNet() {
+  const dir = path.join(CACHE_DIR, 'wordnet');
+  const out = path.join(dir, WORDNET.file);
+  if (fs.existsSync(out) && sha256(fs.readFileSync(out)) === WORDNET.sha256) {
+    console.log('Open English WordNet already downloaded');
+    return;
+  }
+  console.log(`downloading ${WORDNET.url}`);
+  const data = new Uint8Array(await (await fetchOk(WORDNET.url)).arrayBuffer());
+  const got = sha256(data);
+  if (got !== WORDNET.sha256) {
+    throw new Error(
+      `${WORDNET.url}: sha256 ${got}, expected ${WORDNET.sha256}`,
+    );
+  }
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(out, data);
+}
+
+/**
  * wordfreq's Japanese word frequencies (subtitles, Wikipedia, web text, …),
  * a broader frequency signal than JMdict's newspaper-based tags.
  * CC BY-SA 4.0: https://github.com/rspeer/wordfreq
@@ -372,6 +403,7 @@ await Promise.all([
   downloadDictionary(),
   downloadJmdictXml(),
   downloadJaWiktionary(),
+  downloadWordNet(),
   downloadTatoebaExamples(),
   downloadWordfreq(),
   downloadTatoebaTranscriptions(),

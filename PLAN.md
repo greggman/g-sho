@@ -280,8 +280,17 @@ Japanese above the Japanese words, when "Japanese meanings (英和)" is on.
   pronunciation, entries by part of speech, examples and forms (each a
   search link). A form shows its own entry, then its word's.
 
-Still to come: English definitions in English (Open English WordNet), and
-the interface in Japanese.
+**English definitions** ("English definitions" in Settings): Open English
+WordNet's 2025 JSON edition (CC BY 4.0, pinned by hash in
+`scripts/download.ts`), in the same `enw/` shards as `d`: definitions by
+part of speech (the one with the most senses first), an example, and
+synonyms (each a search link), plus its pronunciation where the
+Wiktionary entries have none and its irregular forms ("mice" → mouse).
+127,000 words; with the Japanese entries, `enw/` is 2,048 shards, ~33 MB.
+Each word's card shows its Japanese part, its English part, or both, by
+the two settings; a word with nothing to show is hidden.
+
+Still to come: the interface in Japanese.
 
 ## History, settings, undo
 

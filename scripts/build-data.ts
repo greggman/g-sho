@@ -22,7 +22,7 @@ import {
   readWiktionary,
 } from './build-jawiktionary.ts';
 import {buildExamples} from './build-examples.ts';
-import {readEnglish} from './build-english.ts';
+import {readEnglish, readWordNet} from './build-english.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -54,8 +54,8 @@ const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128, strokes: 1024};
 const JADEF_SHARDS = 2048;
 /** More example sentences (Tatoeba), by entry id. */
 const TEX_SHARDS = 4096;
-/** English words explained in Japanese (英和), by the word. */
-const ENW_SHARDS = 1024;
+/** English words, in Japanese (英和) and in English, by the word. */
+const ENW_SHARDS = 2048;
 
 /** Longest English phrase (in words) indexed as a whole. */
 const MAX_PHRASE_WORDS = 4;
@@ -759,19 +759,54 @@ function readMoreExamples(
 
 // ---- English words in Japanese (英和) ----
 
-/** English words from the Japanese Wiktionary, sharded by the word. */
+/**
+ * English words, sharded by the word: from the Japanese Wiktionary (in
+ * Japanese) and Open English WordNet (in English), either or both.
+ */
 async function buildEnglish(): Promise<number | undefined> {
   const file = path.join(CACHE_DIR, 'jawiktionary', 'ja-extract.jsonl.gz');
-  if (!fs.existsSync(file)) return undefined;
-  const words = await readEnglish(file);
+  const wordnet = path.join(CACHE_DIR, 'wordnet', 'english-wordnet-json.zip');
+  const haveWiktionary = fs.existsSync(file);
+  const haveWordNet = fs.existsSync(wordnet);
+  if (!haveWordNet) {
+    console.warn(
+      'warning: Open English WordNet missing; run `npm run download`',
+    );
+  }
+  if (!haveWiktionary && !haveWordNet) return undefined;
+  const words = haveWiktionary
+    ? await readEnglish(file)
+    : new Map<string, EnglishShard[string]>();
+  if (haveWordNet) {
+    const wn = readWordNet(wordnet);
+    const get = (key: string) => {
+      let v = words.get(key);
+      if (!v) words.set(key, (v = {}));
+      return v;
+    };
+    for (const [key, d] of wn.defs) get(key).d = d;
+    for (const [key, ipa] of wn.ipa) {
+      const v = get(key);
+      if (!v.e?.some(e => e.ipa)) v.ipa = ipa;
+    }
+    for (const [form, bases] of wn.forms) {
+      const v = get(form);
+      for (const b of bases) {
+        if (!v.of?.some(o => o.toLowerCase() === b.toLowerCase())) {
+          (v.of ??= []).push(b);
+        }
+      }
+    }
+  }
   const shards = new Map<number, EnglishShard>();
   for (const [word, value] of words) {
     getShard(shards, enShard(word, ENW_SHARDS), () => ({}))[word] = value;
   }
   writeShards('enw', shards);
-  const entries = [...words.values()].filter(v => v.e).length;
+  const ja = [...words.values()].filter(v => v.e).length;
+  const en = [...words.values()].filter(v => v.d).length;
   console.log(
-    `English words: ${entries}, with ${words.size - entries} more forms`,
+    `English words: ${ja} in Japanese, ${en} in English, ${words.size} with forms`,
   );
   return ENW_SHARDS;
 }
