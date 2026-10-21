@@ -18,6 +18,7 @@ import {
   sourceValues,
 } from '../anki/note.ts';
 import type {Dict} from '../dict.ts';
+import {t} from '../i18n.ts';
 import {posLabel} from '../render.ts';
 import {CardState, type DeckRow, type Store} from '../store/store.ts';
 import {NOTE_TYPE} from './model.ts';
@@ -27,13 +28,13 @@ const NOTE_TYPE_ID = 1_790_000_000_001;
 const FIELDS = Object.keys(OWN_FIELD_MAP);
 
 export function apkgNoteType(): ApkgNoteType {
-  const t = ownNoteType();
+  const nt = ownNoteType();
   return {
     id: NOTE_TYPE_ID,
-    name: t.modelName,
-    fields: t.inOrderFields,
-    css: t.css,
-    templates: t.cardTemplates.map(c => ({
+    name: nt.modelName,
+    fields: nt.inOrderFields,
+    css: nt.css,
+    templates: nt.cardTemplates.map(c => ({
       name: c.Name,
       front: c.Front,
       back: c.Back,
@@ -167,7 +168,7 @@ export async function sendToAnki(
   deck: DeckRow,
   progress: (text: string) => void,
 ): Promise<SendResult> {
-  progress('Connecting to Anki…');
+  progress(t('Connecting to Anki…'));
   await anki.requestPermission();
   const models = await anki.modelNames();
   if (!models.includes(DEFAULT_NOTE_TYPE)) {
@@ -176,7 +177,7 @@ export async function sendToAnki(
   await anki.invoke('createDeck', {deck: deck.name});
   const {notes, wordIds, skipped} = await deckNotes(store, dict, deck);
 
-  progress('Looking for words already in Anki…');
+  progress(t('Looking for words already in Anki…'));
   const found = await anki.invoke<{result: number[] | null}[]>('multi', {
     actions: wordIds.map(id => ({
       action: 'findNotes',
@@ -202,7 +203,12 @@ export async function sendToAnki(
     }
   }
   for (let start = 0; start < toAdd.length; start += 100) {
-    progress(`Adding words (${start} of ${toAdd.length})…`);
+    progress(
+      t('Adding words ({done} of {total})…', {
+        done: start,
+        total: toAdd.length,
+      }),
+    );
     const batch = toAdd.slice(start, start + 100);
     const ids = await anki.invoke<(number | null)[]>('addNotes', {
       notes: batch.map(({note}) => ({
@@ -221,7 +227,7 @@ export async function sendToAnki(
   }
 
   // Due dates for cards that have been studied.
-  progress('Setting due dates…');
+  progress(t('Setting due dates…'));
   const known = noteIds.filter((id): id is number => id !== null);
   const info = await anki.invoke<{noteId: number; cards: number[]}[]>(
     'notesInfo',

@@ -1,4 +1,5 @@
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 import {drawStroke, drawStrokes} from './raster.ts';
 import type {Candidate, Point, Stroke} from './types.ts';
 import {WorkerRecognizer} from './worker-recognizer.ts';
@@ -31,14 +32,14 @@ export class HandwritingPanel {
     this.onPick = onPick;
     this.canvas = h('canvas', {
       class: 'handwriting-pad',
-      'aria-label': 'Draw a character',
+      'aria-label': t('Draw a character'),
       role: 'img',
     });
     this.ctx = this.canvas.getContext('2d')!;
     this.status = h(
       'p',
       {class: 'handwriting-status'},
-      'Loading handwriting model…',
+      t('Loading handwriting model…'),
     );
     this.results = h('div', {class: 'handwriting-results', lang: 'ja'});
     this.element = h(
@@ -51,8 +52,12 @@ export class HandwritingPanel {
         h(
           'div',
           {class: 'handwriting-buttons'},
-          h('button', {type: 'button', onclick: () => this.undo()}, 'Undo'),
-          h('button', {type: 'button', onclick: () => this.clear()}, 'Clear'),
+          h('button', {type: 'button', onclick: () => this.undo()}, t('Undo')),
+          h(
+            'button',
+            {type: 'button', onclick: () => this.clear()},
+            t('Clear'),
+          ),
         ),
       ),
       h(
@@ -61,7 +66,7 @@ export class HandwritingPanel {
         h(
           'p',
           {class: 'handwriting-hint'},
-          'Draw a character. Stroke order and direction don’t matter.',
+          t('Draw a character. Stroke order and direction don’t matter.'),
         ),
         this.results,
         this.status,
@@ -77,7 +82,12 @@ export class HandwritingPanel {
     void Promise.all(recognizers.map(r => r.ready)).then(
       () => this.showStatus(),
       (e: Error) => {
-        this.status.textContent = `Couldn’t load handwriting recognition: ${e.message}`;
+        this.status.textContent = t(
+          'Couldn’t load handwriting recognition: {error}',
+          {
+            error: e.message,
+          },
+        );
       },
     );
   }
@@ -186,7 +196,9 @@ export class HandwritingPanel {
       this.showResults(lists);
       this.showStatus();
     } catch (e) {
-      this.status.textContent = `Recognition failed: ${(e as Error).message}`;
+      this.status.textContent = t('Recognition failed: {error}', {
+        error: (e as Error).message,
+      });
     } finally {
       this.busy = false;
     }

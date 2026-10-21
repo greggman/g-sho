@@ -4,6 +4,7 @@
  * On a plain static host there's no /api, and the account is "unavailable":
  * the app works the same, just without sign-in.
  */
+import {t} from './i18n.ts';
 
 export interface Account {
   id: string;
@@ -47,7 +48,7 @@ export const PROVIDERS = [
 ] as const;
 
 export function providerLabel(id: string): string {
-  if (id === 'passkey') return 'Passkey';
+  if (id === 'passkey') return t('Passkey');
   return PROVIDERS.find(p => p.id === id)?.label ?? id;
 }
 

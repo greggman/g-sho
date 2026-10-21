@@ -8,6 +8,7 @@ import {h} from '../dom.ts';
 import {cardFrame} from '../anki/card-frame.ts';
 import {renderTemplate} from '../anki/template.ts';
 import {headword} from '../forms.ts';
+import {language, t} from '../i18n.ts';
 import {fillJapanese} from '../japanese.ts';
 import {renderEntry, rubyWord} from '../render.ts';
 import type {CardRow, DeckRow, Store} from '../store/store.ts';
@@ -27,14 +28,28 @@ import {
   setAddToDeck,
   type DeckCounts,
 } from './model.ts';
-import {RATINGS, answer, formatInterval, preview} from './scheduler.ts';
+import {
+  RATINGS,
+  answer,
+  formatInterval,
+  preview,
+  ratingLabel,
+} from './scheduler.ts';
 
 const studyUrl = (deck: string) => `?${new URLSearchParams({study: deck})}`;
+
+/** Sentences together: with a space in English, none in Japanese. */
+const sentences = (...parts: string[]) =>
+  parts.filter(Boolean).join(language === 'ja' ? '' : ' ');
+
+/** "{n} card" or "{n} cards". */
+const cardCount = (n: number) =>
+  n === 1 ? t('{n} card', {n}) : t('{n} cards', {n});
 
 function counts(c: DeckCounts) {
   return h(
     'span',
-    {class: 'study-counts', title: 'New · learning · to review'},
+    {class: 'study-counts', title: t('New · learning · to review')},
     h('span', {class: 'count-new'}, String(c.new)),
     h('span', {class: 'count-learning'}, String(c.learning)),
     h('span', {class: 'count-review'}, String(c.review)),
@@ -56,26 +71,30 @@ export function renderDecks(store: Store, dict: Dict): HTMLElement {
       h(
         'div',
         {class: 'study-head'},
-        h('h1', null, 'Study'),
+        h('h1', null, t('Study')),
         h(
           'div',
           {class: 'deck-option-buttons'},
-          h('a', {class: 'button', href: '?study=browse'}, 'Cards'),
-          h('a', {class: 'button', href: '?study=stats'}, 'Stats'),
-          h('a', {class: 'button', href: '?import'}, 'Import'),
+          h('a', {class: 'button', href: '?study=browse'}, t('Cards')),
+          h('a', {class: 'button', href: '?study=stats'}, t('Stats')),
+          h('a', {class: 'button', href: '?import'}, t('Import')),
           total.cards.length > 0 &&
             h(
               'a',
               {class: 'button primary', href: studyUrl('all')},
-              'Study all',
+              t('Study all'),
             ),
         ),
       ),
       h(
         'p',
         {class: 'hint'},
-        'Add words with the “study” button on any entry, or import an Anki deck. ',
-        'Cards are scheduled with FSRS, the algorithm modern Anki uses.',
+        sentences(
+          t(
+            'Add words with the “study” button on any entry, or import an Anki deck.',
+          ),
+          t('Cards are scheduled with FSRS, the algorithm modern Anki uses.'),
+        ),
       ),
       h(
         'ul',
@@ -88,7 +107,7 @@ export function renderDecks(store: Store, dict: Dict): HTMLElement {
         h(
           'label',
           null,
-          'Add new words to ',
+          t('Add new words to '),
           h(
             'select',
             {
@@ -105,14 +124,14 @@ export function renderDecks(store: Store, dict: Dict): HTMLElement {
           {
             type: 'button',
             onclick: () => {
-              const name = prompt('Name of the new deck?')?.trim();
+              const name = prompt(t('Name of the new deck?'))?.trim();
               if (name) {
                 store.decks.put({id: randomId(), name, ...DECK_DEFAULTS});
                 draw();
               }
             },
           },
-          'New deck',
+          t('New deck'),
         ),
       ),
     );
@@ -148,13 +167,13 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
       }),
     );
   options.append(
-    h('summary', null, 'Options and export'),
-    number('New cards per day ', 'newPerDay', 9999),
-    number('Most reviews per day ', 'reviewsPerDay', 99999),
+    h('summary', null, t('Options and export')),
+    number(t('New cards per day '), 'newPerDay', 9999),
+    number(t('Most reviews per day '), 'reviewsPerDay', 99999),
     h(
       'label',
       null,
-      'Desired retention ',
+      t('Desired retention '),
       h('input', {
         type: 'number',
         min: 0.7,
@@ -172,7 +191,9 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
       h(
         'span',
         {class: 'hint'},
-        ' How likely you are to remember a card when it comes up. Higher means more reviews.',
+        t(
+          ' How likely you are to remember a card when it comes up. Higher means more reviews.',
+        ),
       ),
     ),
     h(
@@ -183,12 +204,12 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
         {
           type: 'button',
           onclick: () => {
-            const name = prompt('Rename the deck', deck.name)?.trim();
+            const name = prompt(t('Rename the deck'), deck.name)?.trim();
             if (name) store.decks.put({...fieldsOf(deck), name});
             redraw();
           },
         },
-        'Rename',
+        t('Rename'),
       ),
       deck.id !== 'default' &&
         h(
@@ -199,7 +220,10 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
             onclick: () => {
               if (
                 !confirm(
-                  `Delete “${deck.name}” and its ${size} cards? Their review history is kept.`,
+                  t(
+                    'Delete “{name}” and its {n} cards? Their review history is kept.',
+                    {name: deck.name, n: size},
+                  ),
                 )
               ) {
                 return;
@@ -213,7 +237,7 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
               redraw();
             },
           },
-          'Delete deck',
+          t('Delete deck'),
         ),
     ),
   );
@@ -226,10 +250,10 @@ function deckRow(store: Store, dict: Dict, deck: DeckRow, redraw: () => void) {
       'div',
       {class: 'deck-main'},
       h('a', {class: 'deck-name', href: studyUrl(deck.id)}, deck.name),
-      h('span', {class: 'hint'}, ` ${size} card${size === 1 ? '' : 's'}`),
+      h('span', {class: 'hint'}, ` ${cardCount(size)}`),
       counts(q),
       q.cards.length > 0 &&
-        h('a', {class: 'button', href: studyUrl(deck.id)}, 'Study'),
+        h('a', {class: 'button', href: studyUrl(deck.id)}, t('Study')),
     ),
     options,
   );
@@ -249,7 +273,9 @@ function duplicatesSection(store: Store, deck: DeckRow, redraw: () => void) {
         h(
           'p',
           {class: 'hint'},
-          'None of this deck’s new cards are words you already study or marked known.',
+          t(
+            'None of this deck’s new cards are words you already study or marked known.',
+          ),
         ),
       );
       return;
@@ -268,28 +294,17 @@ function duplicatesSection(store: Store, deck: DeckRow, redraw: () => void) {
         h('span', null, label),
       );
     body.replaceChildren(
-      h(
-        'p',
-        null,
-        [
-          report.studied.size &&
-            `${report.studied.size} new card${report.studied.size === 1 ? ' is a word' : 's are words'} you study in other cards`,
-          report.known.size &&
-            `${report.known.size} ${report.known.size === 1 ? 'is a word' : 'are words'} you marked known`,
-        ]
-          .filter(Boolean)
-          .join(', and ') + '.',
-      ),
+      h('p', null, duplicatesFound(report.studied.size, report.known.size)),
       report.studied.size > 0
         ? h(
             'div',
             {class: 'import-choices'},
-            choice('copy', 'Give them your schedule for the word'),
-            choice('suspend', 'Suspend them'),
+            choice('copy', t('Give them your schedule for the word')),
+            choice('suspend', t('Suspend them')),
           )
         : '',
       report.known.size > 0
-        ? h('p', {class: 'hint'}, 'Words marked known are suspended.')
+        ? h('p', {class: 'hint'}, t('Words marked known are suspended.'))
         : '',
       h(
         'button',
@@ -307,30 +322,78 @@ function duplicatesSection(store: Store, deck: DeckRow, redraw: () => void) {
               h(
                 'p',
                 {class: 'hint'},
-                `Done: ${changed} card${changed === 1 ? '' : 's'} changed.`,
+                changed === 1
+                  ? t('Done: {n} card changed.', {n: changed})
+                  : t('Done: {n} cards changed.', {n: changed}),
               ),
             );
           },
         },
-        'Apply',
+        t('Apply'),
       ),
     );
   };
   body.append(
-    h('button', {type: 'button', onclick: find}, 'Find words you already know'),
+    h(
+      'button',
+      {type: 'button', onclick: find},
+      t('Find words you already know'),
+    ),
   );
   return h(
     'div',
     {class: 'deck-duplicates'},
-    h('h3', null, 'Duplicates'),
+    h('h3', null, t('Duplicates')),
     body,
   );
 }
 
+/** "3 new cards are words you study in other cards, and 1 is …" */
+function duplicatesFound(studied: number, known: number): string {
+  const vars = {studied, known};
+  if (studied && known) {
+    if (studied === 1) {
+      return known === 1
+        ? t(
+            '{studied} new card is a word you study in other cards, and {known} is a word you marked known.',
+            vars,
+          )
+        : t(
+            '{studied} new card is a word you study in other cards, and {known} are words you marked known.',
+            vars,
+          );
+    }
+    return known === 1
+      ? t(
+          '{studied} new cards are words you study in other cards, and {known} is a word you marked known.',
+          vars,
+        )
+      : t(
+          '{studied} new cards are words you study in other cards, and {known} are words you marked known.',
+          vars,
+        );
+  }
+  if (studied) {
+    return studied === 1
+      ? t('{n} new card is a word you study in other cards.', {n: studied})
+      : t('{n} new cards are words you study in other cards.', {n: studied});
+  }
+  return known === 1
+    ? t('{n} is a word you marked known.', {n: known})
+    : t('{n} are words you marked known.', {n: known});
+}
+
 function skippedNote(n: number) {
-  return n
-    ? ` ${n} note${n === 1 ? '' : 's'} from imported decks ${n === 1 ? 'was' : 'were'} left out: exporting those isn’t supported yet.`
-    : '';
+  if (!n) return '';
+  return n === 1
+    ? t(
+        '{n} note from imported decks was left out: exporting those isn’t supported yet.',
+        {n},
+      )
+    : t(
+        '{n} notes from imported decks were left out: exporting those isn’t supported yet.',
+        {n},
+      );
 }
 
 /** Download the deck as an .apkg, or send it to Anki through AnkiConnect. */
@@ -349,7 +412,7 @@ function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
   return h(
     'div',
     {class: 'deck-export'},
-    h('h3', null, 'Export to Anki'),
+    h('h3', null, t('Export to Anki')),
     h(
       'div',
       {class: 'deck-option-buttons'},
@@ -360,17 +423,20 @@ function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
           disabled: size === 0,
           onclick: () =>
             void run(async () => {
-              status.textContent = 'Making the file…';
+              status.textContent = t('Making the file…');
               const {exportApkg, download} = await import('./export.ts');
               const {blob, skipped} = await exportApkg(store, dict, deck);
               download(blob, fileName);
-              return (
-                `Saved ${fileName}. Open it with Anki (File → Import) to add the deck, with its schedule and review history.` +
-                skippedNote(skipped)
+              return sentences(
+                t(
+                  'Saved {file}. Open it with Anki (File → Import) to add the deck, with its schedule and review history.',
+                  {file: fileName},
+                ),
+                skippedNote(skipped),
               );
             }),
         },
-        'Download .apkg',
+        t('Download .apkg'),
       ),
       h(
         'button',
@@ -394,28 +460,45 @@ function exportSection(store: Store, dict: Dict, deck: DeckRow, size: number) {
                 const r = await sendToAnki(anki, store, dict, deck, text => {
                   status.textContent = text;
                 });
-                return (
-                  `Done: ${r.added} added and ${r.updated} updated in Anki's “${deck.name}” deck` +
-                  (r.failed ? `, ${r.failed} couldn't be added.` : '.') +
-                  skippedNote(r.skipped)
+                const vars = {
+                  added: r.added,
+                  updated: r.updated,
+                  failed: r.failed,
+                  deck: deck.name,
+                };
+                return sentences(
+                  r.failed
+                    ? t(
+                        "Done: {added} added and {updated} updated in Anki's “{deck}” deck, {failed} couldn't be added.",
+                        vars,
+                      )
+                    : t(
+                        "Done: {added} added and {updated} updated in Anki's “{deck}” deck.",
+                        vars,
+                      ),
+                  skippedNote(r.skipped),
                 );
               } catch (e) {
                 if (e instanceof AnkiUnreachable) {
                   throw new Error(
-                    'Couldn’t reach Anki. Open Anki (with the AnkiConnect add-on), and connect it in Settings → Anki.',
+                    t(
+                      'Couldn’t reach Anki. Open Anki (with the AnkiConnect add-on), and connect it in Settings → Anki.',
+                    ),
                   );
                 }
                 throw e;
               }
             }),
         },
-        'Send to Anki',
+        t('Send to Anki'),
       ),
     ),
     h(
       'p',
       {class: 'hint'},
-      'The file keeps each card’s schedule and review history. Sending through AnkiConnect adds the words and their due dates.',
+      t(
+        'The file keeps each card’s schedule and review history. Sending through AnkiConnect adds the words and their due dates.',
+      ),
     ),
     status,
   );
@@ -431,7 +514,9 @@ export function renderSession(
 ): HTMLElement {
   const deckIds = deck === 'all' ? undefined : [deck];
   const deckName =
-    deck === 'all' ? 'All decks' : (store.decks.get(deck)?.name ?? 'Deck');
+    deck === 'all'
+      ? t('All decks')
+      : (store.decks.get(deck)?.name ?? t('Deck'));
   const page = h('div', {class: 'study-session'});
   let last: string | undefined;
   /** what the keyboard does now */
@@ -442,9 +527,9 @@ export function renderSession(
       document.removeEventListener('keydown', onKey);
       return;
     }
-    const t = e.target as HTMLElement;
+    const target = e.target as HTMLElement;
     if (
-      t.closest('input, textarea, select') ||
+      target.closest('input, textarea, select') ||
       e.metaKey ||
       e.ctrlKey ||
       e.altKey
@@ -476,7 +561,7 @@ export function renderSession(
     h(
       'div',
       {class: 'session-head'},
-      h('a', {href: '?study', class: 'session-back'}, '← Decks'),
+      h('a', {href: '?study', class: 'session-back'}, t('← Decks')),
       h('span', {class: 'session-deck'}, deckName),
       counts(q),
     );
@@ -530,7 +615,7 @@ export function renderSession(
         {
           class: 'card-word',
           href: `?${new URLSearchParams({q: entry ? headword(entry).text : word})}`,
-          title: `Look up ${word}`,
+          title: t('Look up {word}', {word}),
         },
         ...content,
       );
@@ -561,7 +646,7 @@ export function renderSession(
           h(
             'p',
             {class: 'card-word-link hint'},
-            'In the dictionary: ',
+            t('In the dictionary: '),
             h(
               'a',
               {href: `?${new URLSearchParams({q: head.text})}`},
@@ -592,23 +677,24 @@ export function renderSession(
       face.replaceChildren(...(await backSide()).filter(n => n !== undefined));
       void fillJapanese(dict, face);
       buttons.replaceChildren(
-        ...RATINGS.map(r =>
-          h(
+        ...RATINGS.map(r => {
+          const label = ratingLabel(r.grade);
+          return h(
             'button',
             {
               type: 'button',
-              class: `rate rate-${r.label.toLowerCase()}`,
+              class: `rate rate-${r.name}`,
               onclick: () => rate(r.grade),
-              title: `${r.label} (${r.key})`,
+              title: `${label} (${r.key})`,
             },
             h(
               'span',
               {class: 'rate-interval'},
               formatInterval(due.get(r.grade)! - now),
             ),
-            h('span', {class: 'rate-label'}, r.label),
-          ),
-        ),
+            h('span', {class: 'rate-label'}, label),
+          );
+        }),
       );
     };
     keys = e => {
@@ -628,7 +714,7 @@ export function renderSession(
           class: 'primary show-answer',
           onclick: () => void reveal(),
         },
-        'Show answer',
+        t('Show answer'),
       ),
     );
     page.replaceChildren(header(q), face, buttons);
@@ -645,14 +731,16 @@ export function renderSession(
       h(
         'div',
         {class: 'session-done'},
-        h('h2', null, 'All done for now'),
+        h('h2', null, t('All done for now')),
         upcoming &&
           h(
             'p',
             null,
-            `The next card is due in ${formatInterval(Math.max(0, upcoming.due - Date.now()))}.`,
+            t('The next card is due in {time}.', {
+              time: formatInterval(Math.max(0, upcoming.due - Date.now())),
+            }),
           ),
-        h('a', {class: 'button', href: '?study'}, 'Back to decks'),
+        h('a', {class: 'button', href: '?study'}, t('Back to decks')),
       ),
     );
   };

@@ -6,6 +6,7 @@
  */
 import {h} from '../dom.ts';
 import {stripHtml} from '../anki/apkg.ts';
+import {t} from '../i18n.ts';
 import {
   CardState,
   type CardRow,
@@ -15,7 +16,7 @@ import {
 import {fieldsOf} from '../store/table.ts';
 import {VirtualList} from '../virtual-list.ts';
 import {NOTE_TYPE, newCard, removeWord} from './model.ts';
-import {formatInterval} from './scheduler.ts';
+import {formatInterval, ratingLabel} from './scheduler.ts';
 
 const ROW_HEIGHT = 52;
 const DAY = 86_400_000;
@@ -58,15 +59,20 @@ function describe(fact: FactRow | undefined): {front: string; back: string} {
 
 function stateLabel(c: CardRow, now: number): {text: string; kind: string} {
   if (c.suspended)
-    return {text: c.dupOf ? 'duplicate' : 'suspended', kind: 'suspended'};
-  if (c.state === CardState.New) return {text: 'new', kind: 'new'};
+    return {
+      text: c.dupOf ? t('duplicate') : t('suspended'),
+      kind: 'suspended',
+    };
+  if (c.state === CardState.New) return {text: t('new'), kind: 'new'};
   const kind = c.state === CardState.Review ? 'review' : 'learning';
   const left = c.due - now;
   return {
     text:
       left <= 0
-        ? `due${left < -DAY ? ` (${formatInterval(-left)} late)` : ''}`
-        : `in ${formatInterval(left)}`,
+        ? left < -DAY
+          ? t('due ({time} late)', {time: formatInterval(-left)})
+          : t('due')
+        : t('in {time}', {time: formatInterval(left)}),
     kind,
   };
 }
@@ -75,35 +81,35 @@ export function renderBrowser(store: Store): HTMLElement {
   const search = h('input', {
     type: 'search',
     class: 'browse-search',
-    placeholder: 'Search cards',
-    'aria-label': 'Search cards',
+    placeholder: t('Search cards'),
+    'aria-label': t('Search cards'),
   });
-  const deckSelect = h('select', {'aria-label': 'Deck'});
+  const deckSelect = h('select', {'aria-label': t('Deck')});
   const stateSelect = h(
     'select',
-    {'aria-label': 'State'},
+    {'aria-label': t('State')},
     (
       [
-        ['all', 'All cards'],
-        ['due', 'Due now'],
-        ['new', 'New'],
-        ['learning', 'Learning'],
-        ['review', 'Review'],
-        ['suspended', 'Suspended'],
-        ['duplicate', 'Suspended as duplicates'],
+        ['all', t('All cards')],
+        ['due', t('Due now')],
+        ['new', t('New')],
+        ['learning', t('Learning')],
+        ['review', t('Review')],
+        ['suspended', t('Suspended')],
+        ['duplicate', t('Suspended as duplicates')],
       ] as [StateFilter, string][]
     ).map(([v, l]) => h('option', {value: v}, l)),
   );
   const sortSelect = h(
     'select',
-    {'aria-label': 'Sort by'},
+    {'aria-label': t('Sort by')},
     (
       [
-        ['due', 'Sort: due'],
-        ['added', 'Sort: newest'],
-        ['word', 'Sort: word'],
-        ['lapses', 'Sort: most forgotten'],
-        ['interval', 'Sort: longest interval'],
+        ['due', t('Sort: due')],
+        ['added', t('Sort: newest')],
+        ['word', t('Sort: word')],
+        ['lapses', t('Sort: most forgotten')],
+        ['interval', t('Sort: longest interval')],
       ] as [SortKey, string][]
     ).map(([v, l]) => h('option', {value: v}, l)),
   );
@@ -137,7 +143,7 @@ export function renderBrowser(store: Store): HTMLElement {
   const fillDecks = () => {
     const current = deckSelect.value;
     deckSelect.replaceChildren(
-      h('option', {value: ''}, 'All decks'),
+      h('option', {value: ''}, t('All decks')),
       ...store.decks
         .all()
         .sort((a, b) => a.name.localeCompare(b.name))
@@ -208,7 +214,10 @@ export function renderBrowser(store: Store): HTMLElement {
       interval: (a, b) => b.card.scheduledDays - a.card.scheduledDays,
     };
     items.sort(by[sortSelect.value as SortKey]);
-    count.textContent = `${items.length.toLocaleString()} of ${all.length.toLocaleString()} cards`;
+    count.textContent = t('{shown} of {total} cards', {
+      shown: items.length.toLocaleString(),
+      total: all.length.toLocaleString(),
+    });
     list.setItems(items);
   };
 
@@ -224,7 +233,7 @@ export function renderBrowser(store: Store): HTMLElement {
         : undefined;
     const names =
       fact?.noteType === NOTE_TYPE
-        ? ['Word', 'Reading', 'Meaning']
+        ? [t('Word'), t('Reading'), t('Meaning')]
         : (nt?.fields ?? []);
     const now = Date.now();
     const s = stateLabel(card, now);
@@ -232,7 +241,7 @@ export function renderBrowser(store: Store): HTMLElement {
       .all()
       .filter(r => r.cardId === card.id)
       .sort((a, b) => b.t - a.t);
-    const date = (t: number) => new Date(t).toLocaleDateString();
+    const date = (ms: number) => new Date(ms).toLocaleDateString();
     const close = () => dialog.close();
     const act = (fn: () => void) => () => {
       fn();
@@ -242,7 +251,7 @@ export function renderBrowser(store: Store): HTMLElement {
     const moveTo = h(
       'select',
       {
-        'aria-label': 'Move to deck',
+        'aria-label': t('Move to deck'),
         onchange: act(() => {
           store.cards.put({
             ...fieldsOf(store.cards.get(id)!),
@@ -257,27 +266,27 @@ export function renderBrowser(store: Store): HTMLElement {
           h('option', {value: d.id, selected: d.id === card.deckId}, d.name),
         ),
     );
-    const facts: [string, string][] = [
-      ['State', s.text],
-      ['Deck', ''],
+    const facts: [string, string | Node][] = [
+      [t('State'), s.text],
+      [t('Deck'), moveTo],
       ...(card.state !== CardState.New
         ? ([
-            ['Due', date(card.due)],
+            [t('Due'), date(card.due)],
             [
-              'Interval',
+              t('Interval'),
               card.scheduledDays
-                ? `${Math.round(card.scheduledDays)} days`
+                ? t('{n} days', {n: Math.round(card.scheduledDays)})
                 : '—',
             ],
-            ['Stability', `${card.stability.toFixed(1)} days`],
-            ['Difficulty', `${card.difficulty.toFixed(1)} / 10`],
-            ['Reviews', String(card.reps)],
-            ['Forgotten', String(card.lapses)],
+            [t('Stability'), t('{n} days', {n: card.stability.toFixed(1)})],
+            [t('Difficulty'), `${card.difficulty.toFixed(1)} / 10`],
+            [t('Reviews'), String(card.reps)],
+            [t('Forgotten'), String(card.lapses)],
           ] as [string, string][])
         : []),
-      ['Added', date(card.added)],
+      [t('Added'), date(card.added)],
       ...(card.lastReview
-        ? ([['Last review', date(card.lastReview)]] as [string, string][])
+        ? ([[t('Last review'), date(card.lastReview)]] as [string, string][])
         : []),
     ];
     dialog.replaceChildren(
@@ -287,13 +296,13 @@ export function renderBrowser(store: Store): HTMLElement {
         h(
           'div',
           {class: 'card-dialog-head'},
-          h('h2', {lang: 'ja'}, describe(fact).front || 'Card'),
+          h('h2', {lang: 'ja'}, describe(fact).front || t('Card')),
           h(
             'button',
             {
               type: 'button',
               class: 'card-dialog-close',
-              'aria-label': 'Close',
+              'aria-label': t('Close'),
               onclick: close,
             },
             '×',
@@ -306,28 +315,25 @@ export function renderBrowser(store: Store): HTMLElement {
             fact.fields.flatMap((v, i) =>
               plain(v)
                 ? [
-                    h('dt', null, names[i] ?? `Field ${i + 1}`),
+                    h('dt', null, names[i] ?? t('Field {n}', {n: i + 1})),
                     h('dd', {lang: 'ja'}, plain(v)),
                   ]
                 : [],
             ),
             fact.tags.length
-              ? [h('dt', null, 'Tags'), h('dd', null, fact.tags.join(' '))]
+              ? [h('dt', null, t('Tags')), h('dd', null, fact.tags.join(' '))]
               : [],
           ),
         h(
           'dl',
           {class: 'card-facts'},
-          facts.flatMap(([k, v]) => [
-            h('dt', null, k),
-            h('dd', null, k === 'Deck' ? moveTo : v),
-          ]),
+          facts.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]),
         ),
         reviews.length > 0 &&
           h(
             'details',
             {class: 'card-reviews'},
-            h('summary', null, `Review history (${reviews.length})`),
+            h('summary', null, t('Review history ({n})', {n: reviews.length})),
             h(
               'table',
               null,
@@ -337,9 +343,9 @@ export function renderBrowser(store: Store): HTMLElement {
                 h(
                   'tr',
                   null,
-                  h('th', null, 'Date'),
-                  h('th', null, 'Answer'),
-                  h('th', null, 'Time'),
+                  h('th', null, t('Date')),
+                  h('th', null, t('Answer')),
+                  h('th', null, t('Time')),
                 ),
               ),
               h(
@@ -350,13 +356,12 @@ export function renderBrowser(store: Store): HTMLElement {
                     'tr',
                     null,
                     h('td', null, new Date(r.t).toLocaleString()),
+                    h('td', null, ratingLabel(r.rating)),
                     h(
                       'td',
                       null,
-                      ['', 'Again', 'Hard', 'Good', 'Easy'][r.rating] ??
-                        String(r.rating),
+                      t('{n}s', {n: Math.round(r.durationMs / 1000)}),
                     ),
-                    h('td', null, `${Math.round(r.durationMs / 1000)}s`),
                   ),
                 ),
               ),
@@ -380,7 +385,7 @@ export function renderBrowser(store: Store): HTMLElement {
                 store.cards.put(c);
               }),
             },
-            card.suspended ? 'Unsuspend' : 'Suspend',
+            card.suspended ? t('Unsuspend') : t('Suspend'),
           ),
           card.state !== CardState.New &&
             h(
@@ -390,7 +395,9 @@ export function renderBrowser(store: Store): HTMLElement {
                 onclick: () => {
                   if (
                     !confirm(
-                      'Forget this card? It will be new again (its review history is kept).',
+                      t(
+                        'Forget this card? It will be new again (its review history is kept).',
+                      ),
                     )
                   )
                     return;
@@ -403,7 +410,7 @@ export function renderBrowser(store: Store): HTMLElement {
                   })();
                 },
               },
-              'Forget',
+              t('Forget'),
             ),
           !!fact?.wordId &&
             h(
@@ -412,7 +419,7 @@ export function renderBrowser(store: Store): HTMLElement {
                 class: 'button',
                 href: `?${new URLSearchParams({q: describe(fact).front})}`,
               },
-              'Look up',
+              t('Look up'),
             ),
           h(
             'button',
@@ -423,12 +430,14 @@ export function renderBrowser(store: Store): HTMLElement {
                 const siblings = store.cards
                   .all()
                   .filter(c => c.factId === card.factId);
-                const what =
+                const question =
                   siblings.length > 1
-                    ? `this note and its ${siblings.length} cards`
-                    : 'this card';
-                if (!confirm(`Delete ${what}? Their review history is kept.`))
-                  return;
+                    ? t(
+                        'Delete this note and its {n} cards? Their review history is kept.',
+                        {n: siblings.length},
+                      )
+                    : t('Delete this card? Their review history is kept.');
+                if (!confirm(question)) return;
                 act(() => {
                   if (fact?.noteType === NOTE_TYPE && fact.wordId) {
                     removeWord(store, fact.wordId);
@@ -439,7 +448,7 @@ export function renderBrowser(store: Store): HTMLElement {
                 })();
               },
             },
-            'Delete',
+            t('Delete'),
           ),
         ),
       ),
@@ -467,8 +476,8 @@ export function renderBrowser(store: Store): HTMLElement {
     h(
       'div',
       {class: 'study-head'},
-      h('h1', null, 'Cards'),
-      h('a', {href: '?study'}, '← Decks'),
+      h('h1', null, t('Cards')),
+      h('a', {href: '?study'}, t('← Decks')),
     ),
     h(
       'div',

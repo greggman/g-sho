@@ -290,7 +290,27 @@ Wiktionary entries have none and its irregular forms ("mice" → mouse).
 Each word's card shows its Japanese part, its English part, or both, by
 the two settings; a word with nothing to show is hidden.
 
-Still to come: the interface in Japanese.
+## The interface in Japanese
+
+"Language / 表示言語" at the top of Settings (in both languages, so it can
+be found either way): English or 日本語. It's only the interface: buttons,
+labels, messages, page titles, and Japanese versions of the About, Privacy
+and Terms pages (`*.ja.html`). Dictionary content (JMdict meanings and
+part-of-speech labels, kanji meanings) stays as it is, and so does anything
+that goes into Anki (note types, fields, templates, deck names).
+
+- `src/client/i18n.ts`: `t('English text', {vars})`. The English text is
+  the key; the Japanese is in `src/client/i18n/ja/` (a table per part of
+  the app). Anything missing shows in English. `t()` is never called when a
+  module loads, only when drawing. index.html's own text is marked with
+  `data-t`, `data-t-attrs` and `data-t-html`.
+- The language has to be known before anything is drawn, so a copy is kept
+  in localStorage; the setting itself is a store row (`language`), synced.
+  If the synced choice differs (chosen on another device), the page reloads
+  once at startup. Until you choose, it's guessed from the browser, and the
+  guess is never saved.
+- `test/i18n.test.ts` checks that every `t('…')` in the client has Japanese
+  with the same `{placeholders}`, and that none is a `${}` template.
 
 ## History, settings, undo
 

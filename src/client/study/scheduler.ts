@@ -11,14 +11,32 @@ import {
 } from 'ts-fsrs';
 import type {CardRow, DeckRow, Store} from '../store/store.ts';
 import {fieldsOf, type Fields} from '../store/table.ts';
+import {t} from '../i18n.ts';
 import {randomId} from './model.ts';
 
+/** The answer buttons: `name` is for CSS, ratingLabel() for people. */
 export const RATINGS = [
-  {grade: 1 as Grade, label: 'Again', key: '1'},
-  {grade: 2 as Grade, label: 'Hard', key: '2'},
-  {grade: 3 as Grade, label: 'Good', key: '3'},
-  {grade: 4 as Grade, label: 'Easy', key: '4'},
+  {grade: 1 as Grade, name: 'again', key: '1'},
+  {grade: 2 as Grade, name: 'hard', key: '2'},
+  {grade: 3 as Grade, name: 'good', key: '3'},
+  {grade: 4 as Grade, name: 'easy', key: '4'},
 ];
+
+/** An answer's name in the interface: "Again", "Hard", "Good", "Easy". */
+export function ratingLabel(rating: number): string {
+  switch (rating) {
+    case 1:
+      return t('Again');
+    case 2:
+      return t('Hard');
+    case 3:
+      return t('Good');
+    case 4:
+      return t('Easy');
+    default:
+      return String(rating);
+  }
+}
 
 const schedulers = new Map<number, FSRS>();
 
@@ -108,11 +126,11 @@ export function answer(
 export function formatInterval(ms: number): string {
   // Each unit is used while it rounds to less than the next one.
   const min = Math.round(ms / 60_000);
-  if (min < 60) return `${Math.max(1, min)}m`;
+  if (min < 60) return t('{n}m', {n: Math.max(1, min)});
   const h = Math.round(ms / 3_600_000);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return t('{n}h', {n: h});
   const d = ms / 86_400_000;
-  if (Math.round(d) < 30) return `${Math.round(d)}d`;
-  if (d < 365) return `${Math.round((d / 30) * 10) / 10}mo`;
-  return `${Math.round((d / 365) * 10) / 10}y`;
+  if (Math.round(d) < 30) return t('{n}d', {n: Math.round(d)});
+  if (d < 365) return t('{n}mo', {n: Math.round((d / 30) * 10) / 10});
+  return t('{n}y', {n: Math.round((d / 365) * 10) / 10});
 }

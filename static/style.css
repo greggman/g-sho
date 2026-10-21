@@ -929,6 +929,15 @@ a:hover {
   max-width: 640px;
 }
 
+.settings-language {
+  margin-bottom: 12px;
+}
+
+.settings-language select {
+  font: inherit;
+  margin-right: 4px;
+}
+
 .settings-toggles {
   display: grid;
   gap: 6px;

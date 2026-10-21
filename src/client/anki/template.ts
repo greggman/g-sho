@@ -6,7 +6,10 @@
  * Sounds ([sound:x.mp3]) become play buttons for the card frame.
  *
  * Like Anki, the result is HTML from the deck, to be shown in a sandbox.
+ * What we add ourselves (the answer box, hint links, play buttons) is in
+ * the interface's language: it's only shown here, never saved.
  */
+import {t} from '../i18n.ts';
 
 export interface TemplateContext {
   fields: Record<string, string>;
@@ -68,7 +71,7 @@ function applyFilter(
   if (f === 'cloze-only') return cloze(value, ctx.ord + 1, ctx.side, true);
   if (f === 'type' || f.startsWith('type')) {
     return ctx.side === 'front'
-      ? '<input type="text" class="typeans" aria-label="Type the answer">'
+      ? `<input type="text" class="typeans" aria-label="${escapeAttr(t('Type the answer'))}">`
       : value;
   }
   if (f === 'hint') {
@@ -76,7 +79,7 @@ function applyFilter(
     return (
       '<a class="hint" href="#" onclick="this.style.display=\'none\';' +
       "this.nextElementSibling.style.display='block';return false;\">" +
-      `Show ${escapeAttr(name)}</a><div class="hint" style="display:none">${value}</div>`
+      `${escapeAttr(t('Show {field}', {field: name}))}</a><div class="hint" style="display:none">${value}</div>`
     );
   }
   if (f.startsWith('tts')) return '';
@@ -112,11 +115,11 @@ const nonEmpty = (s: string) =>
 /** The template's HTML for the card. */
 export function renderTemplate(template: string, ctx: TemplateContext): string {
   // Sections first, innermost first, so nesting works.
-  let t = template;
+  let out = template;
   const section =
     /\{\{([#^])\s*([^}]+?)\s*\}\}((?:(?!\{\{[#^])[\s\S])*?)\{\{\/\s*\2\s*\}\}/;
   for (let guard = 0; guard < 1000; guard++) {
-    const m = section.exec(t);
+    const m = section.exec(out);
     if (!m) break;
     const [whole, kind, name, body] = m;
     // {{#c1}} on cloze cards: whether this is cloze 1.
@@ -125,12 +128,12 @@ export function renderTemplate(template: string, ctx: TemplateContext): string {
       ? Number(clozeNum[1]) === ctx.ord + 1
       : nonEmpty(fieldValue(name, ctx));
     const keep = kind === '#' ? present : !present;
-    t =
-      t.slice(0, m.index) +
+    out =
+      out.slice(0, m.index) +
       (keep ? body : '') +
-      t.slice(m.index + whole.length);
+      out.slice(m.index + whole.length);
   }
-  const html = t.replace(/\{\{([^#^/{}][^{}]*?)\}\}/g, (_, inner: string) => {
+  const html = out.replace(/\{\{([^#^/{}][^{}]*?)\}\}/g, (_, inner: string) => {
     const parts = inner.split(':');
     const name = parts.pop()!.trim();
     let value = fieldValue(name, ctx);
@@ -139,10 +142,11 @@ export function renderTemplate(template: string, ctx: TemplateContext): string {
     }
     return value;
   });
+  const play = escapeAttr(t('Play'));
   return html.replace(
     /\[sound:([^\]]+)\]/g,
     (_, file: string) =>
-      `<button type="button" class="g-sho-sound" data-sound="${escapeAttr(file)}" aria-label="Play">▶</button>`,
+      `<button type="button" class="g-sho-sound" data-sound="${escapeAttr(file)}" aria-label="${play}">▶</button>`,
   );
 }
 

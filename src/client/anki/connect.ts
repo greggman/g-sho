@@ -5,6 +5,7 @@
  * it. See https://git.foosoft.net/alex/anki-connect
  */
 import type {Entry} from '../../shared/types.ts';
+import {t} from '../i18n.ts';
 import {
   DEFAULT_NOTE_TYPE,
   duplicateQuery,
@@ -45,11 +46,16 @@ export class AnkiConnect {
         }),
       });
     } catch (e) {
-      throw new AnkiUnreachable(`Couldn't reach Anki at ${this.url}: ${e}`);
+      throw new AnkiUnreachable(
+        t("Couldn't reach Anki at {url}: {error}", {
+          url: this.url,
+          error: String(e),
+        }),
+      );
     }
     if (res.status === 403) {
       throw new AnkiError(
-        'Anki refused the request (this site is not allowed)',
+        t('Anki refused the request (this site is not allowed)'),
       );
     }
     const reply = (await res.json()) as {result: T; error: string | null};

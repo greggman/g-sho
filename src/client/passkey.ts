@@ -3,6 +3,7 @@
  * sign-in for this account) and signing in with one. The server checks them
  * (src/server/passkey.ts).
  */
+import {t} from './i18n.ts';
 
 /** Something went wrong that the person should read. */
 export class PasskeyError extends Error {
@@ -42,7 +43,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   };
   if (!res.ok) {
     const e = new PasskeyError(
-      data.error ?? `Something went wrong (${res.status}).`,
+      data.error ?? t('Something went wrong ({status}).', {status: res.status}),
     );
     e.unknown = !!data.unknown;
     throw e;
@@ -112,7 +113,7 @@ export async function createPasskey({
     if (cancelled(e)) return false;
     if (e instanceof DOMException && e.name === 'InvalidStateError') {
       throw new PasskeyError(
-        'This device already has a passkey for your account.',
+        t('This device already has a passkey for your account.'),
       );
     }
     throw e;
@@ -121,7 +122,7 @@ export async function createPasskey({
   const publicKey = response.getPublicKey();
   if (!publicKey) {
     throw new PasskeyError(
-      'This passkey uses a kind of key g-sho doesn’t support.',
+      t('This passkey uses a kind of key g-sho doesn’t support.'),
     );
   }
   await post('/api/auth/passkey/register', {

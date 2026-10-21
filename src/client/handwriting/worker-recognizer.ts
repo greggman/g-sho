@@ -1,6 +1,7 @@
 import type {FromWorker, ToWorker} from './protocol.ts';
 import type {Candidate, Recognizer, Stroke} from './types.ts';
 import {trackWorker} from '../versions.ts';
+import {t} from '../i18n.ts';
 
 /** A Recognizer that runs in the handwriting worker. */
 export class WorkerRecognizer implements Recognizer {
@@ -21,7 +22,7 @@ export class WorkerRecognizer implements Recognizer {
       new URL('handwriting-worker.js', document.baseURI),
       {type: 'module'},
     );
-    trackWorker('Handwriting', this.worker);
+    trackWorker(t('Handwriting'), this.worker);
     this.ready = new Promise((resolve, reject) => {
       this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
         const msg = e.data;

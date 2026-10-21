@@ -12,6 +12,7 @@ import {hasJapanese} from '../shared/kana.ts';
 import type {EnglishDefinitions, EnglishEntry} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
+import {t} from './i18n.ts';
 
 /** Longest query looked up as an English word or phrase. */
 const MAX_WORDS = 4;
@@ -150,7 +151,7 @@ function renderDefinitions(defs: EnglishDefinitions[]): HTMLElement {
   return h(
     'div',
     {class: 'en-en'},
-    h('p', {class: 'en-source'}, 'Definitions · Open English WordNet'),
+    h('p', {class: 'en-source'}, t('Definitions · Open English WordNet')),
     defs.map(group =>
       h(
         'div',
@@ -213,7 +214,7 @@ export function renderEnglish(words: EnglishWord[]): HTMLElement | undefined {
           h(
             'div',
             {class: 'en-ja'},
-            h('p', {class: 'en-source'}, '英和 · Japanese Wiktionary'),
+            h('p', {class: 'en-source'}, t('英和 · Japanese Wiktionary')),
             // One entry per spelling (cat, CAT): its own heading when it differs.
             w.entries.map(e =>
               e.w.toLowerCase() === w.word.toLowerCase() && e.w !== w.word

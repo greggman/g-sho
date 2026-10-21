@@ -5,6 +5,7 @@
  * A photo chosen from files is read the same way.
  */
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 import type {Point, Quad} from './pipeline.ts';
 import type {FromWorker, ToWorker} from './protocol.ts';
 import {trackWorker} from '../versions.ts';
@@ -88,7 +89,7 @@ export class PhotoPanel {
     this.saveButton = h(
       'button',
       {type: 'button', class: 'photo-new', onclick: () => this.save()},
-      'Save picture',
+      t('Save picture'),
     );
     // Only a source of frames: in the page (iOS may not play it otherwise)
     // but unseen.
@@ -111,7 +112,7 @@ export class PhotoPanel {
         h(
           'button',
           {type: 'button', class: 'photo-new', onclick: () => choosePhoto()},
-          'Choose photo',
+          t('Choose photo'),
         ),
         this.status,
       ),
@@ -132,7 +133,7 @@ export class PhotoPanel {
     this.worker = new Worker(new URL('ocr-worker.js', document.baseURI), {
       type: 'module',
     });
-    trackWorker('Photo reading (OCR)', this.worker);
+    trackWorker(t('Photo reading (OCR)'), this.worker);
     this.ready = new Promise((resolve, reject) => {
       this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
         const msg = e.data;
@@ -150,7 +151,9 @@ export class PhotoPanel {
       },
       e => {
         this.stopCamera();
-        this.status.textContent = `Couldn’t load the text reader: ${(e as Error).message}`;
+        this.status.textContent = t('Couldn’t load the text reader: {error}', {
+          error: (e as Error).message,
+        });
       },
     );
     this.send({
@@ -173,7 +176,7 @@ export class PhotoPanel {
     this.live.width = this.live.height = 0;
     this.stage.replaceChildren(this.live, this.svg);
     this.stage.classList.add('camera');
-    this.status.textContent = 'Starting the camera…';
+    this.status.textContent = t('Starting the camera…');
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -189,10 +192,12 @@ export class PhotoPanel {
       const name = (e as Error).name;
       this.status.textContent =
         name === 'NotAllowedError'
-          ? 'The camera isn’t allowed here. Choose a photo instead.'
+          ? t('The camera isn’t allowed here. Choose a photo instead.')
           : name === 'NotFoundError'
-            ? 'No camera found. Choose a photo instead.'
-            : `Couldn’t start the camera: ${(e as Error).message}`;
+            ? t('No camera found. Choose a photo instead.')
+            : t('Couldn’t start the camera: {error}', {
+                error: (e as Error).message,
+              });
       this.stage.replaceChildren(this.svg);
       this.stage.classList.remove('camera');
       return;
@@ -266,7 +271,7 @@ export class PhotoPanel {
     URL.revokeObjectURL(this.url);
     this.url = URL.createObjectURL(file);
     const img = h('img', {class: 'photo-image', alt: '', src: this.url});
-    this.status.textContent = 'Opening the photo…';
+    this.status.textContent = t('Opening the photo…');
     let image: ImageBitmap;
     try {
       image = await createImageBitmap(file);
@@ -282,7 +287,7 @@ export class PhotoPanel {
       }
     } catch {
       if (session === this.session) {
-        this.status.textContent = 'Couldn’t open that image.';
+        this.status.textContent = t('Couldn’t open that image.');
       }
       return;
     }
@@ -325,7 +330,7 @@ export class PhotoPanel {
   }
 
   private setButtons() {
-    this.cameraButton.textContent = this.stream ? 'Freeze' : 'Camera';
+    this.cameraButton.textContent = this.stream ? t('Freeze') : t('Camera');
     this.saveButton.hidden =
       !!this.stream || !(this.shown?.media instanceof HTMLCanvasElement);
   }
@@ -482,22 +487,28 @@ export class PhotoPanel {
     const photo = this.shown;
     let text = '';
     if (!this.loaded) {
-      text = 'Loading the text reader…';
+      text = t('Loading the text reader…');
     } else if (this.stream) {
       text = !photo
-        ? 'Looking for text…'
+        ? t('Looking for text…')
         : photo.lines
-          ? 'Tap a line to search it, or Freeze to hold this picture.'
-          : 'Point the camera at some text.';
+          ? t('Tap a line to search it, or Freeze to hold this picture.')
+          : t('Point the camera at some text.');
     } else if (!photo) {
       text = '';
     } else if (!photo.done) {
       const n = photo.found.length;
-      text = n ? `Reading ${n} line${n === 1 ? '' : 's'}…` : 'Finding text…';
+      text = !n
+        ? t('Finding text…')
+        : n === 1
+          ? t('Reading {n} line…', {n})
+          : t('Reading {n} lines…', {n});
     } else if (photo.lines) {
-      text = 'Tap a line to search it.';
+      text = t('Tap a line to search it.');
     } else {
-      text = photo.found.length ? 'Couldn’t read any text.' : 'No text found.';
+      text = photo.found.length
+        ? t('Couldn’t read any text.')
+        : t('No text found.');
     }
     this.status.textContent = text;
   }
@@ -525,7 +536,9 @@ export class PhotoPanel {
         this.later(photo);
       }
       if (msg.type === 'error' && !this.stream) {
-        this.status.textContent = `Couldn’t read the photo: ${msg.message}`;
+        this.status.textContent = t('Couldn’t read the photo: {error}', {
+          error: msg.message,
+        });
         return;
       }
     }

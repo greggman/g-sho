@@ -3,12 +3,16 @@
  * reviews per day, and what's coming due, for all decks or one.
  */
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 import type {Store} from '../store/store.ts';
 import {columnChart} from './chart.ts';
 import {computeStats, type Stats} from './stats-data.ts';
 
-const fmtDay = (t: number) =>
-  new Date(t).toLocaleDateString(undefined, {month: 'numeric', day: 'numeric'});
+const fmtDay = (ms: number) =>
+  new Date(ms).toLocaleDateString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+  });
 
 function tile(label: string, value: string, note?: string) {
   return h(
@@ -33,58 +37,73 @@ function body(stats: Stats, historyDays: number): HTMLElement[] {
     h(
       'div',
       {class: 'stat-row'},
-      tile('Reviews today', today.reviews.toLocaleString()),
+      tile(t('Reviews today'), today.reviews.toLocaleString()),
       tile(
-        'Minutes today',
+        t('Minutes today'),
         today.minutes < 1 && today.minutes > 0
           ? '<1'
           : Math.round(today.minutes).toLocaleString(),
       ),
-      tile('New cards today', today.newCards.toLocaleString()),
+      tile(t('New cards today'), today.newCards.toLocaleString()),
       tile(
-        'Day streak',
+        t('Day streak'),
         stats.streak.toLocaleString(),
-        stats.streak === 1 ? 'day' : 'days in a row',
+        stats.streak === 1 ? t('day') : t('days in a row'),
       ),
       tile(
-        'Retention',
+        t('Retention'),
         pct,
         retention.total
-          ? `${retention.passed.toLocaleString()} of ${retention.total.toLocaleString()} reviews remembered (30 days)`
-          : 'no reviews in 30 days',
+          ? t('{passed} of {total} reviews remembered (30 days)', {
+              passed: retention.passed.toLocaleString(),
+              total: retention.total.toLocaleString(),
+            })
+          : t('no reviews in 30 days'),
       ),
     ),
-    h('h2', {class: 'stats-heading'}, 'Cards'),
+    h('h2', {class: 'stats-heading'}, t('Cards')),
     h(
       'div',
       {class: 'stat-row'},
-      tile('Total', cards.total.toLocaleString()),
-      tile('New', cards.new.toLocaleString()),
-      tile('Learning', cards.learning.toLocaleString()),
-      tile('Young', cards.young.toLocaleString(), 'interval under 21 days'),
-      tile('Mature', cards.mature.toLocaleString(), '21 days or more'),
-      tile('Suspended', cards.suspended.toLocaleString()),
+      tile(t('Total'), cards.total.toLocaleString()),
+      tile(t('New'), cards.new.toLocaleString()),
+      tile(t('Learning'), cards.learning.toLocaleString()),
+      tile(
+        t('Young'),
+        cards.young.toLocaleString(),
+        t('interval under 21 days'),
+      ),
+      tile(t('Mature'), cards.mature.toLocaleString(), t('21 days or more')),
+      tile(t('Suspended'), cards.suspended.toLocaleString()),
     ),
     columnChart(
-      `Reviews per day, last ${historyDays} days`,
+      t('Reviews per day, last {n} days', {n: historyDays}),
       stats.history.map(d => ({
         label: fmtDay(d.day),
         value: d.count,
         detail: d.count
-          ? `${d.learn} learning · ${d.review} review · ${d.relearn} relearning · ${Math.max(1, Math.round(d.minutes))} min`
+          ? t(
+              '{learn} learning · {review} review · {relearn} relearning · {minutes} min',
+              {
+                learn: d.learn,
+                review: d.review,
+                relearn: d.relearn,
+                minutes: Math.max(1, Math.round(d.minutes)),
+              },
+            )
           : undefined,
       })),
-      'reviews',
+      n => t('{n} reviews', {n: n.toLocaleString()}),
       i => every(labelEvery)(i, stats.history.length),
     ),
     columnChart(
-      'Due in the next 30 days',
+      t('Due in the next 30 days'),
       stats.forecast.map((d, i) => ({
-        label: i === 0 ? 'Today' : fmtDay(d.day),
+        label: i === 0 ? t('Today') : fmtDay(d.day),
         value: d.count,
-        ...(i === 0 && {detail: 'includes overdue cards'}),
+        ...(i === 0 && {detail: t('includes overdue cards')}),
       })),
-      'cards',
+      n => t('{n} cards', {n: n.toLocaleString()}),
       i => i === 0 || i % 7 === 0,
     ),
   ];
@@ -93,8 +112,8 @@ function body(stats: Stats, historyDays: number): HTMLElement[] {
 export function renderStats(store: Store): HTMLElement {
   const deckSelect = h(
     'select',
-    {'aria-label': 'Deck'},
-    h('option', {value: ''}, 'All decks'),
+    {'aria-label': t('Deck')},
+    h('option', {value: ''}, t('All decks')),
     store.decks
       .all()
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -102,10 +121,10 @@ export function renderStats(store: Store): HTMLElement {
   );
   const rangeSelect = h(
     'select',
-    {'aria-label': 'History'},
-    h('option', {value: '30'}, 'Last 30 days'),
-    h('option', {value: '90'}, 'Last 90 days'),
-    h('option', {value: '365'}, 'Last year'),
+    {'aria-label': t('Period')},
+    h('option', {value: '30'}, t('Last 30 days')),
+    h('option', {value: '90'}, t('Last 90 days')),
+    h('option', {value: '365'}, t('Last year')),
   );
   const content = h('div', {class: 'stats-body'});
   const draw = () => {
@@ -126,8 +145,8 @@ export function renderStats(store: Store): HTMLElement {
     h(
       'div',
       {class: 'study-head'},
-      h('h1', null, 'Stats'),
-      h('a', {href: '?study'}, '← Decks'),
+      h('h1', null, t('Stats')),
+      h('a', {href: '?study'}, t('← Decks')),
     ),
     h('div', {class: 'browse-filters'}, deckSelect, rangeSelect),
     content,

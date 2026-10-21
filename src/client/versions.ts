@@ -4,6 +4,7 @@
  * (an open page keeps its workers); if they stay different, something is
  * serving old files.
  */
+import {t} from './i18n.ts';
 import {VERSION_REQUEST, type Version} from './version.ts';
 
 /** The workers the page has started, by name (the latest of each). */
@@ -61,17 +62,20 @@ export async function serviceWorkerVersions(): Promise<PartVersion[]> {
   const parts: PartVersion[] = [];
   const controller = navigator.serviceWorker.controller;
   parts.push({
-    name: 'Service worker (offline copy)',
+    name: t('Service worker (offline copy)'),
     version: controller ? await ask(controller) : undefined,
   });
   if (reg.installing) {
     parts.push({
-      name: 'Update being installed',
+      name: t('Update being installed'),
       version: await ask(reg.installing),
     });
   }
   if (reg.waiting) {
-    parts.push({name: 'Update waiting', version: await ask(reg.waiting)});
+    parts.push({
+      name: t('Update waiting'),
+      version: await ask(reg.waiting),
+    });
   }
   return parts;
 }

@@ -1,7 +1,8 @@
 import {parseFurigana} from '../shared/furigana.ts';
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
-import {h, join, searchLink} from './dom.ts';
+import {fill, h, join, searchLink} from './dom.ts';
+import {t} from './i18n.ts';
 import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
   furigana,
@@ -22,41 +23,46 @@ import type {
 /** Extra controls to show on each entry (e.g. an "add to Anki" button). */
 export type EntryActions = (entry: Entry) => Node | undefined;
 
-/** ISO 639-2 codes used in JMdict language sources. Others show as the code. */
-const LANGUAGES: Record<string, string> = {
-  afr: 'Afrikaans',
-  ain: 'Ainu',
-  ara: 'Arabic',
-  chi: 'Chinese',
-  dan: 'Danish',
-  dut: 'Dutch',
-  eng: 'English',
-  fin: 'Finnish',
-  fre: 'French',
-  ger: 'German',
-  gre: 'Greek',
-  heb: 'Hebrew',
-  hin: 'Hindi',
-  hun: 'Hungarian',
-  ind: 'Indonesian',
-  ita: 'Italian',
-  kor: 'Korean',
-  lat: 'Latin',
-  may: 'Malay',
-  mon: 'Mongolian',
-  nor: 'Norwegian',
-  per: 'Persian',
-  pol: 'Polish',
-  por: 'Portuguese',
-  rus: 'Russian',
-  san: 'Sanskrit',
-  spa: 'Spanish',
-  swe: 'Swedish',
-  tha: 'Thai',
-  tib: 'Tibetan',
-  tur: 'Turkish',
-  vie: 'Vietnamese',
-};
+/**
+ * Names of the ISO 639-2 codes used in JMdict language sources (a function:
+ * t() can't run when the module loads). Others show as the code.
+ */
+function languageNames(): Record<string, string> {
+  return {
+    afr: t('Afrikaans'),
+    ain: t('Ainu'),
+    ara: t('Arabic'),
+    chi: t('Chinese'),
+    dan: t('Danish'),
+    dut: t('Dutch'),
+    eng: t('English'),
+    fin: t('Finnish'),
+    fre: t('French'),
+    ger: t('German'),
+    gre: t('Greek'),
+    heb: t('Hebrew'),
+    hin: t('Hindi'),
+    hun: t('Hungarian'),
+    ind: t('Indonesian'),
+    ita: t('Italian'),
+    kor: t('Korean'),
+    lat: t('Latin'),
+    may: t('Malay'),
+    mon: t('Mongolian'),
+    nor: t('Norwegian'),
+    per: t('Persian'),
+    pol: t('Polish'),
+    por: t('Portuguese'),
+    rus: t('Russian'),
+    san: t('Sanskrit'),
+    spa: t('Spanish'),
+    swe: t('Swedish'),
+    tha: t('Thai'),
+    tib: t('Tibetan'),
+    tur: t('Turkish'),
+    vie: t('Vietnamese'),
+  };
+}
 
 /**
  * Shorter labels for the most common part-of-speech tags. JMdict's own
@@ -119,18 +125,52 @@ export function rubyWord(word: Headword): HTMLElement {
   );
 }
 
+/** Names of deinflect.ts's reasons, in the interface's language. */
+function reasonNames(): Record<string, string> {
+  return {
+    '-nagara': t('-nagara'),
+    '-sou': t('-sou'),
+    '-tai': t('-tai'),
+    '-tara': t('-tara'),
+    '-tari': t('-tari'),
+    '-te aru': t('-te aru'),
+    '-te oku': t('-te oku'),
+    '-te shimau': t('-te shimau'),
+    adverb: t('adverb'),
+    causative: t('causative'),
+    conditional: t('conditional'),
+    imperative: t('imperative'),
+    'masu stem': t('masu stem'),
+    'negative past': t('negative past'),
+    negative: t('negative'),
+    noun: t('noun'),
+    passive: t('passive'),
+    past: t('past'),
+    polite: t('polite'),
+    'potential or passive': t('potential or passive'),
+    potential: t('potential'),
+    progressive: t('progressive'),
+    request: t('request'),
+    'suru verb': t('suru verb'),
+    'te-form': t('te-form'),
+    volitional: t('volitional'),
+  };
+}
+
 /** The steps from dictionary form to what was typed: "行く → -tai → negative → past". */
 function inflectionChain(base: string, reasons: string[]): string {
-  return [base, ...[...reasons].reverse()].join(' → ');
+  const names = reasonNames();
+  return [base, ...[...reasons].reverse().map(r => names[r] ?? r)].join(' → ');
 }
 
 function inflectionNote(inf: Inflection): HTMLElement {
   return h(
     'p',
     {class: 'inflection'},
-    h('span', {lang: 'ja'}, inf.from),
-    ' is an inflection of ',
-    h('span', {lang: 'ja'}, inf.to),
+    fill(t('{from} is an inflection of {to}'), {
+      from: h('span', {lang: 'ja'}, inf.from),
+      to: h('span', {lang: 'ja'}, inf.to),
+    }),
     h(
       'span',
       {class: 'chain', lang: 'ja'},
@@ -210,7 +250,7 @@ function xref(ref: (string | number)[]): HTMLElement {
   return searchLink(
     String(word),
     h('span', {lang: 'ja'}, String(word), reading ? `・${reading}` : ''),
-    sense !== undefined ? ` (sense ${sense})` : '',
+    sense !== undefined ? t(' (sense {n})', {n: sense}) : '',
   );
 }
 
@@ -222,13 +262,23 @@ function renderSense(
 ): HTMLElement {
   const pos = sense.p?.map(p => posLabel(dict, p)).join(', ');
   const tags = [...(sense.m ?? []), ...(sense.f ?? []), ...(sense.d ?? [])].map(
-    t => capitalize(dict.tagDescription(t)),
+    tag => capitalize(dict.tagDescription(tag)),
   );
   const restrictions = [...(sense.ak ?? []), ...(sense.ar ?? [])];
+  const languages = languageNames();
   const sources = (sense.ls ?? []).map(ls => {
-    const lang = LANGUAGES[ls.l] ?? ls.l;
-    const kind = ls.w ? 'Wasei, from' : ls.p ? 'Partly from' : 'From';
-    return ls.t ? `${kind} ${lang} "${ls.t}"` : `${kind} ${lang}`;
+    const vars = {lang: languages[ls.l] ?? ls.l, word: ls.t ?? ''};
+    if (ls.w) {
+      return ls.t
+        ? t('Wasei, from {lang} "{word}"', vars)
+        : t('Wasei, from {lang}', vars);
+    }
+    if (ls.p) {
+      return ls.t
+        ? t('Partly from {lang} "{word}"', vars)
+        : t('Partly from {lang}', vars);
+    }
+    return ls.t ? t('From {lang} "{word}"', vars) : t('From {lang}', vars);
   });
   return h(
     'li',
@@ -244,8 +294,9 @@ function renderSense(
         h(
           'span',
           {class: 'sense-tags'},
-          'Only applies to ',
-          h('span', {lang: 'ja'}, restrictions.join('、')),
+          fill(t('Only applies to {forms}'), {
+            forms: h('span', {lang: 'ja'}, restrictions.join('、')),
+          }),
         ),
       sense.i?.map(i => h('span', {class: 'sense-info'}, i)),
       sources.map(s => h('span', {class: 'sense-info'}, s)),
@@ -253,15 +304,13 @@ function renderSense(
         h(
           'span',
           {class: 'sense-info'},
-          'See also ',
-          join(sense.rel.map(xref), ', '),
+          fill(t('See also {words}'), {words: join(sense.rel.map(xref), ', ')}),
         ),
       sense.ant &&
         h(
           'span',
           {class: 'sense-info'},
-          'Antonym: ',
-          join(sense.ant.map(xref), ', '),
+          fill(t('Antonym: {words}'), {words: join(sense.ant.map(xref), ', ')}),
         ),
     ),
     sense.ex &&
@@ -271,7 +320,9 @@ function renderSense(
         h(
           'summary',
           null,
-          sense.ex.length === 1 ? 'Example' : `${sense.ex.length} examples`,
+          sense.ex.length === 1
+            ? t('Example')
+            : t('{n} examples', {n: sense.ex.length}),
         ),
         h('ul', null, sense.ex.map(exampleSentence)),
       ),
@@ -289,11 +340,17 @@ function isCommon(entry: Entry): boolean {
  */
 function moreExamples(dict: Dict, entry: Entry): HTMLElement {
   const n = entry.mx ?? 0;
-  const list = h('ul', null, h('li', {class: 'hint'}, 'Loading…'));
+  const list = h('ul', null, h('li', {class: 'hint'}, t('Loading…')));
   const details = h(
     'details',
     {class: 'examples more-examples'},
-    h('summary', null, `${n} more example sentence${n === 1 ? '' : 's'}`),
+    h(
+      'summary',
+      null,
+      n === 1
+        ? t('{n} more example sentence', {n})
+        : t('{n} more example sentences', {n}),
+    ),
     list,
   );
   details.addEventListener('toggle', () => {
@@ -309,15 +366,15 @@ function moreExamples(dict: Dict, entry: Entry): HTMLElement {
       );
       list.replaceChildren(
         ...(tatoeba ?? []).map(exampleSentence),
-        ...wiktionary.map(t =>
+        ...wiktionary.map(text =>
           h(
             'li',
             {class: 'example'},
-            h('p', {class: 'example-ja', lang: 'ja'}, jaText(t)),
+            h('p', {class: 'example-ja', lang: 'ja'}, jaText(text)),
             h(
               'p',
               {class: 'example-source'},
-              'Japanese Wiktionary (no translation)',
+              t('Japanese Wiktionary (no translation)'),
             ),
           ),
         ),
@@ -346,7 +403,7 @@ export function renderEntry(
         {class: 'headword'},
         searchLink(headword(entry).text, rubyWord(headword(entry))),
       ),
-      isCommon(entry) && h('span', {class: 'badge common'}, 'common word'),
+      isCommon(entry) && h('span', {class: 'badge common'}, t('common word')),
       actions?.(entry),
     ),
     h(
@@ -368,7 +425,7 @@ export function renderEntry(
         h(
           'div',
           {class: 'other-forms'},
-          h('span', {class: 'pos'}, 'Other forms'),
+          h('span', {class: 'pos'}, t('Other forms')),
           h(
             'p',
             {lang: 'ja'},
@@ -385,9 +442,9 @@ export function renderEntry(
 }
 
 function gradeText(g: number): string {
-  if (g <= 6) return `Taught in grade ${g}`;
-  if (g === 8) return 'Jōyō (taught in junior high)';
-  return 'Jinmeiyō (used in names)';
+  if (g <= 6) return t('Taught in grade {g}', {g});
+  if (g === 8) return t('Jōyō (taught in junior high)');
+  return t('Jinmeiyō (used in names)');
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -426,7 +483,7 @@ export function renderStrokeOrder(
         class: 'stroke-frame',
         viewBox: '0 0 109 109',
         role: 'img',
-        'aria-label': `Stroke ${i + 1} of ${strokes.length}`,
+        'aria-label': t('Stroke {i} of {n}', {i: i + 1, n: strokes.length}),
       },
       svg('line', {class: 'stroke-guide', x1: 54.5, y1: 0, x2: 54.5, y2: 109}),
       svg('line', {class: 'stroke-guide', x1: 0, y1: 54.5, x2: 109, y2: 54.5}),
@@ -446,17 +503,17 @@ export function renderStrokeOrder(
   });
   return h(
     'div',
-    {class: 'stroke-order', 'aria-label': `Stroke order of ${char}`},
+    {class: 'stroke-order', 'aria-label': t('Stroke order of {char}', {char})},
     ...frames,
   );
 }
 
 export function renderKanji(k: KanjiInfo, strokes?: string[]): HTMLElement {
   const stats = [
-    k.s && `${k.s} strokes`,
+    k.s && t('{n} strokes', {n: k.s}),
     k.g && gradeText(k.g),
-    k.j && `Old JLPT level ${k.j}`,
-    k.f && `#${k.f} of 2,500 most used`,
+    k.j && t('Old JLPT level {n}', {n: k.j}),
+    k.f && t('#{n} of 2,500 most used', {n: k.f}),
   ].filter(Boolean);
   const readings = (label: string, list: string[] | undefined) =>
     list &&
@@ -481,15 +538,15 @@ export function renderKanji(k: KanjiInfo, strokes?: string[]): HTMLElement {
       'div',
       {class: 'kanji-info'},
       h('p', {class: 'kanji-meanings'}, k.m.join(', ')),
-      readings('Kun:', k.kun),
-      readings('On:', k.on),
-      readings('Names:', k.nanori),
+      readings(t('Kun:'), k.kun),
+      readings(t('On:'), k.on),
+      readings(t('Names:'), k.nanori),
       stats.length > 0 && h('p', {class: 'kanji-stats'}, stats.join(' · ')),
       k.parts &&
         h(
           'p',
           {class: 'kanji-parts'},
-          h('span', {class: 'label'}, 'Parts: '),
+          h('span', {class: 'label'}, t('Parts: ')),
           h('span', {lang: 'ja'}, k.parts.join(' ')),
         ),
     ),
@@ -508,14 +565,18 @@ function renderSentenceBar(
   const byToken = new Map(words.map(w => [w.token, w]));
   return h(
     'nav',
-    {class: 'sentence', lang: 'ja', 'aria-label': 'Words in the sentence'},
-    tokens.map((t, i) => {
+    {
+      class: 'sentence',
+      lang: 'ja',
+      'aria-label': t('Words in the sentence'),
+    },
+    tokens.map((token, i) => {
       const word = byToken.get(i);
-      if (!word) return h('span', {class: 'token unknown'}, t.text);
+      if (!word) return h('span', {class: 'token unknown'}, token.text);
       return h(
         'a',
         {class: 'token', href: `#word-${i}`},
-        ruby(surfaceFurigana(t.text, word.matches[0].entry, t.base)),
+        ruby(surfaceFurigana(token.text, word.matches[0].entry, token.base)),
       );
     }),
   );
@@ -546,9 +607,15 @@ function renderSentenceWord(
   });
   const more = entry.s.length - COMPACT_SENSES;
   const summary = [
-    more > 0 ? `${more} more meaning${more > 1 ? 's' : ''}` : 'Full entry',
+    more > 0
+      ? more > 1
+        ? t('{n} more meanings', {n: more})
+        : t('{n} more meaning', {n: more})
+      : t('Full entry'),
     others.length > 0 &&
-      `${others.length} other match${others.length > 1 ? 'es' : ''}`,
+      (others.length > 1
+        ? t('{n} other matches', {n: others.length})
+        : t('{n} other match', {n: others.length})),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -570,7 +637,7 @@ function renderSentenceWord(
           '→ ',
           searchLink(head.text, rubyWord(head)),
         ),
-      isCommon(entry) && h('span', {class: 'badge common'}, 'common'),
+      isCommon(entry) && h('span', {class: 'badge common'}, t('common')),
       actions?.(entry),
     ),
     inflection &&
@@ -607,7 +674,7 @@ export function renderSentence(
       h(
         'h2',
         {class: 'results-heading'},
-        'Words in this sentence',
+        t('Words in this sentence'),
         h('span', {class: 'count'}, ` — ${words.length}`),
       ),
       words.map(w => renderSentenceWord(dict, tokens[w.token], w, actions)),
@@ -617,18 +684,21 @@ export function renderSentence(
 
 export function resultsHeading(result: SearchResult): HTMLElement {
   const count =
-    result.total === 1 ? '1 word' : `${result.total.toLocaleString()} words`;
+    result.total === 1
+      ? t('{n} word', {n: 1})
+      : t('{n} words', {n: result.total.toLocaleString()});
   return h(
     'h2',
     {class: 'results-heading'},
-    'Words',
+    t('Words'),
     h('span', {class: 'count'}, ` — ${count}`),
     result.kana &&
       h(
         'span',
         {class: 'searched-as'},
-        ' · also searched for ',
-        searchLink(result.kana),
+        fill(t(' · also searched for {kana}'), {
+          kana: searchLink(result.kana),
+        }),
       ),
   );
 }

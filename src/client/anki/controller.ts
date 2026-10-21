@@ -2,6 +2,7 @@ import type {Entry} from '../../shared/types.ts';
 import type {Dict} from '../dict.ts';
 import {h} from '../dom.ts';
 import {headword} from '../forms.ts';
+import {t} from '../i18n.ts';
 import {posLabel, type EntryActions} from '../render.ts';
 import {AnkiConnect, AnkiNotes} from './connect.ts';
 import type {AnkiSettings} from './settings.ts';
@@ -135,7 +136,7 @@ class AnkiButtons {
               type: 'button',
               class: 'anki-button',
               disabled: true,
-              title: 'Checking Anki…',
+              title: t('Checking Anki…'),
             },
             '+',
           ),
@@ -148,8 +149,8 @@ class AnkiButtons {
             {
               type: 'button',
               class: 'anki-button',
-              title: `Add ${word} to Anki`,
-              'aria-label': `Add ${word} to Anki`,
+              title: t('Add {word} to Anki', {word}),
+              'aria-label': t('Add {word} to Anki', {word}),
               onclick: () =>
                 void this.act(entry, async () => ({
                   kind: 'present',
@@ -168,7 +169,7 @@ class AnkiButtons {
             {class: 'anki-menu'},
             h(
               'summary',
-              {class: 'anki-button', title: `${word} is in Anki`},
+              {class: 'anki-button', title: t('{word} is in Anki', {word})},
               '✓',
             ),
             h(
@@ -184,12 +185,12 @@ class AnkiButtons {
                       return state;
                     }),
                 },
-                'Update in Anki',
+                t('Update in Anki'),
               ),
               h(
                 'button',
                 {type: 'button', onclick: () => void this.notes.show(noteId)},
-                'Show in Anki',
+                t('Show in Anki'),
               ),
             ),
           ),
@@ -203,7 +204,7 @@ class AnkiButtons {
             {
               type: 'button',
               class: 'anki-button',
-              title: `Anki: ${state.message}`,
+              title: t('Anki: {message}', {message: state.message}),
               onclick: () => {
                 this.states.delete(entry.id);
                 this.toCheck.push(entry);

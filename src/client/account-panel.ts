@@ -10,6 +10,7 @@ import {
   type AccountState,
 } from './account.ts';
 import {h} from './dom.ts';
+import {t} from './i18n.ts';
 import {
   createPasskey,
   PasskeyError,
@@ -23,22 +24,29 @@ import {turnstileWidget} from './turnstile.ts';
 function passkeyMessage(e: unknown): string {
   return e instanceof PasskeyError
     ? e.message
-    : 'Something went wrong with the passkey. Please try again.';
+    : t('Something went wrong with the passkey. Please try again.');
 }
 
 function syncText(s: SyncStatus): string {
   switch (s.state) {
     case 'syncing':
-      return 'Syncing…';
+      return t('Syncing…');
     case 'synced':
-      return (
-        'Your history, marks, notes and settings sync to this account. ' +
-        `Last synced at ${new Date(s.lastSynced ?? Date.now()).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}.`
+      return t(
+        'Your history, marks, notes and settings sync to this account. Last synced at {time}.',
+        {
+          time: new Date(s.lastSynced ?? Date.now()).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
+        },
       );
     case 'offline':
-      return 'Offline. Changes will sync when you’re back online.';
+      return t('Offline. Changes will sync when you’re back online.');
     case 'error':
-      return `Couldn’t sync (${s.message ?? 'unknown error'}). It will try again.`;
+      return t('Couldn’t sync ({error}). It will try again.', {
+        error: s.message ?? t('unknown error'),
+      });
   }
 }
 
@@ -64,7 +72,7 @@ export async function createAccountPanel(
       h(
         'h2',
         {class: 'panel-title'},
-        state.kind === 'signed-in' ? 'Account: signed in' : 'Account',
+        state.kind === 'signed-in' ? t('Account: signed in') : t('Account'),
       ),
       ...(state.kind === 'signed-in' ? signedIn(state.account) : signedOut()),
     );
@@ -81,8 +89,9 @@ export async function createAccountPanel(
       h(
         'p',
         null,
-        'Optional. Sign in to keep your history, starred and known words, ' +
-          'notes and settings in sync across your devices.',
+        t(
+          'Optional. Sign in to keep your history, starred and known words, notes and settings in sync across your devices.',
+        ),
       ),
       h(
         'div',
@@ -91,7 +100,7 @@ export async function createAccountPanel(
           h(
             'a',
             {class: 'button primary', href: signInUrl(p.id)},
-            `Sign in with ${p.label}`,
+            t('Sign in with {provider}', {provider: p.label}),
           ),
         ),
         passkeys &&
@@ -108,7 +117,7 @@ export async function createAccountPanel(
                 }
               },
             },
-            'Sign in with a passkey',
+            t('Sign in with a passkey'),
           ),
       ),
       ...(passkeys ? [passkeySignUp(fail)] : []),
@@ -116,9 +125,8 @@ export async function createAccountPanel(
       h(
         'p',
         {class: 'hint'},
-        'We store only your user ID and name there (and your GitHub username), ' +
-          'not your email address. With a passkey, only its public key. ',
-        h('a', {href: '/privacy.html'}, 'Privacy'),
+        `${t('We store only your user ID and name there (and your GitHub username), not your email address. With a passkey, only its public key.')} `,
+        h('a', {href: t('/privacy.html')}, t('Privacy')),
       ),
     ];
   };
@@ -133,14 +141,14 @@ export async function createAccountPanel(
       type: 'text',
       maxlength: 60,
       autocomplete: 'name',
-      placeholder: 'Your name (optional)',
-      'aria-label': 'Your name',
+      placeholder: t('Your name (optional)'),
+      'aria-label': t('Your name'),
     });
     const check = h('div', {class: 'turnstile'});
     const make = h(
       'button',
       {type: 'submit', class: 'primary', disabled: true},
-      'Make a passkey',
+      t('Make a passkey'),
     );
     form.append(name, check, make);
     let widget: Awaited<ReturnType<typeof turnstileWidget>> | undefined;
@@ -180,9 +188,9 @@ export async function createAccountPanel(
           }
         },
       },
-      'Make one with a passkey',
+      t('Make one with a passkey'),
     );
-    return h('div', {class: 'passkey-new'}, 'No account? ', open, form);
+    return h('div', {class: 'passkey-new'}, `${t('No account?')} `, open, form);
   };
 
   const signedIn = (account: Account) => {
@@ -217,14 +225,14 @@ export async function createAccountPanel(
               void act(async () => {
                 await signOut();
                 stopSync();
-              }, 'Couldn’t sign out. Try again.'),
+              }, t('Couldn’t sign out. Try again.')),
           },
-          'Sign out',
+          t('Sign out'),
         ),
         h(
           'a',
           {class: 'button', href: '/api/export', download: 'g-sho-export.json'},
-          'Download my data',
+          t('Download my data'),
         ),
         h(
           'button',
@@ -234,18 +242,19 @@ export async function createAccountPanel(
             onclick: () => {
               if (
                 confirm(
-                  'Delete your g-sho account and everything stored with it? ' +
-                    'This can’t be undone. (What’s saved in this browser stays.)',
+                  t(
+                    'Delete your g-sho account and everything stored with it? This can’t be undone. (What’s saved in this browser stays.)',
+                  ),
                 )
               ) {
                 void act(async () => {
                   stopSync();
                   await deleteAccount();
-                }, 'Couldn’t delete the account. Try again.');
+                }, t('Couldn’t delete the account. Try again.'));
               }
             },
           },
-          'Delete account',
+          t('Delete account'),
         ),
       ),
       syncLine,
@@ -278,7 +287,9 @@ export async function createAccountPanel(
       const who = !i
         ? h('span', {class: 'hint'}, '—')
         : provider === 'passkey'
-          ? `Added ${new Date(i.createdAt).toLocaleDateString()}`
+          ? t('Added {date}', {
+              date: new Date(i.createdAt).toLocaleDateString(),
+            })
           : (i.name ?? (i.login ? `@${i.login}` : ''));
       const action = !i
         ? provider === 'passkey'
@@ -289,26 +300,36 @@ export async function createAccountPanel(
                 onclick: () =>
                   void act(async () => {
                     await createPasskey({name: account.name, link: true});
-                  }, 'Couldn’t add the passkey. Try again.'),
+                  }, t('Couldn’t add the passkey. Try again.')),
               },
-              'Add',
+              t('Add'),
             )
-          : h('a', {class: 'button', href: signInUrl(provider, true)}, 'Link')
+          : h(
+              'a',
+              {class: 'button', href: signInUrl(provider, true)},
+              t('Link'),
+            )
         : ids.length > 1 &&
           h(
             'button',
             {
               type: 'button',
               onclick: () => {
-                if (confirm(`Stop signing in with ${label}?`)) {
+                if (
+                  confirm(
+                    t('Stop signing in with {provider}?', {provider: label}),
+                  )
+                ) {
                   void act(
                     () => unlink(provider),
-                    `Couldn’t remove ${label}. Try again.`,
+                    t('Couldn’t remove {provider}. Try again.', {
+                      provider: label,
+                    }),
                   );
                 }
               },
             },
-            'Remove',
+            t('Remove'),
           );
       return h(
         'tr',
@@ -326,7 +347,7 @@ export async function createAccountPanel(
         h(
           'p',
           {class: 'hint'},
-          'Link more than one, in case you lose access to one.',
+          t('Link more than one, in case you lose access to one.'),
         ),
     );
   };

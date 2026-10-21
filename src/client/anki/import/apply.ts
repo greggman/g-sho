@@ -7,6 +7,7 @@
  * Re-importing never touches the schedule of cards you already have.
  */
 import type {Dict} from '../../dict.ts';
+import {t} from '../../i18n.ts';
 import {
   CardState,
   type CardRow,
@@ -223,7 +224,7 @@ export async function prepareImport(
   }
 
   // Facts. Our own exported words go back to being dictionary words.
-  progress('Linking words to the dictionary…');
+  progress(t('Linking words to the dictionary…'));
   const facts = col.notes.map(n => {
     const t = types.get(n.noteTypeId);
     const own = t?.name === OWN_NOTE_TYPE && /^g-sho-(\d+)$/.exec(n.guid);
@@ -237,7 +238,10 @@ export async function prepareImport(
     toLink.map(f => noteWord(f.note.fields, linkFieldsOf(f.type!))),
     done =>
       progress(
-        `Linking words to the dictionary (${done} of ${toLink.length})…`,
+        t('Linking words to the dictionary ({done} of {total})…', {
+          done,
+          total: toLink.length,
+        }),
       ),
   );
   const linkOf = new Map(toLink.map((f, i) => [f.note.ankiId, links[i]]));
@@ -410,7 +414,7 @@ export async function commitImport(
   choices: DuplicateChoices = DEFAULT_CHOICES,
   progress: (text: string) => void = () => {},
 ): Promise<ImportSummary> {
-  progress('Saving…');
+  progress(t('Saving…'));
   putAll(store.noteTypes, prepared.noteTypes);
   putAll(store.decks, prepared.decks);
   putAll(store.facts, prepared.facts);
@@ -422,7 +426,7 @@ export async function commitImport(
   );
   putAll(store.reviews, prepared.reviews);
   if (prepared.media.length) {
-    progress('Saving images and sounds…');
+    progress(t('Saving images and sounds…'));
     await store.backend.putMedia(
       prepared.media.map(m => ({
         name: m.name,

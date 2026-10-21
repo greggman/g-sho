@@ -11,6 +11,10 @@ import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
 import {applyUpdate, newVersion, onNewVersion} from './update.ts';
 import {lookupEnglish, renderEnglish, type EnglishWord} from './english.ts';
+import {language, rememberLanguage, t, translatePage} from './i18n.ts';
+
+// The page's own text, before anything else is drawn.
+translatePage();
 import type {HistoryItem} from './history.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
@@ -26,6 +30,8 @@ import {
   applyDisplaySettings,
   loadDisplaySettings,
   saveDisplaySetting,
+  loadLanguage,
+  saveLanguage,
   type DisplaySettings,
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
@@ -41,14 +47,17 @@ import {attachUndo} from './undo.ts';
 /** Most kanji shown in the sidebar. */
 const MAX_SIDEBAR_KANJI = 10;
 
-const EXAMPLES = [
-  ['食べる', 'a word'],
-  ['taberu', 'romaji'],
-  ['dog', 'English'],
-  ['行きたくなかった', 'an inflected word'],
-  ['猫が好きです', 'a sentence'],
-  ['たべ', 'the start of a word'],
-];
+/** The home page's example searches, and what each one shows. */
+function examples(): [string, string][] {
+  return [
+    ['食べる', t('a word')],
+    ['taberu', t('romaji')],
+    ['dog', t('English')],
+    ['行きたくなかった', t('an inflected word')],
+    ['猫が好きです', t('a sentence')],
+    ['たべ', t('the start of a word')],
+  ];
+}
 
 function $<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -158,12 +167,14 @@ function renderHome(): HTMLElement {
     h(
       'p',
       {class: 'intro'},
-      'Search in English, Japanese, or romaji. Paste a sentence to see its words.',
+      t(
+        'Search in English, Japanese, or romaji. Paste a sentence to see its words.',
+      ),
     ),
     h(
       'ul',
       {class: 'examples-list'},
-      EXAMPLES.map(([q, what]) =>
+      examples().map(([q, what]) =>
         h(
           'li',
           null,
@@ -221,14 +232,14 @@ async function renderResults(
         h(
           'p',
           {class: 'no-results'},
-          `Sorry, couldn't find anything matching ${query}.`,
+          t("Sorry, couldn't find anything matching {query}.", {query}),
         ),
       result.words.map(w => renderEntry(dict, w, entryActions)),
       result.words.length < result.total &&
         h(
           'a',
           {class: 'more-words', href: searchUrl(query, {p: pages + 1})},
-          'More words',
+          t('More words'),
         ),
     );
   const found = kanji.filter(k => k !== undefined);
@@ -247,8 +258,12 @@ async function renderResults(
           h(
             'h2',
             {class: 'results-heading'},
-            'Kanji',
-            h('span', {class: 'count'}, ` — ${found.length} found`),
+            t('Kanji'),
+            h(
+              'span',
+              {class: 'count'},
+              ` — ${t('{n} found', {n: found.length})}`,
+            ),
           ),
           found.map(k => renderKanji(k.info, k.strokes)),
         ),
@@ -283,10 +298,12 @@ async function route(dict: Dict, record = false) {
   // An undo step, so what was typed before the search can be brought back.
   undo.set(query);
   historyColumn.setCurrent(query);
-  document.title = query ? `${query} - g-sho` : 'g-sho — Japanese dictionary';
+  document.title = query
+    ? t('{query} - g-sho', {query})
+    : t('g-sho — Japanese dictionary');
 
   if (params.has('import') && store) {
-    document.title = 'Import - g-sho';
+    document.title = t('Import - g-sho');
     const id = ++currentSearch;
     const view = await import('./study/import-view.ts');
     if (id !== currentSearch) return;
@@ -297,7 +314,7 @@ async function route(dict: Dict, record = false) {
   }
   const study = params.get('study');
   if (study !== null && store) {
-    document.title = 'Study - g-sho';
+    document.title = t('Study - g-sho');
     const id = ++currentSearch;
     if (study === 'browse' || study === 'stats') {
       const page =
@@ -344,8 +361,10 @@ async function route(dict: Dict, record = false) {
         // A network failure (not a server error) rejects fetch with a
         // TypeError; navigator.onLine alone isn't reliable.
         e instanceof TypeError || navigator.onLine === false
-          ? 'You’re offline, and this part of the dictionary isn’t saved on this device yet. Words you’ve looked up before work offline.'
-          : 'Something went wrong loading the dictionary. Try again.',
+          ? t(
+              'You’re offline, and this part of the dictionary isn’t saved on this device yet. Words you’ve looked up before work offline.',
+            )
+          : t('Something went wrong loading the dictionary. Try again.'),
       ),
     );
   } finally {
@@ -432,7 +451,7 @@ function setupPanel(
     openPanel(open ? panel : null);
     if (open && !created) {
       created = true;
-      panel.replaceChildren(h('p', {class: 'panel-loading'}, 'Loading…'));
+      panel.replaceChildren(h('p', {class: 'panel-loading'}, t('Loading…')));
       try {
         panel.replaceChildren(await create());
       } catch (e) {
@@ -440,7 +459,7 @@ function setupPanel(
         if (reloadIfStale(e)) return;
         console.error(e);
         panel.replaceChildren(
-          h('p', {class: 'error'}, 'Couldn’t load this panel.'),
+          h('p', {class: 'error'}, t('Couldn’t load this panel.')),
         );
       }
     }
@@ -467,9 +486,11 @@ async function applyAnki(dict: Dict, settings: AnkiSettings) {
             h(
               'span',
               {title: message},
-              'Anki isn’t reachable, so words can’t be added. Is Anki running?',
+              t(
+                'Anki isn’t reachable, so words can’t be added. Is Anki running?',
+              ),
             ),
-            h('button', {type: 'button', onclick: retry}, 'Retry'),
+            h('button', {type: 'button', onclick: retry}, t('Retry')),
             h(
               'button',
               {
@@ -481,7 +502,7 @@ async function applyAnki(dict: Dict, settings: AnkiSettings) {
                   void route(dict);
                 },
               },
-              'Turn off Anki',
+              t('Turn off Anki'),
             ),
           );
           notice.hidden = false;
@@ -495,9 +516,9 @@ async function applyAnki(dict: Dict, settings: AnkiSettings) {
 
 /** Shows only this panel (or none), and which toggle is on. */
 function openPanel(panel: HTMLElement | null) {
-  for (const [t, p] of panels) {
+  for (const [toggle, p] of panels) {
     p.hidden = p !== panel;
-    t.setAttribute('aria-expanded', String(p === panel));
+    toggle.setAttribute('aria-expanded', String(p === panel));
   }
   if (panel !== photoPanel) stopCamera();
 }
@@ -518,7 +539,9 @@ function setupPhoto() {
   const open = async () => {
     openPanel(photoPanel);
     if (!panel) {
-      photoPanel.replaceChildren(h('p', {class: 'panel-loading'}, 'Loading…'));
+      photoPanel.replaceChildren(
+        h('p', {class: 'panel-loading'}, t('Loading…')),
+      );
       panel = import('./ocr/panel.ts').then(({PhotoPanel}) => {
         const p = new PhotoPanel(
           text => {
@@ -542,7 +565,7 @@ function setupPhoto() {
       if (reloadIfStale(e)) return;
       console.error(e);
       photoPanel.replaceChildren(
-        h('p', {class: 'error'}, 'Couldn’t load this panel.'),
+        h('p', {class: 'error'}, t('Couldn’t load this panel.')),
       );
       return;
     }
@@ -596,6 +619,12 @@ function setupPanels(dict: Dict) {
           stopSync,
         ),
       offline ? createOfflinePanel(offline) : null,
+      lang => {
+        if (store) saveLanguage(store.settings, lang);
+        rememberLanguage(lang);
+        // Everything on the page is drawn in the old language.
+        location.reload();
+      },
     );
   });
 }
@@ -608,16 +637,19 @@ function watchDue(opened: Store) {
     const n = buildQueue(opened).cards.length;
     badge.hidden = n === 0;
     badge.textContent = n > 99 ? '99+' : String(n);
-    $<HTMLElement>('study-link').title = n
-      ? `Study: ${n} card${n === 1 ? '' : 's'} to review now`
-      : 'Study';
+    $<HTMLElement>('study-link').title =
+      n === 0
+        ? t('Study')
+        : n === 1
+          ? t('Study: {n} card to review now', {n})
+          : t('Study: {n} cards to review now', {n});
   };
   const soon = () => {
     clearTimeout(timer);
     timer = setTimeout(show, 300);
   };
-  for (const t of [opened.cards, opened.reviews, opened.decks])
-    t.onChange(soon);
+  for (const table of [opened.cards, opened.reviews, opened.decks])
+    table.onChange(soon);
   // Learning cards come due by the minute.
   setInterval(show, 60_000);
   show();
@@ -646,6 +678,14 @@ function storage(): Storage | undefined {
 async function main() {
   const opened = await openStore(storage());
   store = opened;
+  // The language chosen on another device (or before this browser had a
+  // copy of it): switch to it, once, before the page is in use.
+  const chosen = loadLanguage(opened.settings);
+  if (chosen && chosen !== language) {
+    rememberLanguage(chosen);
+    location.reload();
+    return;
+  }
   showDisplaySettings(undefined, loadDisplaySettings(opened.settings));
   historyStore.attach(opened.history);
   wordTools = new WordTools(opened);
@@ -658,12 +698,19 @@ async function main() {
     const word = wordSnapshot(entry);
     return {wordId, q: word.text, t: 0, word};
   });
-  // Including changes synced from another device.
-  opened.settings.onChange(() =>
-    showDisplaySettings(dict, loadDisplaySettings(opened.settings)),
-  );
+  // Including changes synced from another device. A new language is used
+  // from the next page on.
+  opened.settings.onChange(() => {
+    showDisplaySettings(dict, loadDisplaySettings(opened.settings));
+    const lang = loadLanguage(opened.settings);
+    if (lang) rememberLanguage(lang);
+  });
   meta = dict.meta;
-  dataInfo.textContent = `JMdict ${dict.meta.dictDate} · ${dict.meta.entryCount.toLocaleString()} words · ${dict.meta.kanjiCount.toLocaleString()} kanji`;
+  dataInfo.textContent = t('JMdict {date} · {words} words · {kanji} kanji', {
+    date: dict.meta.dictDate,
+    words: dict.meta.entryCount.toLocaleString(),
+    kanji: dict.meta.kanjiCount.toLocaleString(),
+  });
 
   form.addEventListener('submit', e => {
     e.preventDefault();
@@ -815,12 +862,12 @@ function offerUpdate() {
   const logo = document.querySelector<HTMLAnchorElement>('.logo');
   if (!logo || logo.classList.contains('update-ready')) return;
   logo.classList.add('update-ready');
-  logo.title = 'New version: tap to update';
-  logo.setAttribute('aria-label', 'New version: tap to update');
+  logo.title = t('New version: tap to update');
+  logo.setAttribute('aria-label', t('New version: tap to update'));
   logo.addEventListener('click', e => {
     e.preventDefault();
     logo.classList.add('updating');
-    logo.title = 'Updating…';
+    logo.title = t('Updating…');
     void applyUpdate(logo.href);
   });
 }
@@ -838,8 +885,8 @@ main().catch(e => {
     h(
       'p',
       {class: 'error'},
-      "Couldn't load the dictionary data. ",
-      h('a', {href: location.href}, 'Reload'),
+      `${t("Couldn't load the dictionary data.")} `,
+      h('a', {href: location.href}, t('Reload')),
     ),
   );
 });

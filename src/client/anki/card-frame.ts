@@ -5,6 +5,7 @@
  * storage or page. Images and sounds (kept on this device) are handed in
  * as data: URLs, since the frame can't load our files.
  */
+import {t} from '../i18n.ts';
 import type {Store} from '../store/store.ts';
 import {mediaNames} from './template.ts';
 
@@ -79,7 +80,7 @@ export async function cardFrame(
   const frame = document.createElement('iframe');
   frame.className = 'card-frame';
   frame.setAttribute('sandbox', 'allow-scripts');
-  frame.setAttribute('title', 'Card');
+  frame.setAttribute('title', t('Card'));
   frame.srcdoc =
     '<!doctype html><html><head><meta charset="utf-8">' +
     `<style>${BASE_CSS}</style><style>${css}</style></head>` +

@@ -1,11 +1,12 @@
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 import {AnkiConnect, AnkiUnreachable} from './connect.ts';
 import {
   DEFAULT_DECK,
   DEFAULT_NOTE_TYPE,
   OWN_FIELD_MAP,
-  SOURCES,
   guessFieldMap,
+  sourceLabels,
   type Source,
 } from './note.ts';
 import {saveSettings, type AnkiSettings} from './settings.ts';
@@ -44,7 +45,7 @@ export function createAnkiPanel(
       'div',
       {class: 'anki-title'},
       h('h2', {class: 'panel-title'}, 'Anki'),
-      h('label', {class: 'anki-switch'}, toggle, 'Add words to Anki'),
+      h('label', {class: 'anki-switch'}, toggle, t('Add words to Anki')),
     ),
     body,
   );
@@ -62,25 +63,29 @@ export function createAnkiPanel(
     const url = h('input', {
       type: 'url',
       value: settings.url,
-      'aria-label': 'AnkiConnect address',
+      'aria-label': t('AnkiConnect address'),
     });
     const key = h('input', {
       type: 'password',
       value: settings.apiKey ?? '',
-      placeholder: 'only if you set one in AnkiConnect',
-      'aria-label': 'AnkiConnect API key',
+      placeholder: t('only if you set one in AnkiConnect'),
+      'aria-label': t('AnkiConnect API key'),
     });
+    // One sentence, so the link can go where Japanese puts it.
+    const [before, after] = t(
+      'Add words to Anki with one click. This needs the Anki app running with the {addon}. Turn it on to connect; Anki asks whether to allow this site.',
+    ).split('{addon}');
     body.replaceChildren(
       h(
         'p',
         null,
-        'Add words to Anki with one click. This needs the Anki app running with the ',
+        before,
         h(
           'a',
           {href: ADDON_URL, target: '_blank', rel: 'noopener'},
-          'AnkiConnect add-on',
+          t('AnkiConnect add-on'),
         ),
-        '. Turn it on to connect; Anki asks whether to allow this site.',
+        after,
       ),
       ...(message ? [message] : []),
       ...(settings.enabled
@@ -92,16 +97,16 @@ export function createAnkiPanel(
                 class: 'primary',
                 onclick: () => void connect(settings.url, settings.apiKey),
               },
-              'Try again',
+              t('Try again'),
             ),
           ]
         : []),
       h(
         'details',
         {class: 'anki-advanced'},
-        h('summary', null, 'Advanced'),
-        h('label', null, 'AnkiConnect address', url),
-        h('label', null, 'API key', key),
+        h('summary', null, t('Advanced')),
+        h('label', null, t('AnkiConnect address'), url),
+        h('label', null, t('API key'), key),
       ),
     );
     const saveAddress = () =>
@@ -122,7 +127,7 @@ export function createAnkiPanel(
 
   async function connect(url: string, apiKey?: string) {
     body.replaceChildren(
-      status('Connecting… (check Anki for a permission dialog)'),
+      status(t('Connecting… (check Anki for a permission dialog)')),
     );
     const anki = new AnkiConnect(url, apiKey);
     try {
@@ -130,7 +135,7 @@ export function createAnkiPanel(
       if (permission.permission !== 'granted') {
         turnOff(
           status(
-            'Anki didn’t allow this site. Try again and choose Yes in Anki.',
+            t('Anki didn’t allow this site. Try again and choose Yes in Anki.'),
             'error',
           ),
         );
@@ -139,7 +144,7 @@ export function createAnkiPanel(
       if (permission.requireApikey && !apiKey) {
         turnOff(
           status(
-            'Your AnkiConnect needs an API key. Enter it under Advanced.',
+            t('Your AnkiConnect needs an API key. Enter it under Advanced.'),
             'error',
           ),
         );
@@ -151,9 +156,10 @@ export function createAnkiPanel(
       showDisconnected(
         status(
           e instanceof AnkiUnreachable
-            ? 'Couldn’t reach Anki. Make sure Anki is running with AnkiConnect installed. ' +
-                'If your browser asks to allow access to devices on your local network, allow it.'
-            : `Anki: ${(e as Error).message}`,
+            ? t(
+                'Couldn’t reach Anki. Make sure Anki is running with AnkiConnect installed. If your browser asks to allow access to devices on your local network, allow it.',
+              )
+            : t('Anki: {message}', {message: (e as Error).message}),
           'error',
         ),
       );
@@ -172,7 +178,11 @@ export function createAnkiPanel(
         onchange: () => update({deck: deckSelect.value}),
       },
       !decks.includes(DEFAULT_DECK) &&
-        h('option', {value: DEFAULT_DECK}, `${DEFAULT_DECK} (new)`),
+        h(
+          'option',
+          {value: DEFAULT_DECK},
+          t('{deck} (new)', {deck: DEFAULT_DECK}),
+        ),
       decks.map(d => h('option', {value: d}, d)),
     );
     deckSelect.value = settings.deck;
@@ -184,9 +194,9 @@ export function createAnkiPanel(
           h(
             'p',
             {class: 'hint'},
-            'Fields: word, reading, furigana, meanings, part of speech, an example ' +
-              'sentence, JMdict ID and a link back here. Cards show the word and ' +
-              'ask for its reading and meaning.',
+            t(
+              'Fields: word, reading, furigana, meanings, part of speech, an example sentence, JMdict ID and a link back here. Cards show the word and ask for its reading and meaning.',
+            ),
           ),
         );
         if (!keep) update({noteType, fields: OWN_FIELD_MAP});
@@ -199,7 +209,7 @@ export function createAnkiPanel(
           : guessFieldMap(names);
       if (!keep || fields !== settings.fields) update({noteType, fields});
       fieldsTable.replaceChildren(
-        h('p', {class: 'hint'}, 'What to put in each field:'),
+        h('p', {class: 'hint'}, t('What to put in each field:')),
         ...names.map(name => {
           const select = h(
             'select',
@@ -209,7 +219,7 @@ export function createAnkiPanel(
                   fields: {...settings.fields, [name]: select.value as Source},
                 }),
             },
-            Object.entries(SOURCES).map(([value, label]) =>
+            Object.entries(sourceLabels()).map(([value, label]) =>
               h('option', {value}, label),
             ),
           );
@@ -225,7 +235,7 @@ export function createAnkiPanel(
       h(
         'option',
         {value: DEFAULT_NOTE_TYPE},
-        `${DEFAULT_NOTE_TYPE} — recommended`,
+        t('{noteType} — recommended', {noteType: DEFAULT_NOTE_TYPE}),
       ),
       models
         .filter(m => m !== DEFAULT_NOTE_TYPE)
@@ -235,11 +245,13 @@ export function createAnkiPanel(
 
     body.replaceChildren(
       status(
-        'Connected. Use + on any word to add it to Anki; ✓ means it’s already there.',
+        t(
+          'Connected. Use + on any word to add it to Anki; ✓ means it’s already there.',
+        ),
         'ok',
       ),
-      h('label', null, 'Deck', deckSelect),
-      h('label', null, 'Note type', modelSelect),
+      h('label', null, t('Deck'), deckSelect),
+      h('label', null, t('Note type'), modelSelect),
       fieldsTable,
     );
     await showFields(settings.noteType, true);

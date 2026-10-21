@@ -5,6 +5,7 @@
  * (flagged if different from the page).
  */
 import {h} from './dom.ts';
+import {t} from './i18n.ts';
 import {applyUpdate, serverVersion} from './update.ts';
 import {sameBuild, version, versionText} from './version.ts';
 import {
@@ -19,12 +20,12 @@ export function createVersionPanel(): HTMLElement {
   const check = h(
     'button',
     {type: 'button', onclick: () => void checkForUpdate()},
-    'Check for update',
+    t('Check for update'),
   );
   const panel = h(
     'div',
     {class: 'version-panel'},
-    h('h2', {class: 'panel-title'}, 'Version'),
+    h('h2', {class: 'panel-title'}, t('Version')),
     h('p', {class: 'version-page'}, `g-sho ${versionText(version)}`),
     check,
     status,
@@ -38,9 +39,15 @@ export function createVersionPanel(): HTMLElement {
       {class: differs ? 'differs' : undefined},
       h('span', {class: 'version-name'}, name),
       ' ',
-      v ? versionText(v) : h('span', {class: 'hint'}, note ?? 'not running'),
-      v?.build && h('span', {class: 'hint'}, ` · saved copy ${v.build}`),
-      differs && h('span', {class: 'version-warning'}, ' · different build'),
+      v ? versionText(v) : h('span', {class: 'hint'}, note ?? t('not running')),
+      v?.build &&
+        h(
+          'span',
+          {class: 'hint'},
+          ` · ${t('saved copy {build}', {build: v.build})}`,
+        ),
+      differs &&
+        h('span', {class: 'version-warning'}, ` · ${t('different build')}`),
     );
   };
 
@@ -53,20 +60,26 @@ export function createVersionPanel(): HTMLElement {
     parts.replaceChildren(
       ...(all.length
         ? all.map(row)
-        : [h('li', {class: 'hint'}, 'No service worker or workers running.')]),
+        : [
+            h(
+              'li',
+              {class: 'hint'},
+              t('No service worker or workers running.'),
+            ),
+          ]),
     );
   }
 
   async function checkForUpdate() {
     if (check.disabled) return;
     check.disabled = true;
-    status.textContent = 'Checking…';
+    status.textContent = t('Checking…');
     const latest = await serverVersion();
     check.disabled = false;
     if (!latest) {
-      status.textContent = 'Couldn’t reach g-sho to check. Are you offline?';
+      status.textContent = t('Couldn’t reach g-sho to check. Are you offline?');
     } else if (sameBuild(latest, version)) {
-      status.textContent = 'You have the latest version.';
+      status.textContent = t('You have the latest version.');
     } else {
       const update = h(
         'button',
@@ -74,14 +87,14 @@ export function createVersionPanel(): HTMLElement {
           type: 'button',
           onclick: () => {
             update.disabled = true;
-            status.textContent = 'Updating…';
+            status.textContent = t('Updating…');
             void applyUpdate();
           },
         },
-        'Update',
+        t('Update'),
       );
       status.replaceChildren(
-        `A new version is available: ${versionText(latest)}. `,
+        `${t('A new version is available: {version}.', {version: versionText(latest)})} `,
         update,
       );
     }

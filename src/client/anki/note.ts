@@ -5,22 +5,25 @@
  */
 import type {Entry} from '../../shared/types.ts';
 import {furigana, headword} from '../forms.ts';
+import {t} from '../i18n.ts';
 
-/** Values we can put in a field. */
-export const SOURCES = {
-  none: 'Nothing',
-  word: 'Word (食べる)',
-  reading: 'Reading (たべる)',
-  furigana: 'Word with furigana (食[た]べる)',
-  meaning: 'Meanings',
-  readingMeaning: 'Reading and meanings',
-  pos: 'Part of speech',
-  example: 'Example sentence',
-  id: 'JMdict ID',
-  link: 'Link to g-sho',
-} as const;
+/** Values we can put in a field, with their names for the settings. */
+export function sourceLabels() {
+  return {
+    none: t('Nothing'),
+    word: t('Word (食べる)'),
+    reading: t('Reading (たべる)'),
+    furigana: t('Word with furigana (食[た]べる)'),
+    meaning: t('Meanings'),
+    readingMeaning: t('Reading and meanings'),
+    pos: t('Part of speech'),
+    example: t('Example sentence'),
+    id: t('JMdict ID'),
+    link: t('Link to g-sho'),
+  };
+}
 
-export type Source = keyof typeof SOURCES;
+export type Source = keyof ReturnType<typeof sourceLabels>;
 
 /** Maps each Anki field name to what we put in it. */
 export type FieldMap = Record<string, Source>;

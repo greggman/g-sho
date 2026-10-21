@@ -14,6 +14,7 @@ import {
   type Store,
 } from '../store/store.ts';
 import type {Fields} from '../store/table.ts';
+import {t} from '../i18n.ts';
 
 export const DEFAULT_DECK = 'default';
 /** The built-in note type: fields [word, reading, meaning]. */
@@ -48,7 +49,11 @@ export function randomId(): string {
 export function defaultDeck(store: Store): DeckRow {
   return (
     store.decks.get(DEFAULT_DECK) ??
-    store.decks.put({id: DEFAULT_DECK, name: 'My words', ...DECK_DEFAULTS})[0]
+    store.decks.put({
+      id: DEFAULT_DECK,
+      name: t('My words'),
+      ...DECK_DEFAULTS,
+    })[0]
   );
 }
 

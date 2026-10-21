@@ -5,6 +5,7 @@
  * hover/focus tooltip, and the numbers are also in a table underneath.
  */
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 
 export interface Column {
   label: string;
@@ -55,7 +56,8 @@ function columnPath(x: number, y: number, w: number, base: number) {
 export function columnChart(
   title: string,
   columns: Column[],
-  unit: string,
+  /** a value with its unit: "5 reviews" */
+  amount: (n: number) => string,
   /** which column labels to show on the x axis */
   showLabel: (i: number) => boolean,
 ): HTMLElement {
@@ -77,25 +79,25 @@ export function columnChart(
       height: HEIGHT,
       viewBox: `0 0 ${width} ${HEIGHT}`,
       role: 'img',
-      'aria-label': `${title}. Use the table below for the numbers.`,
+      'aria-label': t('{title}. Use the table below for the numbers.', {title}),
     });
-    for (const t of ticks) {
+    for (const tick of ticks) {
       root.append(
         svg('line', {
           class: 'chart-grid',
           x1: LEFT,
           x2: width,
-          y1: y(t),
-          y2: y(t),
+          y1: y(tick),
+          y2: y(tick),
         }),
       );
       const label = svg('text', {
         class: 'chart-tick',
         x: LEFT - 6,
-        y: y(t) + 4,
+        y: y(tick) + 4,
         'text-anchor': 'end',
       });
-      label.textContent = t.toLocaleString();
+      label.textContent = tick.toLocaleString();
       root.append(label);
     }
     columns.forEach((c, i) => {
@@ -103,7 +105,10 @@ export function columnChart(
       const g = svg('g', {
         class: 'chart-col',
         tabindex: 0,
-        'aria-label': `${c.label}: ${c.value} ${unit}`,
+        'aria-label': t('{label}: {amount}', {
+          label: c.label,
+          amount: amount(c.value),
+        }),
       });
       // The hit target is the whole slot, not just the column.
       g.append(
@@ -124,7 +129,7 @@ export function columnChart(
         );
       const show = () => {
         tip.replaceChildren(
-          h('strong', null, `${c.value.toLocaleString()} ${unit}`),
+          h('strong', null, amount(c.value)),
           h('span', null, c.label),
           c.detail ? h('span', {class: 'hint'}, c.detail) : '',
         );
@@ -177,7 +182,7 @@ export function columnChart(
     h(
       'details',
       {class: 'chart-table'},
-      h('summary', null, 'Show as a table'),
+      h('summary', null, t('Show as a table')),
       h(
         'table',
         null,

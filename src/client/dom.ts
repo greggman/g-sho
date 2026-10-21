@@ -55,3 +55,14 @@ export function searchLink(
     ...(children.length ? children : [query]),
   );
 }
+
+/**
+ * Translated text with elements in it: "{from} is an inflection of {to}"
+ * with {from: el1, to: el2} → [el1, ' is an inflection of ', el2]. The
+ * text comes from t() without vars, so its {placeholders} are still there.
+ */
+export function fill(text: string, parts: Record<string, Child>): Child[] {
+  return text
+    .split(/\{(\w+)\}/)
+    .map((s, i) => (i % 2 ? (s in parts ? parts[s] : `{${s}}`) : s || false));
+}

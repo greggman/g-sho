@@ -6,6 +6,7 @@
  * Settings are applied as classes on <html> (hide-meanings, …), so toggling
  * one doesn't need a re-render.
  */
+import {prefersJapanese, t, type Language} from './i18n.ts';
 import type {SettingsRow} from './store/store.ts';
 import type {Table} from './store/table.ts';
 
@@ -27,47 +28,52 @@ export interface DisplaySettings {
 
 export type SettingKey = keyof DisplaySettings;
 
-export const SETTING_LABELS: Record<SettingKey, [string, string]> = {
-  meanings: [
-    'English meanings',
-    'When off, meanings are blurred; tap one to see it.',
-  ],
-  japanese: [
-    'Japanese definitions (国語)',
-    'From the Japanese Wiktionary. Every word in them links to its entry. To study in Japanese only, also turn off English meanings.',
-  ],
-  englishJapanese: [
-    'Japanese meanings (英和)',
-    'When you search in English: the word explained in Japanese, above the Japanese words. From the Japanese Wiktionary.',
-  ],
-  englishEnglish: [
-    'English definitions',
-    'When you search in English: the word defined in English, with synonyms. From Open English WordNet.',
-  ],
-  furigana: ['Furigana', 'When off, readings show when you hover over a word.'],
-  examples: ['Example sentences', ''],
-  kanji: [
-    'Kanji details',
-    'The panel with each kanji’s readings and meanings.',
-  ],
-  strokeOrder: ['Stroke order', ''],
-  history: ['History', 'The words you’ve looked up.'],
-};
+/** Each setting's label and hint, in the interface's language. */
+export function settingLabels(): Record<SettingKey, [string, string]> {
+  return {
+    meanings: [
+      t('English meanings'),
+      t('When off, meanings are blurred; tap one to see it.'),
+    ],
+    japanese: [
+      t('Japanese definitions (国語)'),
+      t(
+        'From the Japanese Wiktionary. Every word in them links to its entry. To study in Japanese only, also turn off English meanings.',
+      ),
+    ],
+    englishJapanese: [
+      t('Japanese meanings (英和)'),
+      t(
+        'When you search in English: the word explained in Japanese, above the Japanese words. From the Japanese Wiktionary.',
+      ),
+    ],
+    englishEnglish: [
+      t('English definitions'),
+      t(
+        'When you search in English: the word defined in English, with synonyms. From Open English WordNet.',
+      ),
+    ],
+    furigana: [
+      t('Furigana'),
+      t('When off, readings show when you hover over a word.'),
+    ],
+    examples: [t('Example sentences'), ''],
+    kanji: [
+      t('Kanji details'),
+      t('The panel with each kanji’s readings and meanings.'),
+    ],
+    strokeOrder: [t('Stroke order'), ''],
+    history: [t('History'), t('The words you’ve looked up.')],
+  };
+}
 
 /** The settings panel's groups, in order. */
-export const SETTING_GROUPS: [string, SettingKey[]][] = [
-  ['Japanese words', ['meanings', 'japanese']],
-  ['English words', ['englishJapanese', 'englishEnglish']],
-  ['Show', ['furigana', 'examples', 'kanji', 'strokeOrder', 'history']],
-];
-
-/** The browser prefers Japanese (only a guess at what someone wants). */
-function prefersJapanese(): boolean {
-  const langs =
-    typeof navigator === 'undefined'
-      ? []
-      : (navigator.languages ?? [navigator.language]);
-  return /^ja\b/i.test(langs[0] ?? '');
+export function settingGroups(): [string, SettingKey[]][] {
+  return [
+    [t('Japanese words'), ['meanings', 'japanese']],
+    [t('English words'), ['englishJapanese', 'englishEnglish']],
+    [t('Show'), ['furigana', 'examples', 'kanji', 'strokeOrder', 'history']],
+  ];
 }
 
 /**
@@ -117,6 +123,18 @@ export function loadDisplaySettings(
     }
   }
   return out;
+}
+
+/** The interface language you chose; undefined if you haven't. */
+export function loadLanguage(
+  table: Table<SettingsRow> | undefined,
+): Language | undefined {
+  const v = (table?.get('language')?.value as {v?: unknown} | undefined)?.v;
+  return v === 'en' || v === 'ja' ? v : undefined;
+}
+
+export function saveLanguage(table: Table<SettingsRow>, lang: Language) {
+  table.put({id: 'language', value: {v: lang}});
 }
 
 /** Saves one setting you changed. */

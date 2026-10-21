@@ -17,6 +17,7 @@
 import {strFromU8, unzipSync} from 'fflate';
 import type {SqlJs, SqlJsDatabase} from '../apkg.ts';
 import {protoNumber, protoString, readProto} from './protobuf.ts';
+import {NOT_A_PACKAGE} from './errors.ts';
 
 export interface AnkiNoteType {
   ankiId: number;
@@ -107,8 +108,7 @@ export function readApkg(
     'collection.anki21',
     'collection.anki2',
   ].find(n => files[n]);
-  if (!name)
-    throw new Error('This isn’t an Anki package (no collection inside).');
+  if (!name) throw new Error(NOT_A_PACKAGE);
   const packed: Uint8Array = files[name];
   const data = isZstd(packed) ? zstd(packed) : packed;
 

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>プライバシー — g-sho</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <!-- Add to Home Screen (iPhone) and installing as an app elsewhere. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="g-sho" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161917" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="logo" href="./" aria-label="g-sho ホーム"
+        ><span class="logo-mark" lang="ja">書</span><span class="logo-text">g-sho</span></a
+      >
+    </header>
+    <main class="content prose">
+      <h1>プライバシー</h1>
+      <p>
+        g-sho はアカウントなしで使えます。その場合、検索・履歴・設定はお使いのブラウザの中にだけ保存されます。辞書は検索に合わせて小さな単位でダウンロードされ、入力した内容がどこかへ送られることはありません。手書き文字や、カメラ・写真からの文字の読み取りもブラウザ内で行われます。書いた文字、カメラの映像、写真が端末の外に出ることはありません。
+      </p>
+
+      <h2>ログインした場合</h2>
+      <p>
+        ログインは任意です。Google、GitHub、LINE、またはパスキーでログインでき、次の情報を保存します。
+      </p>
+      <ul>
+        <li>
+          Google の場合：ログイン時に受け取る Google アカウント ID（数字）とお名前。Google
+          に求めるのはこれだけで、メールアドレスやその他の情報は求めません。
+        </li>
+        <li>
+          LINE の場合：ログイン時に受け取る LINE のユーザー ID と表示名。LINE
+          にメールアドレスやその他の情報は求めません。
+        </li>
+        <li>
+          パスキーの場合：パスキーの ID と公開鍵、付けた名前、作成日時と最終使用日時。パスキーの秘密の部分が、お使いの端末やパスワードマネージャーの外に出ることはありません。パスキーだけでアカウントを作るときは、Cloudflare
+          Turnstile が人間による操作かどうかを確認します（<a
+            href="https://www.cloudflare.com/turnstile-privacy-policy/"
+            >Turnstile のプライバシーポリシー</a
+          >）。
+        </li>
+        <li>
+          GitHub の場合：公開されている GitHub プロフィールから読み取る GitHub のユーザー
+          ID（数字）、ユーザー名、表示名。GitHub
+          にメールアドレスやその他へのアクセスは求めず、GitHub
+          のアクセストークンはプロフィールを読み取った直後に破棄します。
+        </li>
+        <li>
+          ログインセッションごとの記録（開始日時と有効期限）。セッションはブラウザの 1 つの Cookie
+          に保持され、こちらではそのハッシュ値だけを保存します。
+        </li>
+      </ul>
+      <p>
+        ログイン中は、このサイトが端末間で同期する内容も保存します。検索履歴、スターを付けた単語や「覚えた」にした単語、単語へのメモ、表示の設定、そして学習用のデッキ（カードと復習履歴を含む）です。読み込んだ
+        Anki デッキの画像や音声は、読み込んだ端末の中にだけ残ります。Anki
+        との接続設定も、それぞれの端末に残ります。
+      </p>
+      <p>
+        広告、アクセス解析、トラッキング用の Cookie は一切ありません。データを販売したり、共有したりすることもありません。
+      </p>
+
+      <h2>あなたのデータ</h2>
+      <p>
+        <strong>設定 → アカウント</strong>
+        から、アカウントに保存されているすべてのデータをダウンロードしたり、アカウントを削除したりできます。削除すると、そのアカウントに保存されていたものはすべて、ただちにデータベースから消去されます。ブラウザに保存されている内容は、ご自身で消去するまで残ります。
+      </p>
+
+      <h2>ホスティング</h2>
+      <p>
+        g-sho は <a href="https://www.cloudflare.com/">Cloudflare</a>
+        上で動いています。ほかのウェブホストと同様に、Cloudflare
+        はリクエストを処理し、サービスの運用と保護のために、IP
+        アドレスを含むログを短期間保存することがあります。詳しくは
+        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare のプライバシーポリシー</a>
+        をご覧ください。
+      </p>
+
+      <h2>お問い合わせ</h2>
+      <p>
+        <a href="https://github.com/greggman/g-sho/issues">GitHub</a> で issue を作成してください。
+      </p>
+    </main>
+    <footer class="site-footer">
+      <p>
+        <a class="github-link" href="https://github.com/greggman/g-sho">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub のソースコード</a
+        >
+        · <a href="terms.ja.html">利用規約</a> · <a href="privacy.html" lang="en">English</a>
+      </p>
+    </footer>
+  </body>
+</html>

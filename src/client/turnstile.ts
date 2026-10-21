@@ -3,6 +3,7 @@
  * making an account with only a passkey, which is otherwise free to make
  * in bulk. Its script is loaded only then.
  */
+import {language} from './i18n.ts';
 
 /** Public; the secret is the Worker's TURNSTILE_SECRET. */
 const SITE_KEY = '0x4AAAAAAFdiirwjSoGG_SQM';
@@ -15,6 +16,7 @@ interface TurnstileApi {
     options: {
       sitekey: string;
       theme?: 'auto' | 'light' | 'dark';
+      language?: string;
       callback: (token: string) => void;
       'expired-callback'?: () => void;
       'error-callback'?: () => void;
@@ -62,6 +64,8 @@ export async function turnstileWidget(
   const id = api.render(el, {
     sitekey: SITE_KEY,
     theme: 'auto',
+    // Its own text in the interface's language.
+    language,
     callback: t => {
       token = t;
       onChange(true);

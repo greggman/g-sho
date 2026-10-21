@@ -6,6 +6,7 @@
  */
 import type {Meta} from '../../shared/types.ts';
 import {h} from '../dom.ts';
+import {t} from '../i18n.ts';
 import type {DownloadMessage, DownloadRequest} from './download-worker.ts';
 import {trackWorker, workerEnded} from '../versions.ts';
 import {clearAll} from './data-store.ts';
@@ -88,7 +89,7 @@ export class OfflineDictionary {
       type: 'module',
     });
     this.worker = worker;
-    trackWorker('Offline download', worker);
+    trackWorker(t('Offline download'), worker);
     worker.onmessage = (e: MessageEvent<DownloadMessage>) => {
       const m = e.data;
       if (m.type === 'progress') {
@@ -97,8 +98,10 @@ export class OfflineDictionary {
         worker.terminate();
         this.worker = undefined;
         workerEnded(
-          'Offline download',
-          m.type === 'complete' ? 'has finished' : 'stopped (see Offline)',
+          t('Offline download'),
+          m.type === 'complete'
+            ? t('has finished')
+            : t('stopped (see Offline)'),
         );
         this.set(
           m.type === 'complete'
@@ -121,7 +124,7 @@ export class OfflineDictionary {
   async turnOff() {
     this.worker?.terminate();
     this.worker = undefined;
-    workerEnded('Offline download');
+    workerEnded(t('Offline download'));
     try {
       localStorage.setItem(KEY, 'off');
     } catch {
@@ -145,23 +148,29 @@ export class OfflineDictionary {
 function describe(s: OfflineState): string {
   switch (s.kind) {
     case 'unsupported':
-      return 'This browser can’t save the dictionary for offline use.';
+      return t('This browser can’t save the dictionary for offline use.');
     case 'off':
-      return 'Off: only words you look up are saved on this device.';
+      return t('Off: only words you look up are saved on this device.');
     case 'waiting':
-      return 'Will download in the background shortly.';
+      return t('Will download in the background shortly.');
     case 'metered':
-      return 'Waiting: you’re on mobile data or saving data. Start it now if you like (about a 35 MB download).';
+      return t(
+        'Waiting: you’re on mobile data or saving data. Start it now if you like (about a 35 MB download).',
+      );
     case 'downloading':
       return s.total
-        ? `Downloading in the background… ${Math.round((100 * s.done) / s.total)}%`
-        : 'Downloading in the background…';
+        ? t('Downloading in the background… {percent}%', {
+            percent: Math.round((100 * s.done) / s.total),
+          })
+        : t('Downloading in the background…');
     case 'saved':
-      return 'Saved on this device: every word works offline.';
+      return t('Saved on this device: every word works offline.');
     case 'error':
       return s.quota
-        ? 'Not enough storage on this device to save the whole dictionary.'
-        : `The download stopped (${s.message}). It will try again next time.`;
+        ? t('Not enough storage on this device to save the whole dictionary.')
+        : t('The download stopped ({error}). It will try again next time.', {
+            error: s.message,
+          });
   }
 }
 
@@ -180,7 +189,7 @@ export function createOfflinePanel(offline: OfflineDictionary): HTMLElement {
   const startNow = h(
     'button',
     {type: 'button', onclick: () => offline.start()},
-    'Download now',
+    t('Download now'),
   );
   const show = (s: OfflineState) => {
     status.textContent = describe(s);
@@ -191,7 +200,7 @@ export function createOfflinePanel(offline: OfflineDictionary): HTMLElement {
   return h(
     'div',
     {class: 'offline-panel'},
-    h('h2', {class: 'panel-title'}, 'Offline'),
+    h('h2', {class: 'panel-title'}, t('Offline')),
     h(
       'label',
       {class: 'setting'},
@@ -199,11 +208,11 @@ export function createOfflinePanel(offline: OfflineDictionary): HTMLElement {
       h(
         'span',
         null,
-        'Keep the whole dictionary on this device',
+        t('Keep the whole dictionary on this device'),
         h(
           'span',
           {class: 'hint'},
-          ' — about 120 MB, so every word works offline.',
+          ` — ${t('about 120 MB, so every word works offline.')}`,
         ),
       ),
     ),

@@ -9,6 +9,7 @@
 import type {Entry} from '../shared/types.ts';
 import {h} from './dom.ts';
 import {headword} from './forms.ts';
+import {t} from './i18n.ts';
 import {addToDeck, addWord, removeWord, studyingIn} from './study/model.ts';
 import {NOTE_MAX_LENGTH, type MarkKind, type Store} from './store/store.ts';
 
@@ -40,8 +41,12 @@ export class WordTools {
     const deck = studyingIn(this.store, wordId);
     if (deck) {
       const word = this.entries.get(wordId);
-      const name = word ? headword(word).text : 'this word';
-      if (confirm(`Stop studying ${name}? Its review history is kept.`)) {
+      const name = word ? headword(word).text : t('this word');
+      if (
+        confirm(
+          t('Stop studying {word}? Its review history is kept.', {word: name}),
+        )
+      ) {
         removeWord(this.store, wordId);
       }
     } else {
@@ -95,11 +100,15 @@ export class WordTools {
           class: 'word-tool study',
           'aria-pressed': String(!!deck),
           title: deck
-            ? `In your “${deck.name}” deck. Click to stop studying it.`
-            : `Study this word (adds it to “${addToDeck(this.store).name}”)`,
+            ? t('In your “{deck}” deck. Click to stop studying it.', {
+                deck: deck.name,
+              })
+            : t('Study this word (adds it to “{deck}”)', {
+                deck: addToDeck(this.store).name,
+              }),
           onclick: () => this.toggleStudy(wordId),
         },
-        deck ? '✓ study' : '+ study',
+        deck ? t('✓ study') : t('+ study'),
       ),
       h(
         'button',
@@ -107,8 +116,8 @@ export class WordTools {
           type: 'button',
           class: 'word-tool star',
           'aria-pressed': String(starred),
-          title: starred ? 'Unstar' : 'Star this word',
-          'aria-label': 'Star',
+          title: starred ? t('Unstar') : t('Star this word'),
+          'aria-label': t('Star'),
           onclick: () => this.toggle('star', wordId),
         },
         starred ? '★' : '☆',
@@ -120,11 +129,11 @@ export class WordTools {
           class: 'word-tool known',
           'aria-pressed': String(known),
           title: known
-            ? 'Marked as known. Click to unmark.'
-            : 'I know this word: study decks can skip it',
+            ? t('Marked as known. Click to unmark.')
+            : t('I know this word: study decks can skip it'),
           onclick: () => this.toggle('known', wordId),
         },
-        known ? '✓ known' : 'known',
+        known ? t('✓ known') : t('known'),
       ),
       h(
         'button',
@@ -132,8 +141,8 @@ export class WordTools {
           type: 'button',
           class: 'word-tool note-button',
           'aria-pressed': String(!!note),
-          title: note ? 'Edit your note' : 'Add a note',
-          'aria-label': 'Note',
+          title: note ? t('Edit your note') : t('Add a note'),
+          'aria-label': t('Note'),
           onclick: () => this.edit(el, wordId),
         },
         '✎',
@@ -143,7 +152,7 @@ export class WordTools {
           'p',
           {
             class: 'word-note',
-            title: 'Your note. Click to edit.',
+            title: t('Your note. Click to edit.'),
             onclick: () => this.edit(el, wordId),
           },
           note,
@@ -166,8 +175,8 @@ export class WordTools {
       class: 'word-note-edit',
       rows: 3,
       maxlength: NOTE_MAX_LENGTH,
-      placeholder: 'Your note on this word',
-      'aria-label': 'Your note',
+      placeholder: t('Your note on this word'),
+      'aria-label': t('Your note'),
     });
     box.value = this.note(wordId);
     let timer: ReturnType<typeof setTimeout> | undefined;

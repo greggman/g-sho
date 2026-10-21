@@ -6,6 +6,7 @@ import {
   removeFromHistory,
   type HistoryItem,
 } from './history.ts';
+import {t} from './i18n.ts';
 import {rubyWord} from './render.ts';
 import type {HistoryRow, MarkRow} from './store/store.ts';
 import type {Table} from './store/table.ts';
@@ -135,20 +136,20 @@ export class HistoryView {
     this.store = store;
     this.persistent = persistent;
     this.count = h('span', {class: 'count'});
-    this.title = h('span', null, 'History');
+    this.title = h('span', null, t('History'));
     this.starToggle = h(
       'button',
       {
         type: 'button',
         class: 'history-filter',
         'aria-pressed': 'false',
-        title: 'Show only the words you starred',
+        title: t('Show only the words you starred'),
         onclick: () => {
           this.showStarred = !this.showStarred;
           this.update();
         },
       },
-      '★ Starred',
+      t('★ Starred'),
     );
     this.clearButton = h(
       'button',
@@ -156,15 +157,15 @@ export class HistoryView {
         type: 'button',
         class: 'history-clear',
         onclick: () => {
-          if (confirm('Clear your whole history?')) store.clear();
+          if (confirm(t('Clear your whole history?'))) store.clear();
         },
       },
-      'Clear',
+      t('Clear'),
     );
     this.empty = h(
       'p',
       {class: 'hint history-empty'},
-      'No starred words yet. Tap ☆ by a word to star it.',
+      t('No starred words yet. Tap ☆ by a word to star it.'),
     );
     this.list = new VirtualList<HistoryItem>(
       ROW_HEIGHT,
@@ -173,7 +174,7 @@ export class HistoryView {
     );
     this.element = h(
       'section',
-      {class: 'history', 'aria-label': 'History'},
+      {class: 'history', 'aria-label': t('History')},
       h(
         'div',
         {class: 'history-head'},
@@ -198,7 +199,7 @@ export class HistoryView {
     const {items, starred} = this.store;
     const shown = this.showStarred ? starred : items;
     this.element.hidden = items.length === 0 && starred.length === 0;
-    this.title.textContent = this.showStarred ? 'Starred' : 'History';
+    this.title.textContent = this.showStarred ? t('Starred') : t('History');
     this.count.textContent = ` — ${shown.length.toLocaleString()}`;
     this.starToggle.setAttribute('aria-pressed', String(this.showStarred));
     this.clearButton.hidden = this.showStarred;
@@ -226,7 +227,11 @@ export class HistoryView {
             item.word.text !== item.q &&
             h('span', {class: 'history-query'}, item.q),
         ),
-        h('span', {class: 'history-meaning'}, item.word?.meaning ?? 'Sentence'),
+        h(
+          'span',
+          {class: 'history-meaning'},
+          item.word?.meaning ?? t('Sentence'),
+        ),
       ),
       'wordId' in item
         ? h(
@@ -234,8 +239,8 @@ export class HistoryView {
             {
               type: 'button',
               class: 'history-remove',
-              title: `Unstar ${item.q}`,
-              'aria-label': `Unstar ${item.q}`,
+              title: t('Unstar {word}', {word: item.q}),
+              'aria-label': t('Unstar {word}', {word: item.q}),
               onclick: () => this.store.unstar(item.wordId),
             },
             '×',
@@ -245,8 +250,8 @@ export class HistoryView {
             {
               type: 'button',
               class: 'history-remove',
-              title: `Remove ${item.q} from history`,
-              'aria-label': `Remove ${item.q} from history`,
+              title: t('Remove {word} from history', {word: item.q}),
+              'aria-label': t('Remove {word} from history', {word: item.q}),
               onclick: () => this.store.remove(item.q),
             },
             '×',

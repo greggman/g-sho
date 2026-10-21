@@ -1,10 +1,11 @@
 import {h} from './dom.ts';
 import {
-  SETTING_GROUPS,
-  SETTING_LABELS,
+  settingGroups,
+  settingLabels,
   type DisplaySettings,
   type SettingKey,
 } from './settings.ts';
+import {language, t, type Language} from './i18n.ts';
 import {createVersionPanel} from './version-panel.ts';
 
 /**
@@ -19,9 +20,37 @@ export function createSettingsPanel(
   account: () => Promise<HTMLElement | null>,
   /** the Offline section; null when offline use isn't set up */
   offline: HTMLElement | null,
+  /** the interface language was changed */
+  onLanguage: (lang: Language) => void,
 ): HTMLElement {
+  const choose = h(
+    'select',
+    {
+      'aria-label': 'Language / 表示言語',
+      onchange: () => onLanguage(choose.value as Language),
+    },
+    h('option', {value: 'en', selected: language === 'en'}, 'English'),
+    h('option', {value: 'ja', selected: language === 'ja'}, '日本語'),
+  );
+  // In both languages, so it can be found in either.
+  const languageSection = h(
+    'div',
+    {class: 'settings-group settings-language'},
+    h('h2', {class: 'panel-title'}, 'Language / 表示言語'),
+    h(
+      'label',
+      {class: 'setting'},
+      choose,
+      h(
+        'span',
+        {class: 'hint'},
+        ` ${t('The language of buttons, labels and messages. The dictionary itself doesn’t change.')}`,
+      ),
+    ),
+  );
+  const labels = settingLabels();
   const toggle = (key: SettingKey) => {
-    const [label, hint] = SETTING_LABELS[key];
+    const [label, hint] = labels[key];
     const box = h('input', {
       type: 'checkbox',
       checked: initial[key],
@@ -34,7 +63,7 @@ export function createSettingsPanel(
       h('span', null, label, hint && h('span', {class: 'hint'}, ` — ${hint}`)),
     );
   };
-  const groups = SETTING_GROUPS.map(([title, keys]) =>
+  const groups = settingGroups().map(([title, keys]) =>
     h(
       'div',
       {class: 'settings-group'},
@@ -45,13 +74,13 @@ export function createSettingsPanel(
   const ankiSection = h(
     'div',
     {class: 'settings-anki'},
-    h('p', {class: 'hint'}, 'Loading…'),
+    h('p', {class: 'hint'}, t('Loading…')),
   );
   void anki().then(
     el => ankiSection.replaceChildren(el),
     () =>
       ankiSection.replaceChildren(
-        h('p', {class: 'error'}, 'Couldn’t load the Anki settings.'),
+        h('p', {class: 'error'}, t('Couldn’t load the Anki settings.')),
       ),
   );
   // Shown only once we know there's an account server.
@@ -67,6 +96,7 @@ export function createSettingsPanel(
   return h(
     'div',
     {class: 'settings-panel'},
+    languageSection,
     groups,
     accountSection,
     offline && h('div', {class: 'settings-offline'}, offline),

@@ -1,5 +1,6 @@
 import type {RadicalData} from '../shared/types.ts';
 import {h} from './dom.ts';
+import {t} from './i18n.ts';
 
 /** Most kanji shown at once; a big result set means more radicals are needed. */
 const MAX_KANJI = 300;
@@ -52,11 +53,11 @@ export class RadicalPicker {
       h(
         'div',
         {class: 'radical-toolbar'},
-        h('span', null, 'Select radicals to find kanji'),
+        h('span', null, t('Select radicals to find kanji')),
         h(
           'button',
           {type: 'button', class: 'reset', onclick: () => this.reset()},
-          'Reset',
+          t('Reset'),
         ),
       ),
       this.results,
@@ -130,7 +131,11 @@ export class RadicalPicker {
     }
     if (byStrokes.length > MAX_KANJI) {
       this.results.append(
-        h('span', {class: 'more'}, `…and ${byStrokes.length - MAX_KANJI} more`),
+        h(
+          'span',
+          {class: 'more'},
+          t('…and {n} more', {n: byStrokes.length - MAX_KANJI}),
+        ),
       );
     }
   }
