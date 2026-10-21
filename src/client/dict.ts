@@ -6,6 +6,7 @@ import {
   shardName,
 } from '../shared/hash.ts';
 import type {
+  EnglishShard,
   EnIndexShard,
   Entry,
   EntryShard,
@@ -131,6 +132,20 @@ export class Dict {
       `jadef/${shardName(entryShard(id, n))}.json`,
     );
     return shard[id];
+  }
+
+  /**
+   * An English word explained in Japanese (英和), by its lowercased form:
+   * its entries, and the words it's a form of. Undefined if unknown (or the
+   * data was built without them).
+   */
+  async englishWord(word: string): Promise<EnglishShard[string] | undefined> {
+    const n = this.meta.shards.enw;
+    if (!n) return undefined;
+    const shard = await this.file<EnglishShard>(
+      `enw/${shardName(enShard(word, n))}.json`,
+    );
+    return Object.hasOwn(shard, word) ? shard[word] : undefined;
   }
 
   async kanji(ch: string): Promise<KanjiInfo | undefined> {

@@ -169,6 +169,34 @@ export type ExampleShard = Record<number, Example[]>;
 /** jadef/NNNN.json: entry id → its Japanese definitions */
 export type JaDefinitionShard = Record<number, JaDefinition[]>;
 
+/** An English word explained in Japanese (英和; Japanese Wiktionary). */
+export interface EnglishEntry {
+  /** the word as written ("apple", "New York") */
+  w: string;
+  /** part of speech, in Japanese (名詞) */
+  p: string;
+  /** pronunciations (IPA), British and American when they differ */
+  ipa?: string[];
+  s: EnglishSense[];
+  /** inflected forms: [form, label] ("apples", "複数形") */
+  f?: [string, string][];
+}
+
+export interface EnglishSense {
+  /** the meaning, in Japanese */
+  g: string;
+  /** labels (口語, 米国, …) */
+  t?: string[];
+  /** examples: [English, Japanese] */
+  ex?: [string, string][];
+}
+
+/**
+ * enw/NNN.json: lowercased word → its entries, and the words it's a form
+ * of ("went" → ["go"]).
+ */
+export type EnglishShard = Record<string, {e?: EnglishEntry[]; of?: string[]}>;
+
 export interface Meta {
   version: string;
   dictDate: string;
@@ -185,6 +213,8 @@ export interface Meta {
     jadef?: number;
     /** more example sentences; absent when they weren't built */
     tex?: number;
+    /** English words in Japanese (英和); absent when they weren't built */
+    enw?: number;
   };
   /** tag → human readable description */
   tags: Record<string, string>;

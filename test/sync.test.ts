@@ -87,8 +87,9 @@ describe('UserData (server)', () => {
   });
 
   test('going over a table limit stores nothing from the request', () => {
-    const settings = Array.from({length: 21}, (_, i) => ({
-      id: `s${'abcdefghijklmnopqrstuvwxyz'[i]}`,
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const settings = Array.from({length: 61}, (_, i) => ({
+      id: `s${letters[i % 26]}${letters[Math.floor(i / 26)]}`,
       mtime: 1,
       value: {},
     }));

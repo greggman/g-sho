@@ -2673,6 +2673,54 @@ html.show-japanese .ja-defs:empty {
   font-size: 0.85rem;
 }
 
+/* ---- English words in Japanese (英和) ---- */
+
+.english-words {
+  display: none;
+  margin: 0 0 18px;
+}
+
+html.show-english-japanese .english-words {
+  display: block;
+}
+
+.english-word {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 8px 8px 0;
+}
+
+.english-headword {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+}
+
+.en-ipa {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.en-spelling {
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+
+.en-entry .ja-pos {
+  margin: 4px 0 0;
+}
+
+.en-translation {
+  color: var(--muted);
+}
+
+.en-forms {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
 /* ---- more example sentences ---- */
 
 .more-examples {

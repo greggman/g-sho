@@ -20,7 +20,17 @@ export type OfflineState =
   | {kind: 'error'; message: string; quota: boolean};
 
 /** What's needed first: search indexes, words, kanji, then the rest. */
-const ORDER = ['ja', 'en', 'ent', 'kanji', 'radk', 'strokes', 'jadef', 'tex'];
+const ORDER = [
+  'ja',
+  'en',
+  'ent',
+  'kanji',
+  'radk',
+  'strokes',
+  'jadef',
+  'tex',
+  'enw',
+];
 const KEY = 'g-sho.offline';
 /** Give the page a moment to finish starting first. */
 const START_DELAY = 3000;

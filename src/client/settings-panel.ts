@@ -1,5 +1,10 @@
 import {h} from './dom.ts';
-import {SETTING_LABELS, type DisplaySettings} from './settings.ts';
+import {
+  SETTING_GROUPS,
+  SETTING_LABELS,
+  type DisplaySettings,
+  type SettingKey,
+} from './settings.ts';
 import {createVersionPanel} from './version-panel.ts';
 
 /**
@@ -8,25 +13,19 @@ import {createVersionPanel} from './version-panel.ts';
  */
 export function createSettingsPanel(
   initial: DisplaySettings,
-  onChange: (settings: DisplaySettings) => void,
+  onChange: (key: SettingKey, on: boolean) => void,
   anki: () => Promise<HTMLElement>,
   /** null when the site has no account server */
   account: () => Promise<HTMLElement | null>,
   /** the Offline section; null when offline use isn't set up */
   offline: HTMLElement | null,
 ): HTMLElement {
-  let settings = {...initial};
-  const toggles = (
-    Object.keys(SETTING_LABELS) as (keyof DisplaySettings)[]
-  ).map(key => {
+  const toggle = (key: SettingKey) => {
     const [label, hint] = SETTING_LABELS[key];
     const box = h('input', {
       type: 'checkbox',
-      checked: settings[key],
-      onchange: () => {
-        settings = {...settings, [key]: box.checked};
-        onChange(settings);
-      },
+      checked: initial[key],
+      onchange: () => onChange(key, box.checked),
     });
     return h(
       'label',
@@ -34,7 +33,15 @@ export function createSettingsPanel(
       box,
       h('span', null, label, hint && h('span', {class: 'hint'}, ` — ${hint}`)),
     );
-  });
+  };
+  const groups = SETTING_GROUPS.map(([title, keys]) =>
+    h(
+      'div',
+      {class: 'settings-group'},
+      h('h2', {class: 'panel-title'}, title),
+      h('div', {class: 'settings-toggles'}, keys.map(toggle)),
+    ),
+  );
   const ankiSection = h(
     'div',
     {class: 'settings-anki'},
@@ -60,8 +67,7 @@ export function createSettingsPanel(
   return h(
     'div',
     {class: 'settings-panel'},
-    h('h2', {class: 'panel-title'}, 'Show'),
-    h('div', {class: 'settings-toggles'}, toggles),
+    groups,
     accountSection,
     offline && h('div', {class: 'settings-offline'}, offline),
     ankiSection,

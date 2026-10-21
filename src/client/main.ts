@@ -10,6 +10,7 @@ import {h, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
 import {applyUpdate, newVersion, onNewVersion} from './update.ts';
+import {lookupEnglish, renderEnglish, type EnglishWord} from './english.ts';
 import type {HistoryItem} from './history.ts';
 import {RadicalPicker} from './radicals.ts';
 import {
@@ -24,7 +25,7 @@ import {
   MEANING_SELECTOR,
   applyDisplaySettings,
   loadDisplaySettings,
-  saveDisplaySettings,
+  saveDisplaySetting,
   type DisplaySettings,
 } from './settings.ts';
 import {openStore, type Store} from './store/store.ts';
@@ -193,6 +194,8 @@ async function renderResults(
   query: string,
   result: SearchResult,
   pages: number,
+  /** the English word searched for, explained in Japanese (英和) */
+  english: EnglishWord[] = [],
 ): Promise<HTMLElement> {
   const kanji = await Promise.all(
     sidebarKanji(query, result).map(async k => {
@@ -212,6 +215,7 @@ async function renderResults(
     h(
       'section',
       {class: 'words'},
+      pages === 1 && renderEnglish(english),
       resultsHeading(result),
       result.words.length === 0 &&
         h(
@@ -319,8 +323,12 @@ async function route(dict: Dict, record = false) {
   const id = ++currentSearch;
   content.setAttribute('aria-busy', 'true');
   try {
-    const result = await search(dict, query, {pages});
-    const view = await renderResults(dict, query, result, pages);
+    const [result, english] = await Promise.all([
+      search(dict, query, {pages}),
+      // A nice-to-have: the search still shows without it.
+      lookupEnglish(dict, query).catch(() => []),
+    ]);
+    const view = await renderResults(dict, query, result, pages, english);
     if (id !== currentSearch) return;
     content.replaceChildren(view);
     void fillJapanese(dict, content);
@@ -571,9 +579,9 @@ function setupPanels(dict: Dict) {
     const {createSettingsPanel} = await import('./settings-panel.ts');
     return createSettingsPanel(
       display,
-      settings => {
-        if (store) saveDisplaySettings(store.settings, settings);
-        showDisplaySettings(dict, settings);
+      (key, on) => {
+        if (store) saveDisplaySetting(store.settings, key, on);
+        showDisplaySettings(dict, {...display, [key]: on});
       },
       async () => {
         const {createAnkiPanel} = await import('./anki/panel.ts');

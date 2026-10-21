@@ -22,6 +22,7 @@ import {
   readWiktionary,
 } from './build-jawiktionary.ts';
 import {buildExamples} from './build-examples.ts';
+import {readEnglish} from './build-english.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -29,6 +30,7 @@ import {
   tokenizeEn,
 } from '../src/shared/normalize.ts';
 import type {
+  EnglishShard,
   EnIndexShard,
   Entry,
   EntryShard,
@@ -52,6 +54,8 @@ const SHARDS = {entries: 8192, ja: 2048, en: 1024, kanji: 128, strokes: 1024};
 const JADEF_SHARDS = 2048;
 /** More example sentences (Tatoeba), by entry id. */
 const TEX_SHARDS = 4096;
+/** English words explained in Japanese (英和), by the word. */
+const ENW_SHARDS = 1024;
 
 /** Longest English phrase (in words) indexed as a whole. */
 const MAX_PHRASE_WORDS = 4;
@@ -753,6 +757,25 @@ function readMoreExamples(
   );
 }
 
+// ---- English words in Japanese (英和) ----
+
+/** English words from the Japanese Wiktionary, sharded by the word. */
+async function buildEnglish(): Promise<number | undefined> {
+  const file = path.join(CACHE_DIR, 'jawiktionary', 'ja-extract.jsonl.gz');
+  if (!fs.existsSync(file)) return undefined;
+  const words = await readEnglish(file);
+  const shards = new Map<number, EnglishShard>();
+  for (const [word, value] of words) {
+    getShard(shards, enShard(word, ENW_SHARDS), () => ({}))[word] = value;
+  }
+  writeShards('enw', shards);
+  const entries = [...words.values()].filter(v => v.e).length;
+  console.log(
+    `English words: ${entries}, with ${words.size - entries} more forms`,
+  );
+  return ENW_SHARDS;
+}
+
 // ---- packs (the whole dictionary, for offline use) ----
 
 /** Raw size of a pack; a few MB compresses well and downloads in seconds. */
@@ -836,6 +859,7 @@ async function main() {
     writeByEntry('tex', TEX_SHARDS, examples);
     console.log(`more example sentences for ${examples.size} entries`);
   }
+  const enw = await buildEnglish();
 
   const meta: Meta = {
     version,
@@ -847,6 +871,7 @@ async function main() {
       ...SHARDS,
       ...(jaDefs && {jadef: JADEF_SHARDS}),
       ...(examples.size && {tex: TEX_SHARDS}),
+      ...(enw && {enw}),
     },
     tags: dict.tags,
     versions,

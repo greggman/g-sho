@@ -94,7 +94,8 @@ export const LIMITS: Record<string, TableSchema> = {
     id: r => r.id === r.q,
   },
   settings: {
-    maxRows: 20,
+    // A row per display setting, plus a few groups (study, …).
+    maxRows: 60,
     fields: {value: jsonObject(4000)},
     id: r => /^[a-z][a-zA-Z]{0,31}$/.test(r.id),
   },

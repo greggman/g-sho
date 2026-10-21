@@ -262,6 +262,27 @@ ones. Turning off English meanings then gives a Japanese-only dictionary.
   (Wiktionary's own furigana hints first). Sentence cards show the first two
   senses.
 
+## English words in Japanese (英和)
+
+For Japanese speakers learning English (and anyone wanting an English word
+in Japanese): searching in English shows the English word explained in
+Japanese above the Japanese words, when "Japanese meanings (英和)" is on.
+
+- **Source**: the English entries of the same Japanese Wiktionary file as the
+  Japanese definitions (`scripts/build-english.ts`): 58,000 words with part
+  of speech, IPA, meanings in Japanese, examples with translations, and
+  inflected forms. Shards `enw/NNN.json` (1,024 by `fnv1a(word)`, ~8 MB):
+  lowercased word → `{e: entries, of: words it's a form of}`.
+- **Forms**: "went" → go and "children" → child come from the data (the base
+  word's listed forms, and entries that say "goの過去形"); otherwise regular
+  endings are tried ("walked" → walk, "stopped" → stop).
+- **Display** (`src/client/english.ts`): one card per word, with its
+  pronunciation, entries by part of speech, examples and forms (each a
+  search link). A form shows its own entry, then its word's.
+
+Still to come: English definitions in English (Open English WordNet), and
+the interface in Japanese.
+
 ## History, settings, undo
 
 - **History**: every search is kept in localStorage (newest first, repeats
@@ -272,11 +293,19 @@ ones. Turning off English meanings then gives a Japanese-only dictionary.
   the top, so the list doesn't reshuffle. On narrower screens it's on the
   home page. The list is virtual (only the rows in view exist), so thousands
   scroll smoothly. Rows can be removed one by one or all at once.
-- **Settings** (gear button): turn off English meanings (blurred; tap one to
-  reveal it, for practice), furigana (shown on hover), example sentences,
-  kanji details, stroke order, and the home-page history. Applied as
-  `hide-*` classes on `<html>`, so no re-render. The Anki settings are here
-  too.
+- **Settings** (gear button), in groups. Japanese words: English meanings
+  (blurred when off; tap one to reveal it, for practice) and Japanese
+  definitions (国語). English words: Japanese meanings (英和). Show:
+  furigana (shown on hover), example sentences, kanji details, stroke order,
+  and the home-page history. Applied as classes on `<html>`, so no
+  re-render. The Anki settings are here too.
+  - Each setting is its own row in the store (`showFurigana`, …), kept in
+    this browser and synced when signed in, so settings changed on two
+    devices don't overwrite each other. The older all-in-one `display` row
+    still counts when it changed later (an older app on another device).
+  - Defaults are worked out, never saved: a browser that prefers Japanese
+    starts with 英和 on. The browser's language is only a guess at what
+    someone is learning, so a saved choice always wins.
 - **Undo** for the search box: our own undo history covers what the
   browser's misses (text inserted by the handwriting and radical pickers,
   the query replaced when a search loads). Typing and deleting group into
