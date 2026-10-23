@@ -19,6 +19,7 @@ import type {
   KanjiInfo,
   KanjiShard,
   Meta,
+  PartsData,
   RadicalData,
   StrokeShard,
 } from '../shared/types.ts';
@@ -147,6 +148,12 @@ export class Dict {
       `enw/${shardName(enShard(word, n))}.json`,
     );
     return Object.hasOwn(shard, word) ? shard[word] : undefined;
+  }
+
+  /** What each kanji part means; undefined if not built. */
+  async parts(): Promise<PartsData | undefined> {
+    if (!this.meta.versions?.parts) return undefined;
+    return this.file<PartsData>('parts.json');
   }
 
   /** The spelling-suggestion data (spell.ts); undefined if not built. */

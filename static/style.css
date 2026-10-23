@@ -2680,6 +2680,28 @@ html.show-japanese .ja-defs:empty {
 
 /* ---- English words: in Japanese (英和) and in English ---- */
 
+/* A kanji's parts: the part, then what it means, small. */
+.parts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.part {
+  white-space: nowrap;
+}
+
+.part-char {
+  color: var(--text);
+  font-size: 1.25em;
+}
+
+.part-name {
+  margin-left: 3px;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
 .spelling {
   margin: 0 0 14px;
   font-size: 1.05rem;

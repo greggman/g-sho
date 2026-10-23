@@ -122,6 +122,19 @@ export interface KanjiInfo {
   parts?: string[];
 }
 
+/** A kanji part (KRADFILE component), for the kanji panel. */
+export interface PartInfo {
+  /** the form to show, when KRADFILE uses a stand-in (化 for 亻) */
+  f?: string;
+  /** what it means, in English (horse, water) */
+  en?: string;
+  /** its Japanese name: a radical name (さんずい) or kun reading (うま) */
+  ja?: string;
+}
+
+/** parts.json: KRADFILE component → what it is */
+export type PartsData = Record<string, PartInfo>;
+
 /** kanji/NNNN.json: kanji → info */
 export type KanjiShard = Record<string, KanjiInfo>;
 

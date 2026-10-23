@@ -115,7 +115,14 @@ One search box, `?q=` in the URL (history and shareable links).
    in kana prefer entries usually written in kana (は → the particle, not 歯).
 6. **Kanji panel**: kanji in the query and in the results show a side panel
    with meanings, on/kun readings, stroke count, grade, JLPT level, frequency
-   and components (from KRADFILE).
+   and components (from KRADFILE), each with what it means: 騒 is 虫 insect,
+   馬 horse, 又 right hand, 灬 fire (むし, うま, また, れんが in the Japanese
+   interface). `scripts/build-parts.ts` builds `data/parts.json`: KRADFILE's
+   stand-ins are shown as the real radical forms (化 → 亻, 汁 → 氵, 艾 → 艹,
+   阡/邦 → 阝 hill/village); radical forms and parts whose dictionary
+   meaning isn't the part's (厂 cliff, 又 right hand) are named by hand,
+   with their Japanese radical names (にんべん); others take their first
+   KANJIDIC meaning and kun reading.
 7. **Radical picker**: pick radicals to narrow down kanji; clicking a kanji
    adds it to the search box.
 8. Each entry shows readings (furigana over the primary form), common tag,

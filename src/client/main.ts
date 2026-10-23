@@ -300,6 +300,8 @@ async function renderResults(
       w =>
         display.englishJapanese && (w.entries.length || w.translations?.length),
     ) || english.some(w => display.englishEnglish && w.definitions.length);
+  // What each kanji's parts mean: a nice-to-have.
+  const parts = await dict.parts().catch(() => undefined);
   const kanji = await Promise.all(
     sidebarKanji(query, result).map(async k => {
       const [info, strokes] = await Promise.all([
@@ -355,7 +357,7 @@ async function renderResults(
               ` — ${t('{n} found', {n: found.length})}`,
             ),
           ),
-          found.map(k => renderKanji(k.info, k.strokes)),
+          found.map(k => renderKanji(k.info, k.strokes, parts)),
         ),
     ),
   );

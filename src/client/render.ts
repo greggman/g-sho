@@ -1,5 +1,11 @@
 import {parseFurigana} from '../shared/furigana.ts';
-import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
+import type {
+  Entry,
+  Example,
+  KanjiInfo,
+  PartsData,
+  Sense,
+} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {fill, h, join, searchLink} from './dom.ts';
 import {t, language} from './i18n.ts';
@@ -567,7 +573,41 @@ export function renderStrokeOrder(
   );
 }
 
-export function renderKanji(k: KanjiInfo, strokes?: string[]): HTMLElement {
+/**
+ * A kanji's parts, each with what it means: 馬 horse, 虫 insect. In the
+ * Japanese interface, its Japanese name (うま, さんずい). Without the data,
+ * just the parts.
+ */
+function renderParts(
+  parts: string[],
+  info: PartsData | undefined,
+): HTMLElement {
+  return h(
+    'span',
+    {class: 'parts', lang: 'ja'},
+    parts.map(p => {
+      const part = info?.[p];
+      const name = language === 'ja' ? part?.ja : part?.en;
+      return h(
+        'span',
+        {class: 'part'},
+        h('span', {class: 'part-char'}, part?.f ?? p),
+        name &&
+          h(
+            'span',
+            {class: 'part-name', lang: language === 'ja' ? 'ja' : 'en'},
+            name,
+          ),
+      );
+    }),
+  );
+}
+
+export function renderKanji(
+  k: KanjiInfo,
+  strokes?: string[],
+  parts?: PartsData,
+): HTMLElement {
   const stats = [
     k.s && t('{n} strokes', {n: k.s}),
     k.g && gradeText(k.g),
@@ -606,7 +646,7 @@ export function renderKanji(k: KanjiInfo, strokes?: string[]): HTMLElement {
           'p',
           {class: 'kanji-parts'},
           h('span', {class: 'label'}, t('Parts: ')),
-          h('span', {lang: 'ja'}, k.parts.join(' ')),
+          renderParts(k.parts, parts),
         ),
     ),
     strokes && renderStrokeOrder(k.c, strokes),

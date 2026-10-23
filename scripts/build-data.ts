@@ -24,6 +24,7 @@ import {
 import {buildExamples} from './build-examples.ts';
 import {readEnglish, readWordNet} from './build-english.ts';
 import {buildSpelling} from './build-spelling.ts';
+import {buildParts} from './build-parts.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -641,6 +642,10 @@ function buildKanji(): {count: number; strokes: Record<string, number>} {
     ] = info;
   }
   writeShards('kanji', shards);
+  // What each part means, for the kanji panel.
+  const parts = JSON.stringify(buildParts(krad.kanji, kd.characters));
+  fs.writeFileSync(path.join(OUT_DIR, 'parts.json'), parts);
+  versions.parts = contentVersion([parts]);
   return {count: kd.characters.length, strokes};
 }
 
