@@ -15,8 +15,9 @@
  * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
  * definitions, .cache/jawiktionary/), and PaddleOCR's text detection and
  * recognition models as converted by RapidOCR (.cache/ocr/), pinned by hash,
- * and Open English WordNet (English definitions, .cache/wordnet/), pinned by
- * hash.
+ * Open English WordNet (English definitions, .cache/wordnet/), pinned by
+ * hash, and for spelling suggestions, wordfreq's English frequencies and
+ * Wikipedia's list of common misspellings (.cache/spelling/), pinned.
  */
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -256,6 +257,45 @@ async function downloadJaWiktionary() {
 }
 
 /**
+ * Wikipedia's list of common English misspellings, in its machine-readable
+ * form ("abandonned->abandoned"): what real spelling mistakes look like, to
+ * learn the spelling suggestions' error model from (CC BY-SA 4.0). Pinned
+ * to a revision, and by hash.
+ */
+const MISSPELLINGS = {
+  url: 'https://en.wikipedia.org/w/index.php?oldid=1199637275&action=raw',
+  file: 'misspellings.txt',
+  sha256: '3b6a9290e5aaad968da7ec769a5174adb45247688ef7ae097fd2dd80237a3050',
+};
+
+async function downloadMisspellings() {
+  const dir = path.join(CACHE_DIR, 'spelling');
+  const out = path.join(dir, MISSPELLINGS.file);
+  if (
+    fs.existsSync(out) &&
+    sha256(fs.readFileSync(out)) === MISSPELLINGS.sha256
+  ) {
+    return;
+  }
+  console.log('downloading Wikipedia’s list of common misspellings');
+  const data = new Uint8Array(
+    await (
+      await fetchOk(MISSPELLINGS.url, {
+        headers: {'user-agent': 'g-sho build (https://g-sho.org)'},
+      })
+    ).arrayBuffer(),
+  );
+  const got = sha256(data);
+  if (got !== MISSPELLINGS.sha256) {
+    throw new Error(
+      `${MISSPELLINGS.url}: sha256 ${got}, expected ${MISSPELLINGS.sha256}`,
+    );
+  }
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(out, data);
+}
+
+/**
  * Open English WordNet, for English definitions of English words (CC BY
  * 4.0). The JSON edition, about 10 MB; pinned by hash, like the models.
  */
@@ -294,8 +334,20 @@ const WORDFREQ = {
   file: 'large_ja.msgpack.gz',
 };
 
+/** wordfreq's English list, from the same commit: how common English words are (spelling suggestions). */
+const WORDFREQ_EN = 'large_en.msgpack.gz';
+
 async function downloadWordfreq() {
   const dir = path.join(CACHE_DIR, 'wordfreq', WORDFREQ.commit);
+  const en = path.join(dir, WORDFREQ_EN);
+  if (!fs.existsSync(en)) {
+    console.log(`downloading wordfreq ${WORDFREQ_EN}`);
+    const res = await fetchOk(
+      `https://raw.githubusercontent.com/rspeer/wordfreq/${WORDFREQ.commit}/wordfreq/data/${WORDFREQ_EN}`,
+    );
+    fs.mkdirSync(dir, {recursive: true});
+    fs.writeFileSync(en, Buffer.from(await res.arrayBuffer()));
+  }
   const out = path.join(dir, WORDFREQ.file);
   if (fs.existsSync(out)) return;
   console.log(`downloading wordfreq ${WORDFREQ.file}`);
@@ -404,6 +456,7 @@ await Promise.all([
   downloadJmdictXml(),
   downloadJaWiktionary(),
   downloadWordNet(),
+  downloadMisspellings(),
   downloadTatoebaExamples(),
   downloadWordfreq(),
   downloadTatoebaTranscriptions(),

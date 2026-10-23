@@ -2680,6 +2680,11 @@ html.show-japanese .ja-defs:empty {
 
 /* ---- English words: in Japanese (英和) and in English ---- */
 
+.spelling {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+}
+
 .english-words {
   margin: 0 0 18px;
 }
@@ -2708,6 +2713,18 @@ html.show-english-english .english-word:not(.no-en) {
   margin-top: 6px;
   padding-top: 4px;
   border-top: 1px solid var(--border);
+}
+
+/* Japanese words for an English word, with their 国語 definitions: shown
+   with 英和, whatever the Japanese-definitions setting. */
+.en-ja .ja-defs {
+  display: block;
+  margin: 0 0 6px;
+}
+
+.en-translation-word h4 {
+  margin: 8px 0 0;
+  font-size: 1.15rem;
 }
 
 .en-synonyms {

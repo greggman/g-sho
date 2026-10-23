@@ -173,4 +173,7 @@ export const JA_APP: Record<string, string> = {
     '英語の単語は表示しない設定です。表示するには、設定で「日本語の意味（英和）」か「英語の定義（英英）」をオンにしてください。',
   'Japanese words are turned off. To see them, turn on English meanings or Japanese definitions in Settings.':
     '日本語の単語は表示しない設定です。表示するには、設定で「英語の意味」か「日本語の定義（国語）」をオンにしてください。',
+  'Showing results for {word}. Search instead for {typed}.':
+    '{word} の検索結果を表示しています。{typed} で検索し直す',
+  'Did you mean {words}?': 'もしかして：{words}',
 };

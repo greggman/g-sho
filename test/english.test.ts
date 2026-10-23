@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import {describe, test} from 'node:test';
 import {Dict} from '../src/client/dict.ts';
-import {lookupEnglish, regularBases} from '../src/client/english.ts';
+import {
+  addTranslations,
+  lookupEnglish,
+  regularBases,
+} from '../src/client/english.ts';
 import {
   loadDisplaySettings,
   saveDisplaySetting,
@@ -75,6 +79,33 @@ describe('English words (英和)', () => {
     assert.equal(only.definitions[0].s[0].d, 'good luck in making discoveries');
     assert.deepEqual(only.ipa, ['/ˌsɛɹ.ənˈdɪp.ɪ.ti/']);
     assert.deepEqual(await words('unknownish'), []);
+  });
+
+  test('a word the 英和 data lacks gets JMdict’s words, in Japanese', async () => {
+    const kaizen = {id: 1, k: [{t: '改善'}], r: [{t: 'かいぜん'}], s: []};
+    const defs = [{p: '名詞', s: [{g: '悪いところを改めてよくすること。'}]}];
+    const dict = await Dict.open(async path => {
+      if (path === 'meta.json') return {shards: {enw: 4, jadef: 4}};
+      if (path.startsWith('jadef/')) return {1: defs};
+      return {};
+    });
+    const [w] = await addTranslations(
+      dict,
+      'betterment',
+      [],
+      [kaizen as never],
+    );
+    assert.equal(w.word, 'betterment');
+    assert.equal(w.translations?.[0].entry.id, 1);
+    assert.deepEqual(w.translations?.[0].defs, defs);
+    // Words the 英和 data has are left alone.
+    const has = [
+      {word: 'cat', entries: [entry('cat', '猫。')], definitions: []},
+    ];
+    assert.equal(
+      await addTranslations(dict, 'cat', has, [kaizen as never]),
+      has,
+    );
   });
 
   test('nothing without the data', async () => {

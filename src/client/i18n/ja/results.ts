@@ -205,4 +205,6 @@ export const JA_RESULTS: Record<string, string> = {
   Number: '数詞',
   transitive: '他動詞',
   intransitive: '自動詞',
+  'Japanese words for it · JMdict, Japanese Wiktionary':
+    '対応する日本語 · JMdict・ウィクショナリー',
 };

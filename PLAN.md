@@ -290,6 +290,29 @@ Wiktionary entries have none and its irregular forms ("mice" → mouse).
 Each word's card shows its Japanese part, its English part, or both, by
 the two settings; a word with nothing to show is hidden.
 
+## Spelling suggestions
+
+An English search that finds nothing anywhere ("beterment") is checked for
+a misspelling, on the device: `src/client/spell.ts`, with data built by
+`scripts/build-spelling.ts` into `data/spell.json` (~1.5 MB, ~590 KB
+gzipped; loaded only when needed, and in the offline download).
+
+- A noisy channel model. The vocabulary is every single English word the
+  app can show something for (en/ and enw/, 142,000), each with how common
+  it is (wordfreq's English list). The error model is learned from
+  Wikipedia's list of common misspellings (pinned revision): each pair is
+  aligned and its edits counted (a letter dropped, added, doubled or
+  undoubled, swapped with its neighbour, or replaced), and common edits
+  cost less; keyboard neighbours cost less too. A word's score is its edit
+  cost minus how common it is. The list's misspellings are also looked up
+  directly ("accomodate" → accommodate).
+- A clear winner (well ahead of the next different word; its own plural
+  and other forms don't count) is searched for: "Showing results for
+  betterment. Search instead for beterment" (that link adds `exact=1`, no
+  correction). Otherwise "Did you mean word, ward, weird?".
+- About 40 ms on a laptop, scanning the vocabulary with a banded, weighted
+  Damerau–Levenshtein over precomputed cost tables.
+
 ## The interface in Japanese
 
 "Language / 表示言語" at the top of Settings (in both languages, so it can

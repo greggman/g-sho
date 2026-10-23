@@ -9,10 +9,21 @@
  * data; failing that, regular endings are tried ("walked" → walk).
  */
 import {hasJapanese} from '../shared/kana.ts';
-import type {EnglishDefinitions, EnglishEntry} from '../shared/types.ts';
+import type {
+  EnglishDefinitions,
+  EnglishEntry,
+  Entry,
+  JaDefinition,
+} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {h, searchLink} from './dom.ts';
+import {headword} from './forms.ts';
 import {t} from './i18n.ts';
+import {jaDefinitionsSlot, render as renderJaDefinitions} from './japanese.ts';
+import {rubyWord} from './render.ts';
+
+/** Japanese words shown for an English word the 英和 data doesn't have. */
+const MAX_TRANSLATIONS = 5;
 
 /** Longest query looked up as an English word or phrase. */
 const MAX_WORDS = 4;
@@ -27,6 +38,63 @@ export interface EnglishWord {
   ipa?: string[];
   /** the query is a form of this word */
   base?: boolean;
+  /**
+   * When the 英和 data has no entry: the Japanese words JMdict gives for it,
+   * with their definitions in Japanese (国語), so it's still answered in
+   * Japanese.
+   */
+  translations?: {entry: Entry; defs?: JaDefinition[]}[];
+}
+
+/**
+ * For an English word the 英和 data doesn't have ("betterment"): the
+ * Japanese words that JMdict's English meanings match (改善, …), each with
+ * its definitions in Japanese. `matches` are the search's Japanese words,
+ * best first. Words already answered by the 英和 data are left as they are.
+ */
+export async function addTranslations(
+  dict: Dict,
+  query: string,
+  words: EnglishWord[],
+  matches: Entry[],
+): Promise<EnglishWord[]> {
+  if (words.some(w => w.entries.length) || !matches.length) return words;
+  const key = query.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!key || hasJapanese(key)) return words;
+  const translations = await Promise.all(
+    matches.slice(0, MAX_TRANSLATIONS).map(async entry => ({
+      entry,
+      defs: await dict.jaDefinitions(entry.id).catch(() => undefined),
+    })),
+  );
+  const own = words.find(w => !w.base);
+  if (own) return words.map(w => (w === own ? {...w, translations} : w));
+  return [{word: key, entries: [], definitions: [], translations}, ...words];
+}
+
+function renderTranslations(
+  translations: NonNullable<EnglishWord['translations']>,
+): HTMLElement {
+  return h(
+    'div',
+    {class: 'en-ja'},
+    h(
+      'p',
+      {class: 'en-source'},
+      t('Japanese words for it · JMdict, Japanese Wiktionary'),
+    ),
+    translations.map(({entry, defs}) => {
+      const word = headword(entry);
+      const slot = jaDefinitionsSlot(entry.id, true);
+      renderJaDefinitions(slot, defs);
+      return h(
+        'div',
+        {class: 'en-translation-word', lang: 'ja'},
+        h('h4', null, searchLink(word.text, rubyWord(word))),
+        slot,
+      );
+    }),
+  );
 }
 
 /** "walked" → walk, walke; "stopped" → stop; "cities" → city; … */
@@ -199,7 +267,7 @@ export function renderEnglish(words: EnglishWord[]): HTMLElement | undefined {
         ...new Set([...w.entries.flatMap(e => e.ipa ?? []), ...(w.ipa ?? [])]),
       ];
       const classes = ['english-word'];
-      if (!w.entries.length) classes.push('no-ja');
+      if (!w.entries.length && !w.translations?.length) classes.push('no-ja');
       if (!w.definitions.length) classes.push('no-en');
       return h(
         'article',
@@ -227,6 +295,9 @@ export function renderEnglish(words: EnglishWord[]): HTMLElement | undefined {
                 : renderEntry(e),
             ),
           ),
+        !w.entries.length &&
+          !!w.translations?.length &&
+          renderTranslations(w.translations),
         w.definitions.length > 0 && renderDefinitions(w.definitions),
       );
     }),

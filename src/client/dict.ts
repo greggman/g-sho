@@ -5,6 +5,7 @@ import {
   kanjiShard,
   shardName,
 } from '../shared/hash.ts';
+import type {SpellData} from './spell.ts';
 import type {
   EnglishShard,
   EnIndexShard,
@@ -146,6 +147,12 @@ export class Dict {
       `enw/${shardName(enShard(word, n))}.json`,
     );
     return Object.hasOwn(shard, word) ? shard[word] : undefined;
+  }
+
+  /** The spelling-suggestion data (spell.ts); undefined if not built. */
+  async spelling(): Promise<SpellData | undefined> {
+    if (!this.meta.versions?.spell) return undefined;
+    return this.file<SpellData>('spell.json');
   }
 
   async kanji(ch: string): Promise<KanjiInfo | undefined> {

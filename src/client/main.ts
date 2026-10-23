@@ -6,11 +6,16 @@ import {
 } from './anki/settings.ts';
 import type {Meta, Entry} from '../shared/types.ts';
 import {Dict} from './dict.ts';
-import {h, searchLink} from './dom.ts';
+import {fill, h, join, searchLink} from './dom.ts';
 import {headword} from './forms.ts';
 import {HistoryStore, HistoryView} from './history-view.ts';
 import {applyUpdate, newVersion, onNewVersion} from './update.ts';
-import {lookupEnglish, renderEnglish, type EnglishWord} from './english.ts';
+import {
+  addTranslations,
+  lookupEnglish,
+  renderEnglish,
+  type EnglishWord,
+} from './english.ts';
 import {language, rememberLanguage, t, translatePage} from './i18n.ts';
 
 // The page's own text, before anything else is drawn.
@@ -37,7 +42,8 @@ import {openStore, type Store} from './store/store.ts';
 import {WordTools} from './word-tools.ts';
 import {reloadIfStale} from './stale.ts';
 import {OfflineDictionary, createOfflinePanel} from './offline/offline.ts';
-import {fillJapanese} from './japanese.ts';
+import {fillJapanese, linkJapanese} from './japanese.ts';
+import {loadSpeller, Speller} from './spell.ts';
 import {buildQueue} from './study/model.ts';
 import {loadAccount} from './account.ts';
 import {Sync} from './sync.ts';
@@ -199,6 +205,66 @@ function sidebarKanji(query: string, result: SearchResult): string[] {
   );
 }
 
+/** What a search found: its Japanese words, and the English word. */
+async function lookUp(dict: Dict, query: string, pages: number) {
+  const [result, found] = await Promise.all([
+    search(dict, query, {pages}),
+    // A nice-to-have: the search still shows without it.
+    lookupEnglish(dict, query).catch(() => []),
+  ]);
+  // An English word the 英和 data doesn't have: JMdict's Japanese words for
+  // it, explained in Japanese.
+  const english =
+    display.englishJapanese && pages === 1
+      ? await addTranslations(
+          dict,
+          query,
+          found,
+          result.words.map(w => w.entry),
+        ).catch(() => found)
+      : found;
+  return {result, english};
+}
+
+function foundNothing(result: SearchResult, english: EnglishWord[]) {
+  return result.total === 0 && !result.sentence && english.length === 0;
+}
+
+/** A misspelled search: searched as the word it surely meant, or suggestions. */
+type Spelling = {corrected: string; typed: string} | {suggestions: string[]};
+
+function renderSpelling(spelling: Spelling | undefined): HTMLElement | false {
+  if (!spelling) return false;
+  if ('corrected' in spelling) {
+    return h(
+      'p',
+      {class: 'spelling'},
+      fill(t('Showing results for {word}. Search instead for {typed}.'), {
+        word: h('strong', null, spelling.corrected),
+        typed: h(
+          'a',
+          {href: searchUrl(spelling.typed, {exact: 1})},
+          spelling.typed,
+        ),
+      }),
+    );
+  }
+  return h(
+    'p',
+    {class: 'spelling'},
+    fill(t('Did you mean {words}?'), {
+      words: h(
+        'span',
+        null,
+        join(
+          spelling.suggestions.map(w => searchLink(w, h('strong', null, w))),
+          ', ',
+        ),
+      ),
+    }),
+  );
+}
+
 /** Why a search shows nothing: nothing matched, or its dictionaries are off. */
 function noResults(query: string, english: EnglishWord[]): string {
   if (english.length && !display.englishJapanese && !display.englishEnglish) {
@@ -221,6 +287,7 @@ async function renderResults(
   pages: number,
   /** the English word searched for, explained in Japanese (英和) */
   english: EnglishWord[] = [],
+  spelling?: Spelling,
 ): Promise<HTMLElement> {
   // Each switch in Settings is a dictionary. With both Japanese-word ones
   // off (English → Japanese only, say), Japanese words aren't shown at all.
@@ -229,8 +296,10 @@ async function renderResults(
     result = {...result, words: [], total: 0, sentence: undefined};
   }
   const englishShown =
-    english.some(w => display.englishJapanese && w.entries.length) ||
-    english.some(w => display.englishEnglish && w.definitions.length);
+    english.some(
+      w =>
+        display.englishJapanese && (w.entries.length || w.translations?.length),
+    ) || english.some(w => display.englishEnglish && w.definitions.length);
   const kanji = await Promise.all(
     sidebarKanji(query, result).map(async k => {
       const [info, strokes] = await Promise.all([
@@ -249,6 +318,7 @@ async function renderResults(
     h(
       'section',
       {class: 'words'},
+      renderSpelling(spelling),
       pages === 1 && renderEnglish(english),
       japaneseWords && resultsHeading(result),
       result.words.length === 0 &&
@@ -360,16 +430,41 @@ async function route(dict: Dict, record = false) {
   const id = ++currentSearch;
   content.setAttribute('aria-busy', 'true');
   try {
-    const [result, english] = await Promise.all([
-      search(dict, query, {pages}),
-      // A nice-to-have: the search still shows without it.
-      lookupEnglish(dict, query).catch(() => []),
-    ]);
-    const view = await renderResults(dict, query, result, pages, english);
+    let shown = query;
+    let {result, english} = await lookUp(dict, query, pages);
+    // Nothing anywhere: maybe a misspelling ("beterment"). A clear best guess
+    // is searched for; otherwise the likeliest are offered.
+    let spelling: Spelling | undefined;
+    if (pages === 1 && !params.has('exact') && foundNothing(result, english)) {
+      const speller = await loadSpeller(dict);
+      const suggestions = speller?.suggest(query) ?? [];
+      const winner = Speller.clearWinner(suggestions);
+      const corrected = winner && (await lookUp(dict, winner, pages));
+      if (
+        winner &&
+        corrected &&
+        !foundNothing(corrected.result, corrected.english)
+      ) {
+        ({result, english} = corrected);
+        shown = winner;
+        spelling = {corrected: winner, typed: query};
+      } else if (suggestions.length) {
+        spelling = {suggestions: suggestions.slice(0, 3).map(s => s.word)};
+      }
+    }
+    const view = await renderResults(
+      dict,
+      shown,
+      result,
+      pages,
+      english,
+      spelling,
+    );
     if (id !== currentSearch) return;
     content.replaceChildren(view);
     void fillJapanese(dict, content);
-    if (record && pages === 1) recordHistory(query, result);
+    void linkJapanese(dict, content);
+    if (record && pages === 1) recordHistory(shown, result);
     historyColumn.setCurrent(query);
   } catch (e) {
     if (id !== currentSearch || reloadIfStale(e)) return;

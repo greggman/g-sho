@@ -23,6 +23,7 @@ import {
 } from './build-jawiktionary.ts';
 import {buildExamples} from './build-examples.ts';
 import {readEnglish, readWordNet} from './build-english.ts';
+import {buildSpelling} from './build-spelling.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -395,6 +396,14 @@ function readWordfreq(): Map<string, number> {
     for (const w of words as string[]) out.set(w, 9 - i / 100);
   });
   return out;
+}
+
+/** wordfreq's English list, from the same commit as the Japanese one. */
+function wordfreqEnglish(): string | undefined {
+  const current = path.join(CACHE_DIR, 'wordfreq', 'current.json');
+  if (!fs.existsSync(current)) return undefined;
+  const {commit} = JSON.parse(fs.readFileSync(current, 'utf8'));
+  return path.join(CACHE_DIR, 'wordfreq', commit, 'large_en.msgpack.gz');
 }
 
 /** The spelling a word is usually written with. */
@@ -895,6 +904,12 @@ async function main() {
     console.log(`more example sentences for ${examples.size} entries`);
   }
   const enw = await buildEnglish();
+  // After en/ and enw/: their words are what it can suggest.
+  if (buildSpelling(OUT_DIR, CACHE_DIR, wordfreqEnglish())) {
+    versions.spell = contentVersion([
+      fs.readFileSync(path.join(OUT_DIR, 'spell.json'), 'utf8'),
+    ]);
+  }
 
   const meta: Meta = {
     version,

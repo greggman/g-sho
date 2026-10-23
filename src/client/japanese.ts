@@ -77,7 +77,8 @@ export function jaText(s: string, hints?: [string, string][]) {
   );
 }
 
-function render(slot: HTMLElement, defs: JaDefinition[] | undefined) {
+/** Shows definitions in `slot` (a jaDefinitionsSlot), or that there are none. */
+export function render(slot: HTMLElement, defs: JaDefinition[] | undefined) {
   const compact = slot.classList.contains('compact');
   if (!defs?.length) {
     slot.replaceChildren(
