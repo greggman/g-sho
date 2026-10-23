@@ -45,8 +45,7 @@ export const JA_APP: Record<string, string> = {
 
   // Settings → display (settings.ts, settings-panel.ts).
   'English meanings': '英語の意味',
-  'When off, meanings are blurred; tap one to see it.':
-    'オフにすると意味がぼかされます。タップすると表示されます。',
+  'From JMdict.': 'JMdict より。',
   'Japanese definitions (国語)': '日本語の定義（国語）',
   'From the Japanese Wiktionary. Every word in them links to its entry. To study in Japanese only, also turn off English meanings.':
     '日本語版ウィクショナリーより。定義中の各単語から、その項目に移動できます。日本語だけで学習したい場合は、「英語の意味」もオフにしてください。',
@@ -167,4 +166,11 @@ export const JA_APP: Record<string, string> = {
   'Keep the whole dictionary on this device': '辞書全体をこの端末に保存',
   'about 120 MB, so every word works offline.':
     '約 120 MB。すべての単語をオフラインで使えます。',
+  'Grammar labels': '文法ラベル',
+  'What kind of word it is: noun, godan or ichidan verb, transitive, na-adjective, ….':
+    '品詞などの種類です：名詞、五段・一段動詞、他動詞、な形容詞など。',
+  'English words are turned off. To see them, turn on Japanese meanings or English definitions in Settings.':
+    '英語の単語は表示しない設定です。表示するには、設定で「日本語の意味（英和）」か「英語の定義（英英）」をオンにしてください。',
+  'Japanese words are turned off. To see them, turn on English meanings or Japanese definitions in Settings.':
+    '日本語の単語は表示しない設定です。表示するには、設定で「英語の意味」か「日本語の定義（国語）」をオンにしてください。',
 };

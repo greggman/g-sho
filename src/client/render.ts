@@ -2,7 +2,7 @@ import {parseFurigana} from '../shared/furigana.ts';
 import type {Entry, Example, KanjiInfo, Sense} from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {fill, h, join, searchLink} from './dom.ts';
-import {t} from './i18n.ts';
+import {t, language} from './i18n.ts';
 import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
   furigana,
@@ -179,6 +179,65 @@ function inflectionNote(inf: Inflection): HTMLElement {
   );
 }
 
+/**
+ * The grammar a learner uses, by JMdict part-of-speech tag: what kind of
+ * word it is, and for verbs, the group that decides how it conjugates.
+ * Other tags (the godan verb's ending, auxiliary, archaic classes, …) are
+ * left out.
+ */
+function learnerTags(): Record<string, string> {
+  const noun = t('Noun');
+  const suru = t('Suru verb');
+  return {
+    n: noun,
+    'n-pr': noun,
+    'n-adv': noun,
+    'n-t': noun,
+    'n-suf': t('Suffix'),
+    'n-pref': t('Prefix'),
+    v1: t('Ichidan verb'),
+    'v1-s': t('Ichidan verb'),
+    vk: t('Kuru verb'),
+    vs: suru,
+    'vs-i': suru,
+    'vs-s': suru,
+    'adj-i': t('i-adjective'),
+    'adj-ix': t('i-adjective'),
+    'adj-na': t('na-adjective'),
+    adv: t('Adverb'),
+    'adv-to': t('Adverb'),
+    exp: t('Expression'),
+    int: t('Interjection'),
+    conj: t('Conjunction'),
+    prt: t('Particle'),
+    pn: t('Pronoun'),
+    pref: t('Prefix'),
+    suf: t('Suffix'),
+    ctr: t('Counter'),
+    num: t('Number'),
+  };
+}
+
+/**
+ * A sense's grammar for learners: "Godan verb · transitive", "Noun · Suru
+ * verb", "na-adjective". Empty when none of its tags are ones learners use.
+ */
+export function grammarLabel(tags: string[] | undefined): string {
+  const names = learnerTags();
+  const out: string[] = [];
+  const add = (s: string | undefined) => {
+    if (s && !out.includes(s)) out.push(s);
+  };
+  for (const tag of tags ?? []) {
+    add(tag.startsWith('v5') ? t('Godan verb') : names[tag]);
+  }
+  // Transitivity last, after the verb's group.
+  if (tags?.includes('vt')) add(t('transitive'));
+  if (tags?.includes('vi')) add(t('intransitive'));
+  return out.join(language === 'ja' ? '・' : ' · ');
+}
+
+/** A tag's full name, as kept in Anki notes and exports. */
 export function posLabel(dict: Dict, tag: string): string {
   return SHORT_TAGS[tag] ?? capitalize(dict.tagDescription(tag));
 }
@@ -260,7 +319,7 @@ function renderSense(
   n: number,
   prevPos: string | undefined,
 ): HTMLElement {
-  const pos = sense.p?.map(p => posLabel(dict, p)).join(', ');
+  const pos = grammarLabel(sense.p);
   const tags = [...(sense.m ?? []), ...(sense.f ?? []), ...(sense.d ?? [])].map(
     tag => capitalize(dict.tagDescription(tag)),
   );
@@ -283,7 +342,7 @@ function renderSense(
   return h(
     'li',
     {class: 'sense'},
-    pos && pos !== prevPos && h('div', {class: 'pos'}, pos),
+    pos && pos !== prevPos && h('div', {class: 'pos grammar'}, pos),
     h(
       'div',
       {class: 'sense-line'},
@@ -416,7 +475,7 @@ export function renderEntry(
         {class: 'senses'},
         entry.s.map((s, i) => {
           const el = renderSense(dict, s, i + 1, prevPos);
-          prevPos = s.p?.map(p => posLabel(dict, p)).join(', ');
+          prevPos = grammarLabel(s.p);
           return el;
         }),
       ),
@@ -594,11 +653,11 @@ function renderSentenceWord(
   const head = headword(entry);
   let prevPos: string | undefined;
   const senses = entry.s.slice(0, COMPACT_SENSES).map((s, i) => {
-    const pos = s.p?.map(p => posLabel(dict, p)).join(', ');
+    const pos = grammarLabel(s.p);
     const el = h(
       'li',
       null,
-      pos && pos !== prevPos && h('span', {class: 'pos'}, pos),
+      pos && pos !== prevPos && h('span', {class: 'pos grammar'}, pos),
       h('span', {class: 'sense-num'}, `${i + 1}. `),
       h('span', {class: 'compact-gloss'}, s.g.join('; ')),
     );

@@ -1073,15 +1073,10 @@ a:hover {
   padding: 12px 0 0;
 }
 
-/* What the settings hide. Meanings are blurred rather than removed, so
-   they can be revealed one at a time (click adds .revealed). */
+/* What the settings hide: not shown at all, so it takes no space. */
 .hide-meanings
-  :is(.glosses, .compact-gloss, .kanji-meanings, .example-en, .history-meaning):not(
-    .revealed
-  ) {
-  filter: blur(5px);
-  cursor: pointer;
-  user-select: none;
+  :is(.glosses, .compact-gloss, .kanji-meanings, .example-en, .history-meaning) {
+  display: none;
 }
 
 .hide-furigana rt {
@@ -1092,6 +1087,7 @@ a:hover {
   visibility: visible;
 }
 
+.hide-grammar .grammar,
 .hide-examples .examples,
 .hide-strokes .stroke-order,
 .hide-kanji .kanji-sidebar {

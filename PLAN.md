@@ -322,12 +322,22 @@ that goes into Anki (note types, fields, templates, deck names).
   the top, so the list doesn't reshuffle. On narrower screens it's on the
   home page. The list is virtual (only the rows in view exist), so thousands
   scroll smoothly. Rows can be removed one by one or all at once.
-- **Settings** (gear button), in groups. Japanese words: English meanings
-  (blurred when off; tap one to reveal it, for practice) and Japanese
-  definitions (国語). English words: Japanese meanings (英和). Show:
-  furigana (shown on hover), example sentences, kanji details, stroke order,
-  and the home-page history. Applied as classes on `<html>`, so no
-  re-render. The Anki settings are here too.
+- **Settings** (gear button), in groups. Japanese words: English meanings and
+  Japanese definitions (国語). English words: Japanese meanings (英和) and
+  English definitions. Show: grammar labels, furigana (shown on hover),
+  example sentences, kanji details, stroke order, and the home-page history.
+  What's off isn't shown at all, so it takes no space. Applied as classes on
+  `<html>`, so no re-render. The Anki settings are here too.
+  - Each of the four is a dictionary: Japanese words with English meanings
+    (for English speakers), Japanese words defined in Japanese (国語辞典),
+    English words in Japanese (英和辞典), and English words defined in
+    English. A search shows only the ones that are on; with both
+    Japanese-word ones off, no Japanese words at all. Changing them searches
+    again.
+  - Grammar labels: the kinds of word learners use, "Godan verb ·
+    transitive", "Noun · Suru verb", "na-adjective" (render.ts
+    grammarLabel); JMdict's other part-of-speech detail is left out. Anki
+    notes keep JMdict's full names.
   - Each setting is its own row in the store (`showFurigana`, …), kept in
     this browser and synced when signed in, so settings changed on two
     devices don't overwrite each other. The older all-in-one `display` row

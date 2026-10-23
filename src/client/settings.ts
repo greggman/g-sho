@@ -1,7 +1,6 @@
 /**
- * Display settings: what to show. Turning things off is useful when
- * practicing (hide meanings or furigana and test yourself). Hidden meanings
- * are blurred rather than removed; tapping one reveals it.
+ * Display settings: what to show. What's turned off isn't shown at all, so
+ * it takes no space; turn it back on in Settings to see it.
  *
  * Settings are applied as classes on <html> (hide-meanings, …), so toggling
  * one doesn't need a re-render.
@@ -19,6 +18,8 @@ export interface DisplaySettings {
   englishJapanese: boolean;
   /** English words: definitions in English (Open English WordNet) */
   englishEnglish: boolean;
+  /** what kind of word it is: noun, godan verb, transitive, … */
+  grammar: boolean;
   furigana: boolean;
   examples: boolean;
   kanji: boolean;
@@ -31,10 +32,7 @@ export type SettingKey = keyof DisplaySettings;
 /** Each setting's label and hint, in the interface's language. */
 export function settingLabels(): Record<SettingKey, [string, string]> {
   return {
-    meanings: [
-      t('English meanings'),
-      t('When off, meanings are blurred; tap one to see it.'),
-    ],
+    meanings: [t('English meanings'), t('From JMdict.')],
     japanese: [
       t('Japanese definitions (国語)'),
       t(
@@ -51,6 +49,12 @@ export function settingLabels(): Record<SettingKey, [string, string]> {
       t('English definitions'),
       t(
         'When you search in English: the word defined in English, with synonyms. From Open English WordNet.',
+      ),
+    ],
+    grammar: [
+      t('Grammar labels'),
+      t(
+        'What kind of word it is: noun, godan or ichidan verb, transitive, na-adjective, ….',
       ),
     ],
     furigana: [
@@ -72,7 +76,10 @@ export function settingGroups(): [string, SettingKey[]][] {
   return [
     [t('Japanese words'), ['meanings', 'japanese']],
     [t('English words'), ['englishJapanese', 'englishEnglish']],
-    [t('Show'), ['furigana', 'examples', 'kanji', 'strokeOrder', 'history']],
+    [
+      t('Show'),
+      ['grammar', 'furigana', 'examples', 'kanji', 'strokeOrder', 'history'],
+    ],
   ];
 }
 
@@ -87,6 +94,7 @@ function defaults(): DisplaySettings {
     japanese: false,
     englishJapanese: prefersJapanese(),
     englishEnglish: false,
+    grammar: true,
     furigana: true,
     examples: true,
     kanji: true,
@@ -153,12 +161,9 @@ export function applyDisplaySettings(settings: DisplaySettings) {
   root.toggle('show-japanese', settings.japanese);
   root.toggle('show-english-japanese', settings.englishJapanese);
   root.toggle('show-english-english', settings.englishEnglish);
+  root.toggle('hide-grammar', !settings.grammar);
   root.toggle('hide-furigana', !settings.furigana);
   root.toggle('hide-examples', !settings.examples);
   root.toggle('hide-kanji', !settings.kanji);
   root.toggle('hide-strokes', !settings.strokeOrder);
 }
-
-/** Selector for text blurred by hide-meanings. */
-export const MEANING_SELECTOR =
-  '.glosses, .compact-gloss, .kanji-meanings, .example-en, .history-meaning';

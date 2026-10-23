@@ -26,7 +26,6 @@ import {
 } from './render.ts';
 import {search, type SearchResult} from './search.ts';
 import {
-  MEANING_SELECTOR,
   applyDisplaySettings,
   loadDisplaySettings,
   saveDisplaySetting,
@@ -200,6 +199,21 @@ function sidebarKanji(query: string, result: SearchResult): string[] {
   );
 }
 
+/** Why a search shows nothing: nothing matched, or its dictionaries are off. */
+function noResults(query: string, english: EnglishWord[]): string {
+  if (english.length && !display.englishJapanese && !display.englishEnglish) {
+    return t(
+      'English words are turned off. To see them, turn on Japanese meanings or English definitions in Settings.',
+    );
+  }
+  if (!display.meanings && !display.japanese) {
+    return t(
+      'Japanese words are turned off. To see them, turn on English meanings or Japanese definitions in Settings.',
+    );
+  }
+  return t("Sorry, couldn't find anything matching {query}.", {query});
+}
+
 async function renderResults(
   dict: Dict,
   query: string,
@@ -208,6 +222,15 @@ async function renderResults(
   /** the English word searched for, explained in Japanese (英和) */
   english: EnglishWord[] = [],
 ): Promise<HTMLElement> {
+  // Each switch in Settings is a dictionary. With both Japanese-word ones
+  // off (English → Japanese only, say), Japanese words aren't shown at all.
+  const japaneseWords = display.meanings || display.japanese;
+  if (!japaneseWords) {
+    result = {...result, words: [], total: 0, sentence: undefined};
+  }
+  const englishShown =
+    english.some(w => display.englishJapanese && w.entries.length) ||
+    english.some(w => display.englishEnglish && w.definitions.length);
   const kanji = await Promise.all(
     sidebarKanji(query, result).map(async k => {
       const [info, strokes] = await Promise.all([
@@ -227,13 +250,10 @@ async function renderResults(
       'section',
       {class: 'words'},
       pages === 1 && renderEnglish(english),
-      resultsHeading(result),
+      japaneseWords && resultsHeading(result),
       result.words.length === 0 &&
-        h(
-          'p',
-          {class: 'no-results'},
-          t("Sorry, couldn't find anything matching {query}.", {query}),
-        ),
+        !englishShown &&
+        h('p', {class: 'no-results'}, noResults(query, english)),
       result.words.map(w => renderEntry(dict, w, entryActions)),
       result.words.length < result.total &&
         h(
@@ -660,11 +680,16 @@ function showDisplaySettings(
   settings: DisplaySettings,
 ) {
   const historyChanged = settings.history !== display.history;
+  // Which dictionaries are on decides what a search shows: search again.
+  const dictionaries = (s: DisplaySettings) =>
+    [s.meanings, s.japanese, s.englishJapanese, s.englishEnglish].join();
+  const dictionariesChanged = dictionaries(settings) !== dictionaries(display);
   display = settings;
   applyDisplaySettings(display);
   if (dict) void fillJapanese(dict, content);
   document.documentElement.classList.toggle('hide-history', !display.history);
   if (dict && historyChanged && !location.search) void route(dict);
+  else if (dict && dictionariesChanged && location.search) void route(dict);
 }
 
 function storage(): Storage | undefined {
@@ -753,21 +778,6 @@ async function main() {
       !a.closest('.history'),
     );
   });
-
-  // With meanings hidden (for practice), tapping one reveals it.
-  document.addEventListener(
-    'click',
-    e => {
-      if (!document.documentElement.classList.contains('hide-meanings')) return;
-      const meaning = (e.target as Element).closest(MEANING_SELECTOR);
-      if (meaning && !meaning.classList.contains('revealed')) {
-        meaning.classList.add('revealed');
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    },
-    true,
-  );
 
   window.addEventListener('popstate', () => {
     showBackButton();
