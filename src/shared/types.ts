@@ -118,7 +118,7 @@ export interface KanjiInfo {
   f?: number;
   /** classical radical number */
   rad?: number;
-  /** components from KRADFILE */
+  /** its top-level parts, from KRADFILE (build-parts.ts topLevelParts) */
   parts?: string[];
 }
 
@@ -130,6 +130,8 @@ export interface PartInfo {
   en?: string;
   /** its Japanese name: a radical name (さんずい) or kun reading (うま) */
   ja?: string;
+  /** for a radical form, the kanji it's a form of (氵: 水) */
+  s?: string;
 }
 
 /** parts.json: KRADFILE component → what it is */

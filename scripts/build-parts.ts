@@ -62,7 +62,7 @@ const NAMES: Record<string, [string, string]> = {
   衤: ['clothing', 'ころもへん'],
   罒: ['net', 'あみがしら'],
   啇: ['root', 'てき'],
-  乞: ['person (bent)', 'ひと'],
+  乞: ['hook top (as in 年, 毎)', '年・毎の上'],
   ノ: ['slash', 'の'],
   '｜': ['line', 'ぼう'],
   丶: ['dot', 'てん'],
@@ -156,6 +156,86 @@ const NAMES: Record<string, [string, string]> = {
   巨: ['big', 'きょ'],
 };
 
+/**
+ * The kanji a radical form comes from, to look it up: 氵 is a form of 水.
+ * By the form shown, or (阝, 个) by KRADFILE's character.
+ */
+const SOURCES: Record<string, string> = {
+  亻: '人',
+  个: '人',
+  丷: '八',
+  刂: '刀',
+  辶: '辵',
+  '⺌': '小',
+  忄: '心',
+  扌: '手',
+  氵: '水',
+  犭: '犬',
+  艹: '艸',
+  邦: '邑',
+  阡: '阜',
+  耂: '老',
+  灬: '火',
+  礻: '示',
+  衤: '衣',
+  罒: '网',
+};
+
+/**
+ * What a part contains, as KRADFILE lists it: its own parts. A stand-in is
+ * its radical form, which contains nothing (化 for 亻 doesn't contain 匕),
+ * except 乞 for 𠂉, which is ノ and 一.
+ */
+function contains(krad: Record<string, string[]>, part: string): string[] {
+  if (part === '乞') return ['ノ', '一'];
+  if (STAND_INS[part]) return [];
+  return (krad[part] ?? []).filter(p => p !== part);
+}
+
+/**
+ * Shapes so alike that KRADFILE lists both for a kanji that has one, so it
+ * can be found by either (数 has 攵, 冬 has 夂; both list both).
+ */
+const LOOKALIKES: [string, string][] = [
+  ['攵', '夂'],
+  ['口', '囗'],
+  ['毋', '母'],
+];
+
+/**
+ * A kanji's top-level parts: KRADFILE lists every shape you might look a
+ * kanji up by, including the ones inside other parts (故: 口 十 攵, and 乞,
+ * the top of 攵). Those are left out: 故 is 口, 十 and 攵. Of two
+ * lookalikes, the one the kanji has (`elements`: its KanjiVG components)
+ * is kept.
+ */
+export function topLevelParts(
+  krad: Record<string, string[]>,
+  parts: string[],
+  elements?: Set<string>,
+): string[] {
+  let kept = parts;
+  for (const [a, b] of LOOKALIKES) {
+    if (!kept.includes(a) || !kept.includes(b) || !elements) continue;
+    if (elements.has(a) && !elements.has(b)) kept = kept.filter(p => p !== b);
+    if (elements.has(b) && !elements.has(a)) kept = kept.filter(p => p !== a);
+  }
+  // A part inside another listed part; not when each "contains" the other.
+  const inside = new Set(
+    kept.flatMap(p =>
+      contains(krad, p).filter(
+        q => kept.includes(q) && !contains(krad, q).includes(p),
+      ),
+    ),
+  );
+  return kept.filter(p => !inside.has(p));
+}
+
+/** The components KanjiVG records anywhere in a kanji (kvg:element). */
+export function kanjiVgElements(svg: string): Set<string> {
+  return new Set([...svg.matchAll(/kvg:element="([^"]+)"/g)].map(m => m[1]));
+}
+
 interface KanjidicChar {
   literal: string;
   readingMeaning?: null | {
@@ -198,6 +278,8 @@ export function buildParts(
     const ja = named?.[1] ?? kunOf(c);
     const info: PartInfo = {};
     if (form !== part) info.f = form;
+    const source = SOURCES[part] ?? SOURCES[form];
+    if (source) info.s = source;
     if (en) info.en = en;
     if (ja) info.ja = ja;
     out[part] = info;

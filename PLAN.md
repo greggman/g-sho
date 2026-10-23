@@ -122,7 +122,13 @@ One search box, `?q=` in the URL (history and shareable links).
    阡/邦 → 阝 hill/village); radical forms and parts whose dictionary
    meaning isn't the part's (厂 cliff, 又 right hand) are named by hand,
    with their Japanese radical names (にんべん); others take their first
-   KANJIDIC meaning and kun reading.
+   KANJIDIC meaning and kun reading. Only the top-level parts are shown:
+   KRADFILE lists every shape you might look a kanji up by, including those
+   inside other parts (故: 口 十 攵 and 乞, the top of 攵), and those are
+   left out using KRADFILE's own lists for each part; of lookalikes it lists
+   together (攵/夂, 口/囗, 毋/母), the one KanjiVG says the kanji has is
+   kept. Each part links to itself, or a radical form to the kanji it's a
+   form of (氵 → 水). The radical picker keeps KRADFILE's full lists.
 7. **Radical picker**: pick radicals to narrow down kanji; clicking a kanji
    adds it to the search box.
 8. Each entry shows readings (furigana over the primary form), common tag,

@@ -24,7 +24,7 @@ import {
 import {buildExamples} from './build-examples.ts';
 import {readEnglish, readWordNet} from './build-english.ts';
 import {buildSpelling} from './build-spelling.ts';
-import {buildParts} from './build-parts.ts';
+import {buildParts, kanjiVgElements, topLevelParts} from './build-parts.ts';
 import {
   EN_STOP_WORDS,
   glossCore,
@@ -164,6 +164,15 @@ interface KdChar {
 }
 
 // ---- helpers ----
+
+/** A kanji's KanjiVG components, if it's in KanjiVG (for its parts). */
+function kanjiVg(c: string): Set<string> | undefined {
+  const hex = c.codePointAt(0)!.toString(16).padStart(5, '0');
+  const file = path.join(CACHE_DIR, 'kanjivg', 'kanji', `${hex}.svg`);
+  return fs.existsSync(file)
+    ? kanjiVgElements(fs.readFileSync(file, 'utf8'))
+    : undefined;
+}
 
 function readJson<T>(name: string): T {
   return JSON.parse(fs.readFileSync(path.join(CACHE_DIR, name), 'utf8')) as T;
@@ -636,7 +645,9 @@ function buildKanji(): {count: number; strokes: Record<string, number>} {
     const rad = c.radicals.find(r => r.type === 'classical');
     if (rad) info.rad = rad.value;
     const parts = krad.kanji[c.literal];
-    if (parts) info.parts = parts;
+    if (parts) {
+      info.parts = topLevelParts(krad.kanji, parts, kanjiVg(c.literal));
+    }
     getShard(shards, kanjiShard(c.literal, SHARDS.kanji), () => ({}))[
       c.literal
     ] = info;

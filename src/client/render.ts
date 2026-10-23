@@ -588,10 +588,11 @@ function renderParts(
     parts.map(p => {
       const part = info?.[p];
       const name = language === 'ja' ? part?.ja : part?.en;
-      return h(
-        'span',
-        {class: 'part'},
-        h('span', {class: 'part-char'}, part?.f ?? p),
+      const shown = part?.f ?? p;
+      // A radical form leads to the kanji it's a form of (氵 → 水).
+      const link = searchLink(
+        part?.s ?? shown,
+        h('span', {class: 'part-char'}, shown),
         name &&
           h(
             'span',
@@ -599,6 +600,14 @@ function renderParts(
             name,
           ),
       );
+      link.classList.add('part');
+      if (part?.s) {
+        link.title = t('{part} is a form of {source}', {
+          part: shown,
+          source: part.s,
+        });
+      }
+      return link;
     }),
   );
 }

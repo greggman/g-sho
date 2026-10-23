@@ -207,4 +207,5 @@ export const JA_RESULTS: Record<string, string> = {
   intransitive: '自動詞',
   'Japanese words for it · JMdict, Japanese Wiktionary':
     '対応する日本語 · JMdict・ウィクショナリー',
+  '{part} is a form of {source}': '{part} は {source} が変形したものです',
 };
