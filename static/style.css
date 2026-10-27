@@ -2291,13 +2291,24 @@ html.dropping body::after {
   position: absolute;
   left: 0;
   right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The row's card (opens it), then the word's "known" toggle. */
+.study-page .browse-open {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
   display: grid;
   grid-template-columns: minmax(5em, 1fr) minmax(0, 2fr) minmax(0, 1fr) 9em;
   align-items: center;
   gap: 12px;
   padding: 0 8px;
   border: 0;
-  border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text);
   border-radius: 0;
@@ -2307,11 +2318,29 @@ html.dropping body::after {
 }
 
 .study-page .browse-row:hover,
-.study-page .browse-row:focus-visible {
+.study-page .browse-open:focus-visible {
   background: var(--accent-soft);
 }
 
-.browse-row > span {
+.study-page .browse-row .word-tool.known {
+  flex: none;
+  width: 6.5em;
+  /* As on a dictionary entry: the study pages' button style would pad it
+     off-centre. */
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 13px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.study-page .browse-row > span:empty {
+  flex: none;
+  width: 6.5em;
+}
+
+.browse-open > span {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2349,7 +2378,7 @@ html.dropping body::after {
 }
 
 @media (max-width: 640px) {
-  .study-page .browse-row {
+  .study-page .browse-open {
     grid-template-columns: minmax(4em, 1fr) minmax(0, 2fr) 6.5em;
   }
 
@@ -2681,6 +2710,11 @@ html.show-japanese .ja-defs:empty {
 /* ---- English words: in Japanese (英和) and in English ---- */
 
 /* A kanji's parts: the part, then what it means, small. */
+/* Study: "Known", apart from the ratings. */
+.card-buttons .known-card {
+  margin-left: auto;
+}
+
 .parts {
   display: inline-flex;
   flex-wrap: wrap;

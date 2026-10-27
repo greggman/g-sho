@@ -130,7 +130,7 @@ export class WordTools {
           'aria-pressed': String(known),
           title: known
             ? t('Marked as known. Click to unmark.')
-            : t('I know this word: study decks can skip it'),
+            : t('I know this word: study won’t show it'),
           onclick: () => this.toggle('known', wordId),
         },
         known ? t('✓ known') : t('known'),

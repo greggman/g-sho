@@ -133,7 +133,8 @@ Tables:
   make me study this".
 - **notes**: `wordId`, `text` (up to 2,000 characters); id `wordId`.
 - **history**: `q`, `t` (time), and a snapshot of the top result; id `q`.
-- **settings**: one row per settings group, as JSON (`display` for now).
+- **settings**: a row per display setting (`showFurigana`, …), `language`,
+  and a few groups (`study`), as JSON.
   The Anki connection settings aren't synced, because they're per device.
 - **note_types**: `name`, `fields` (names, in order), `templates` (name,
   front, back), `css`, `kind` (standard/cloze), `anki_id` (the Anki model ID it
@@ -279,8 +280,13 @@ The direction is worked out at import from which fields the front template
 shows, and stored on the card. Two cards are duplicates when they have the
 same `wordId` and the same direction (not "other").
 
-A word counts as **known** if it's marked known. Marking a word known also
-keeps its new cards out of study sessions. A word you study elsewhere is
+A word counts as **known** if it's marked known. Marking a word known keeps
+all its cards out of study sessions, new and reviews alike; unmarking it
+brings them back with their history. A card can be marked known on its
+answer side while studying it ("Known", or K): a dictionary word gets the
+known mark, and a card from an imported note with no dictionary word is
+suspended with the note's other cards. Browse has the same "known" toggle
+as the dictionary on each card made from a dictionary word. A word you study elsewhere is
 matched through your most stable studied card for it in that direction.
 
 At import (a second step after linking, before anything is saved) and on

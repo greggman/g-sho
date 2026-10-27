@@ -24,6 +24,7 @@ import {
   addToDeck,
   buildQueue,
   defaultDeck,
+  markKnown,
   randomId,
   setAddToDeck,
   type DeckCounts,
@@ -655,6 +656,23 @@ export function renderSession(
           ),
       ];
     };
+    // "I know this": not shown again (model.ts markKnown).
+    const known = () => {
+      markKnown(store, card);
+      last = card.id;
+      next();
+    };
+    const knownButton = () =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'known-card',
+          onclick: known,
+          title: t('I know this: don’t show it again (K)'),
+        },
+        t('Known'),
+      );
     let revealing = false;
     const reveal = async () => {
       if (revealing) return;
@@ -669,6 +687,7 @@ export function renderSession(
       keys = e => {
         const r = RATINGS.find(r => r.key === e.key);
         if (r) rate(r.grade);
+        else if (e.key === 'k' || e.key === 'K') known();
         else if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           rate(3 as Grade);
@@ -695,6 +714,7 @@ export function renderSession(
             h('span', {class: 'rate-label'}, label),
           );
         }),
+        knownButton(),
       );
     };
     keys = e => {

@@ -13,7 +13,7 @@ import {
   type FactRow,
   type Store,
 } from '../store/store.ts';
-import type {Fields} from '../store/table.ts';
+import {fieldsOf, type Fields} from '../store/table.ts';
 import {t} from '../i18n.ts';
 
 export const DEFAULT_DECK = 'default';
@@ -157,6 +157,27 @@ export interface Queue extends DeckCounts {
  * The cards to study now in the given decks (all decks if omitted), within
  * each deck's daily limits.
  */
+/**
+ * "I know this": stop showing a card's word. A dictionary word is marked
+ * known, as its entry's "known" button does, and study skips all its cards
+ * (unmarking it brings them back, with their history). A card from an
+ * imported note with no dictionary word is suspended, with the note's other
+ * cards (Browse can unsuspend them).
+ */
+export function markKnown(store: Store, card: CardRow) {
+  const wordId = store.facts.get(card.factId)?.wordId;
+  if (wordId !== undefined) {
+    const id = `known:${wordId}`;
+    if (!store.marks.get(id)) store.marks.put({id, wordId, kind: 'known'});
+    return;
+  }
+  for (const c of store.cards.all()) {
+    if (c.factId === card.factId && !c.suspended) {
+      store.cards.put({...fieldsOf(c), suspended: 1});
+    }
+  }
+}
+
 export function buildQueue(
   store: Store,
   deckIds?: string[],
@@ -188,7 +209,8 @@ export function buildQueue(
     }
   }
 
-  // New cards for words marked known aren't studied.
+  // Words marked known aren't studied: not their new cards, and not their
+  // reviews either (markKnown).
   const known = new Set(
     store.marks
       .all()
@@ -205,7 +227,7 @@ export function buildQueue(
   const fresh: CardRow[] = [];
   const perDeck = new Map<string, {review: CardRow[]; fresh: CardRow[]}>();
   for (const c of cards) {
-    if (c.suspended) continue;
+    if (c.suspended || isKnown(c)) continue;
     if (c.state === CardState.Learning || c.state === CardState.Relearning) {
       if (c.due <= now + LEARN_AHEAD) learning.push(c);
       continue;
@@ -213,7 +235,7 @@ export function buildQueue(
     let d = perDeck.get(c.deckId);
     if (!d) perDeck.set(c.deckId, (d = {review: [], fresh: []}));
     if (c.state === CardState.Review && c.due <= now) d.review.push(c);
-    else if (c.state === CardState.New && !isKnown(c)) d.fresh.push(c);
+    else if (c.state === CardState.New) d.fresh.push(c);
   }
   for (const [deckId, d] of perDeck) {
     const deck = decks.get(deckId)!;

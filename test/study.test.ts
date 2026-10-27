@@ -9,6 +9,7 @@ import {
   buildQueue,
   dayStart,
   defaultDeck,
+  markKnown,
   removeWord,
   setAddToDeck,
   studyingIn,
@@ -252,5 +253,62 @@ describe('server schema for study data', () => {
         scheduledDays: 0,
       }),
     );
+  });
+});
+
+describe('marking a card known', () => {
+  test('a word marked known is never shown again, until unmarked', async () => {
+    const s = await store();
+    addWord(s, cat, undefined, NOON);
+    addWord(s, dog, undefined, NOON);
+    // Studied, so it comes back for review later.
+    answer(s, s.cards.get('w:1:0')!, 4, NOON, 1000);
+    const later = s.cards.get('w:1:0')!.due + MIN;
+    assert.ok(
+      buildQueue(s, undefined, later).cards.some(c => c.id === 'w:1:0'),
+    );
+
+    markKnown(s, s.cards.get('w:1:0')!);
+    // The same mark as the dictionary's "known" button.
+    assert.equal(s.marks.get('known:1')?.kind, 'known');
+    assert.deepEqual(
+      buildQueue(s, undefined, later).cards.map(c => c.id),
+      ['w:2:0'],
+    );
+    // Its history is kept: unmarking (in the dictionary, or Browse) brings
+    // it back as it was.
+    s.marks.delete('known:1');
+    assert.equal(s.marks.get('known:1'), undefined);
+    assert.ok(
+      buildQueue(s, undefined, later).cards.some(c => c.id === 'w:1:0'),
+    );
+    assert.ok(s.cards.get('w:1:0')!.reps > 0);
+  });
+
+  test('an imported card without a dictionary word is suspended', async () => {
+    const s = await store();
+    const deck = defaultDeck(s);
+    s.facts.put({
+      id: 'f1',
+      noteType: 'Basic',
+      fields: ['Bonjour', 'Hello'],
+      tags: [],
+    } as never);
+    for (const ord of [0, 1]) {
+      s.cards.put({
+        id: `f1:${ord}`,
+        factId: 'f1',
+        deckId: deck.id,
+        ord,
+        state: CardState.New,
+        due: NOON,
+        added: NOON,
+        reps: 0,
+      } as never);
+    }
+    markKnown(s, s.cards.get('f1:0')!);
+    assert.equal(s.cards.get('f1:0')?.suspended, 1);
+    assert.equal(s.cards.get('f1:1')?.suspended, 1);
+    assert.deepEqual(buildQueue(s, undefined, NOON).cards, []);
   });
 });

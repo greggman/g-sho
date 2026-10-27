@@ -126,18 +126,51 @@ export function renderBrowser(store: Store): HTMLElement {
   const row = (item: Item) => {
     const s = stateLabel(item.card, Date.now());
     const deck = store.decks.get(item.card.deckId)?.name ?? '';
+    const wordId = item.fact?.wordId;
     return h(
-      'button',
-      {
-        type: 'button',
-        class: 'browse-row',
-        onclick: () => open(item.card.id),
-      },
-      h('span', {class: 'browse-front', lang: 'ja'}, item.front),
-      h('span', {class: 'browse-back'}, item.back),
-      h('span', {class: 'browse-deck hint'}, deck),
-      h('span', {class: `browse-state state-${s.kind}`}, s.text),
+      'div',
+      {class: 'browse-row'},
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'browse-open',
+          onclick: () => open(item.card.id),
+        },
+        h('span', {class: 'browse-front', lang: 'ja'}, item.front),
+        h('span', {class: 'browse-back'}, item.back),
+        h('span', {class: 'browse-deck hint'}, deck),
+        h('span', {class: `browse-state state-${s.kind}`}, s.text),
+      ),
+      wordId !== undefined ? knownToggle(wordId) : h('span'),
     );
+  };
+
+  /**
+   * The word's "known" mark, as on its dictionary entry: study skips the
+   * cards of a known word.
+   */
+  const knownToggle = (wordId: number) => {
+    const id = `known:${wordId}`;
+    const button = h('button', {
+      type: 'button',
+      class: 'word-tool known',
+      onclick: () => {
+        if (store.marks.get(id)) store.marks.delete(id);
+        else store.marks.put({id, wordId, kind: 'known'});
+        draw();
+      },
+    });
+    const draw = () => {
+      const known = !!store.marks.get(id);
+      button.setAttribute('aria-pressed', String(known));
+      button.title = known
+        ? t('Marked as known. Click to unmark.')
+        : t('I know this word: study won’t show it');
+      button.textContent = known ? t('✓ known') : t('known');
+    };
+    draw();
+    return button;
   };
 
   const fillDecks = () => {

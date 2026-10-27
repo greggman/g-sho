@@ -267,4 +267,6 @@ export const JA_STUDY: Record<string, string> = {
   'Anki import': 'Anki インポート',
   'This isn’t an Anki package (no collection inside).':
     'Anki のパッケージではありません（コレクションが含まれていません）。',
+  'I know this: don’t show it again (K)': '覚えた：今後は出題しない（K）',
+  Known: '覚えた',
 };

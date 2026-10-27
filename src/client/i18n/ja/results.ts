@@ -134,8 +134,7 @@ export const JA_RESULTS: Record<string, string> = {
   Star: 'スター',
   'Marked as known. Click to unmark.':
     '覚えた単語です。クリックすると取り消します。',
-  'I know this word: study decks can skip it':
-    '覚えた単語にする（学習デッキで出題しません）',
+  'I know this word: study won’t show it': '覚えた単語：学習で出題しません',
   '✓ known': '✓ 覚えた',
   known: '覚えた',
   'Edit your note': 'メモを編集',
