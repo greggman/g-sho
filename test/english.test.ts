@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {describe, test} from 'node:test';
 import {Dict} from '../src/client/dict.ts';
+import {commonsPage} from '../src/client/speak.ts';
 import {
   addTranslations,
   lookupEnglish,
@@ -105,6 +106,19 @@ describe('English words (英和)', () => {
     assert.equal(
       await addTranslations(dict, 'cat', has, [kaizen as never]),
       has,
+    );
+  });
+
+  test('a word’s recordings come with it, and credit their Commons page', async () => {
+    const path = 'transcoded/0/0a/En-us-go.ogg/En-us-go.ogg.mp3';
+    const dict = await englishDict({
+      go: {e: [entry('go', '行く。', '動詞')], au: [path]},
+    });
+    const [go] = await lookupEnglish(dict, 'go');
+    assert.deepEqual(go.recordings, [path]);
+    assert.equal(
+      commonsPage(path),
+      'https://commons.wikimedia.org/wiki/File:En-us-go.ogg',
     );
   });
 

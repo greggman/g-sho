@@ -303,6 +303,34 @@ Wiktionary entries have none and its irregular forms ("mice" → mouse).
 Each word's card shows its Japanese part, its English part, or both, by
 the two settings; a word with nothing to show is hidden.
 
+## Saying words aloud
+
+A speaker button (`src/client/speak.ts`): at the end of a Japanese entry's
+tool row (study, star, …) and at the right end of an English word's line,
+away from the word, which is often dragged across to copy. Pressing it
+plays the word and opens a small popup saying what played: "Recording
+(US) · Wikimedia Commons" (the credit, linking to the file's page) with
+buttons for other accents, or "Your browser's voice: Samantha", or why
+nothing could; it closes on a click elsewhere, Escape, or after a few
+seconds.
+
+- **English**: a person's recording when there is one (Wikimedia Commons, as
+  listed by the Japanese Wiktionary: 9,800 words, 55% of the 1,000 most
+  common, US then UK; their paths are `au` in `enw/`). It's fetched (Commons
+  allows it), kept in the browser's Cache Storage, and played from there, so
+  a word heard once can be heard offline. If it hasn't arrived within a
+  second (offline, slow), the browser's voice says the word instead and the
+  recording is dropped.
+- **Japanese**: the browser's Japanese voice, from the entry's kana reading
+  (生 is said なま, not guessed from the kanji).
+- **Speaking reliably** (Chrome): wait for the voice list if it isn't loaded
+  yet, cancel only what's speaking and pause before speaking again, keep
+  the utterance referenced, and report speech only once it starts.
+- **Voices**: well-known clear ones first (Samantha, Google US English,
+  Microsoft Aria…; Kyoko, Google 日本語…), never macOS's novelty voices;
+  offline, only voices on the device. A word that only a recording can say
+  (no voice for its language) is crossed out while offline.
+
 ## Spelling suggestions
 
 An English search that finds nothing anywhere ("beterment") is checked for

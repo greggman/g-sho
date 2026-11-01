@@ -227,7 +227,17 @@ export interface EnglishDefinitions {
  */
 export type EnglishShard = Record<
   string,
-  {e?: EnglishEntry[]; d?: EnglishDefinitions[]; ipa?: string[]; of?: string[]}
+  {
+    e?: EnglishEntry[];
+    d?: EnglishDefinitions[];
+    ipa?: string[];
+    of?: string[];
+    /**
+     * recordings of the word (MP3 on Wikimedia Commons, the path after
+     * https://upload.wikimedia.org/wikipedia/commons/), American first
+     */
+    au?: string[];
+  }
 >;
 
 export interface Meta {

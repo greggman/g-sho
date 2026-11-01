@@ -34,7 +34,40 @@ interface RawEntry {
   pos_title?: string;
   senses?: RawSense[];
   forms?: {form: string; tags?: string[]}[] | null;
-  sounds?: {ipa?: string; tags?: string[]}[] | null;
+  sounds?:
+    | {
+        ipa?: string;
+        tags?: string[];
+        audio?: string;
+        mp3_url?: string;
+        raw_tags?: string[];
+      }[]
+    | null;
+}
+
+/** Where Wikimedia Commons' recordings are, as stored (enw `au`). */
+const COMMONS = 'https://upload.wikimedia.org/wikipedia/commons/';
+/** Recordings kept per word: American, then British. */
+const MAX_RECORDINGS = 2;
+
+/**
+ * A recording's accent, from Wiktionary's label (音声 (米)) or its file
+ * name (en-us-go.ogg): lower sorts first.
+ */
+function accentRank(s: {audio?: string; raw_tags?: string[]}): number {
+  const label = s.raw_tags?.join(' ') ?? '';
+  const file = s.audio?.toLowerCase() ?? '';
+  if (label.includes('米') || file.startsWith('en-us')) return 0;
+  if (label.includes('英') || file.startsWith('en-uk')) return 1;
+  return 2;
+}
+
+/** A word's recordings (MP3, on Commons): paths after COMMONS, best first. */
+function recordings(raw: RawEntry): string[] {
+  return (raw.sounds ?? [])
+    .filter(s => s.mp3_url?.startsWith(COMMONS))
+    .sort((a, b) => accentRank(a) - accentRank(b))
+    .map(s => s.mp3_url!.slice(COMMONS.length));
 }
 
 const MAX_SENSES = 12;
@@ -149,6 +182,15 @@ export async function readEnglish(
     if (raw.lang_code !== 'en' || !raw.word) continue;
     const {entry, of} = convert(raw);
     if (entry) (get(raw.word.toLowerCase()).e ??= []).push(entry);
+    const heard = recordings(raw);
+    if (heard.length) {
+      const v = get(raw.word.toLowerCase());
+      for (const r of heard) {
+        if (!v.au?.includes(r) && (v.au?.length ?? 0) < MAX_RECORDINGS) {
+          (v.au ??= []).push(r);
+        }
+      }
+    }
     for (const base of of) addOf(raw.word, base);
     for (const [form] of entry?.f ?? []) addOf(form, raw.word);
   }

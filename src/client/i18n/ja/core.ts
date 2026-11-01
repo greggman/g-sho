@@ -29,7 +29,8 @@ export const JA_CORE: Record<string, string> = {
         <a href="https://kanjivg.tagaini.net/">KanjiVG</a>（CC BY-SA 3.0）。例文：
         <a href="https://tatoeba.org/">Tatoeba</a>（CC BY 2.0 FR）。国語の定義と英単語の日本語訳：
         <a href="https://ja.wiktionary.org/">日本語版ウィクショナリー</a>（CC BY-SA 4.0）。英語の定義：
-        <a href="https://en-word.net/">Open English WordNet</a>（CC BY 4.0）。
+        <a href="https://en-word.net/">Open English WordNet</a>（CC BY 4.0）。発音の録音：
+        <a href="https://commons.wikimedia.org/">ウィキメディア・コモンズ</a>（主に CC BY-SA）。
         <a href="about.ja.html">このサイトについて・出典</a>`,
   // Settings → Language.
   Language: '表示言語',

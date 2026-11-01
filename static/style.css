@@ -2709,6 +2709,76 @@ html.show-japanese .ja-defs:empty {
 
 /* ---- English words: in Japanese (英和) and in English ---- */
 
+/* A speaker that says the word (speak.ts). */
+.speak {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.speak:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.speak.speaking {
+  color: var(--accent);
+}
+
+/* What a speaker played (speak.ts), under it. */
+.speak-popup {
+  position: absolute;
+  z-index: 50;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 25%);
+}
+
+.speak-popup p {
+  margin: 2px 0;
+}
+
+.speak-others button {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The cross shows only when it can't be heard: a recording-only word offline. */
+.speak .speak-cross {
+  display: none;
+}
+
+html.offline .speak.recording-only,
+.speak.unavailable {
+  opacity: 0.5;
+  cursor: default;
+}
+
+html.offline .speak.recording-only .speak-cross,
+.speak.unavailable .speak-cross {
+  display: inline;
+}
+
 /* A kanji's parts: the part, then what it means, small. */
 /* Study: "Known", apart from the ratings. */
 .card-buttons .known-card {
@@ -2804,8 +2874,16 @@ html.show-english-english .english-word:not(.no-en) {
 }
 
 .english-headword {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 4px;
   font-size: 1.4rem;
+}
+
+/* The speaker at the end of the line, away from the word. */
+.english-headword .speak {
+  margin-left: auto;
 }
 
 .en-ipa {

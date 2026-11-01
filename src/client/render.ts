@@ -8,6 +8,7 @@ import type {
 } from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {fill, h, join, searchLink} from './dom.ts';
+import {speakJapaneseButton} from './speak.ts';
 import {t, language} from './i18n.ts';
 import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
@@ -450,6 +451,22 @@ function moreExamples(dict: Dict, entry: Entry): HTMLElement {
   return details;
 }
 
+/**
+ * The word's tools (study, star, …) with its speaker at the end: away from
+ * the word, which is often dragged across to copy.
+ */
+function withSpeaker(
+  actions: Node | undefined,
+  speaker: HTMLElement | undefined,
+): Node | undefined {
+  if (!speaker) return actions;
+  if (actions instanceof HTMLElement) {
+    actions.append(speaker);
+    return actions;
+  }
+  return h('div', {class: 'word-actions'}, actions ?? '', speaker);
+}
+
 export function renderEntry(
   dict: Dict,
   {entry, inflection}: WordResult,
@@ -469,7 +486,11 @@ export function renderEntry(
         searchLink(headword(entry).text, rubyWord(headword(entry))),
       ),
       isCommon(entry) && h('span', {class: 'badge common'}, t('common word')),
-      actions?.(entry),
+      withSpeaker(
+        actions?.(entry),
+        // Said from its kana reading, so it's read right.
+        speakJapaneseButton(headword(entry).reading ?? headword(entry).text),
+      ),
     ),
     h(
       'div',

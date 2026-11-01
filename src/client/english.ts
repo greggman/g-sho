@@ -21,6 +21,7 @@ import {headword} from './forms.ts';
 import {t} from './i18n.ts';
 import {jaDefinitionsSlot, render as renderJaDefinitions} from './japanese.ts';
 import {rubyWord} from './render.ts';
+import {speakEnglishButton} from './speak.ts';
 
 /** Japanese words shown for an English word the 英和 data doesn't have. */
 const MAX_TRANSLATIONS = 5;
@@ -36,6 +37,8 @@ export interface EnglishWord {
   definitions: EnglishDefinitions[];
   /** pronunciation from WordNet, when the entries have none */
   ipa?: string[];
+  /** recordings of it (Wikimedia Commons), American first */
+  recordings?: string[];
   /** the query is a form of this word */
   base?: boolean;
   /**
@@ -149,7 +152,14 @@ export async function lookupEnglish(
   const word = async (w: string, base = false) => {
     const v = await dict.englishWord(w.toLowerCase());
     return v && (v.e || v.d)
-      ? {word: w, entries: v.e ?? [], definitions: v.d ?? [], ipa: v.ipa, base}
+      ? {
+          word: w,
+          entries: v.e ?? [],
+          definitions: v.d ?? [],
+          ipa: v.ipa,
+          recordings: v.au,
+          base,
+        }
       : undefined;
   };
   const found = await dict.englishWord(key);
@@ -277,6 +287,9 @@ export function renderEnglish(words: EnglishWord[]): HTMLElement | undefined {
           {class: 'english-headword'},
           w.base ? searchLink(w.word, w.word) : w.word,
           ipa.length > 0 && h('span', {class: 'en-ipa'}, ` ${ipa.join('  ')}`),
+          // At the end, away from the word (often dragged across to copy);
+          // what it played, and its credit, show when it's pressed.
+          speakEnglishButton(w.word, w.recordings),
         ),
         w.entries.length > 0 &&
           h(

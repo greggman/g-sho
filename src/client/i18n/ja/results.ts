@@ -207,4 +207,21 @@ export const JA_RESULTS: Record<string, string> = {
   'Japanese words for it · JMdict, Japanese Wiktionary':
     '対応する日本語 · JMdict・ウィクショナリー',
   '{part} is a form of {source}': '{part} は {source} が変形したものです',
+  Listen: '再生',
+  'your browser’s voice': 'ブラウザの音声',
+  US: '米',
+  UK: '英',
+  Australia: '豪',
+  Canada: 'カナダ',
+  'Recording ({accent})': '録音（{accent}）',
+  Recording: '録音',
+  'Wikimedia Commons': 'ウィキメディア・コモンズ',
+  'Also:': 'ほかに：',
+  'Your browser’s voice: {voice}': 'ブラウザの音声：{voice}',
+  'This device has no Japanese voice.':
+    'この端末には日本語の音声がありません。',
+  'Offline, and this device has no English voice.':
+    'オフラインで、この端末には英語の音声がありません。',
+  'Couldn’t speak with {voice} ({reason}).':
+    '{voice} で読み上げられませんでした（{reason}）。',
 };
