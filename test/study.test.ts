@@ -20,6 +20,7 @@ import {
   preview,
 } from '../src/client/study/scheduler.ts';
 import {validateRow} from '../src/server/schema.ts';
+import {rememberLanguage} from '../src/client/i18n.ts';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -195,6 +196,8 @@ describe('scheduler', () => {
   });
 
   test('formatInterval', () => {
+    // Node takes its language from the machine's, which may be Japanese.
+    rememberLanguage('en', true);
     assert.equal(formatInterval(30_000), '1m');
     assert.equal(formatInterval(10 * MIN), '10m');
     assert.equal(formatInterval(59.7 * MIN), '1h');
