@@ -9,8 +9,10 @@
  * within a second (offline, or a slow connection) the browser's voice says
  * the word instead (the Web Speech API), and a late recording is dropped.
  *
- * Japanese words are said by the browser's Japanese voice from their kana
- * reading, so kanji with several readings are read right.
+ * Japanese words are said by the browser's Japanese voice: from their
+ * spelling when that's read only one common way (so 雨 and 飴 get their own
+ * accents), else from their kana reading, so kanji with several readings
+ * are read right.
  *
  * Offline, a voice that needs the network (Chrome's "Google …" voices) is
  * passed over for one on the device. A button whose word can only be heard
@@ -427,13 +429,24 @@ export function speakEnglishButton(
   return b;
 }
 
-/** A speaker for a Japanese word, said from its kana reading. */
-export function speakJapaneseButton(reading: string): HTMLElement | undefined {
+/**
+ * A speaker for a Japanese word, said from its kana reading until `spoken`
+ * (what to give the voice instead, like its spelling) is known.
+ */
+export function speakJapaneseButton(
+  reading: string,
+  spoken?: Promise<string>,
+): HTMLElement | undefined {
   if (!synth()) return undefined;
+  let text = reading;
+  spoken?.then(
+    s => (text = s),
+    () => {},
+  );
   // Not async: speak() is called in the click itself (sayWithVoice).
   const b = button('ja', () => {
     playing?.pause();
-    return sayWithVoice(reading, 'ja');
+    return sayWithVoice(text, 'ja');
   });
   markRecordingOnly(b);
   return b;

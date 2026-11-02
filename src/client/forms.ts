@@ -123,3 +123,24 @@ export function surfaceFurigana(
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * The one common reading of a spelling across the entries written that way
+ * (in hiragana), or undefined if it has none or several: 雨 → あめ (and 飴),
+ * but 今日 has きょう and こんにち. A voice given the spelling reads it with
+ * its accent (雨 あ↘め, 飴 あめ↗), which kana alone can't carry, and reads
+ * it as its common reading, so the spelling is said when this is its reading.
+ */
+export function onlyCommonReading(
+  entries: Entry[],
+  spelling: string,
+): string | undefined {
+  const common = new Set<string>();
+  for (const e of entries) {
+    if (!e.k?.find(k => k.t === spelling)?.c) continue;
+    for (const r of e.r) {
+      if (r.c && readingAppliesTo(r, spelling)) common.add(toHiragana(r.t));
+    }
+  }
+  return common.size === 1 ? [...common][0] : undefined;
+}

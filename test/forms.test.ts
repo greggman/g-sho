@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {furigana, headword, surfaceFurigana} from '../src/client/forms.ts';
+import {
+  furigana,
+  headword,
+  onlyCommonReading,
+  surfaceFurigana,
+} from '../src/client/forms.ts';
 import type {Entry} from '../src/shared/types.ts';
 
 test('furigana over kanji only', () => {
@@ -51,4 +56,36 @@ test('surfaceFurigana carries furigana onto inflected forms', () => {
   ]);
   assert.deepEqual(surfaceFurigana('食べる', taberu), [['食', 'た'], ['べる']]);
   assert.deepEqual(surfaceFurigana('たべた', taberu, '食べる'), [['たべた']]);
+});
+
+test('onlyCommonReading: one common reading, else none', () => {
+  const e = (id: number, k: string, r: string[], c = true): Entry => ({
+    id,
+    k: [{t: k, ...(c && {c: 1})}],
+    r: r.map(t => ({t, ...(c && {c: 1})})),
+    s: [{g: ['x']}],
+  });
+  // 飴 (candy) is common; 飴 (chisel, たがね) isn't.
+  assert.equal(
+    onlyCommonReading(
+      [e(1, '飴', ['あめ']), e(2, '飴', ['たがね'], false)],
+      '飴',
+    ),
+    'あめ',
+  );
+  assert.equal(
+    onlyCommonReading(
+      [e(1, '今日', ['きょう']), e(2, '今日', ['こんにち'])],
+      '今日',
+    ),
+    undefined,
+  );
+  assert.equal(
+    onlyCommonReading([e(1, '日本', ['にほん', 'にっぽん'])], '日本'),
+    undefined,
+  );
+  assert.equal(
+    onlyCommonReading([e(1, '擬', ['もどき'], false)], '擬'),
+    undefined,
+  );
 });

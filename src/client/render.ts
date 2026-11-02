@@ -1,4 +1,6 @@
 import {parseFurigana} from '../shared/furigana.ts';
+import {toHiragana} from '../shared/kana.ts';
+import {normalizeJa} from '../shared/normalize.ts';
 import type {
   Entry,
   Example,
@@ -14,6 +16,7 @@ import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
   furigana,
   headword,
+  onlyCommonReading,
   otherForms,
   surfaceFurigana,
   type Headword,
@@ -467,6 +470,20 @@ function withSpeaker(
   return h('div', {class: 'word-actions'}, actions ?? '', speaker);
 }
 
+/**
+ * The word as a voice should be given it: its spelling when that's read
+ * only one common way and this is it (so 雨 and 飴 get their own accents),
+ * else its kana (so 生 isn't read せい when it's なま).
+ */
+async function spokenForm(dict: Dict, head: Headword): Promise<string> {
+  if (!head.reading) return head.text;
+  const hits = await dict.lookupJa(normalizeJa(head.text));
+  const entries = await dict.entries(hits.map(hit => hit.id));
+  return onlyCommonReading(entries, head.text) === toHiragana(head.reading)
+    ? head.text
+    : head.reading;
+}
+
 export function renderEntry(
   dict: Dict,
   {entry, inflection}: WordResult,
@@ -488,8 +505,10 @@ export function renderEntry(
       isCommon(entry) && h('span', {class: 'badge common'}, t('common word')),
       withSpeaker(
         actions?.(entry),
-        // Said from its kana reading, so it's read right.
-        speakJapaneseButton(headword(entry).reading ?? headword(entry).text),
+        speakJapaneseButton(
+          headword(entry).reading ?? headword(entry).text,
+          spokenForm(dict, headword(entry)),
+        ),
       ),
     ),
     h(
