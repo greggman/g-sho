@@ -18,16 +18,32 @@
  * Open English WordNet (English definitions, .cache/wordnet/), pinned by
  * hash, and for spelling suggestions, wordfreq's English frequencies and
  * Wikipedia's list of common misspellings (.cache/spelling/), pinned.
+ *
+ * A copy of every file is kept in the data repo, g-sho-data/ (its own git
+ * repository), so a build doesn't depend on a dozen sites being up, or
+ * still there. Pinned files (the models, WordNet, …) are taken from it when
+ * it has them. Sources that change (JMdict, Tatoeba, …) are downloaded, and
+ * each new version is saved into it (commit it there); when a source can't
+ * be reached, its copy there is used instead. g-sho-data/SOURCES.json says
+ * where each file came from.
  */
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import * as fs from 'node:fs';
+import * as net from 'node:net';
 import * as path from 'node:path';
+
+// Node gives each of a host's addresses (IPv6, then IPv4) only 250ms to
+// connect, too little for some sites (kaikki.org) on a slow connection.
+net.setDefaultAutoSelectFamilyAttemptTimeout(2000);
 
 const REPO = 'scriptin/jmdict-simplified';
 const CACHE_DIR = path.resolve(import.meta.dirname, '..', '.cache');
+/** The data repo: our copy of every source and model. */
+const DATA_DIR = path.resolve(import.meta.dirname, '..', 'g-sho-data');
+const MANIFEST = path.join(DATA_DIR, 'SOURCES.json');
 
-/** asset name prefix → the name we store it under */
+/** asset name prefix → the name we store it under (its archive in g-sho-data/sources/ adds .tgz) */
 const ASSETS: Record<string, string> = {
   'jmdict-examples-eng-': 'jmdict.json',
   'kanjidic2-en-': 'kanjidic.json',
@@ -39,7 +55,18 @@ const ASSETS: Record<string, string> = {
 const HANDWRITING_MODEL = {
   repo: 'LT8/japanese-handwriting-onnx',
   revision: '7e4fa1096b1fd4dc1afb9f8ffc5b9d936adb2839',
-  files: ['model.fp16.onnx', 'labels.json'],
+  files: [
+    {
+      file: 'model.fp16.onnx',
+      sha256:
+        '5db35edaf98b482e3e1c6e62edc6d78daf0e7d72720509ddff4aee08b707ce1d',
+    },
+    {
+      file: 'labels.json',
+      sha256:
+        'aa1aad5748608ab129181118aaedefacfed8b5d09174f3f15cf6a92ad4281233',
+    },
+  ],
 };
 
 /**
@@ -79,18 +106,130 @@ async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
   return res;
 }
 
+const sha256 = (data: Uint8Array) =>
+  createHash('sha256').update(data).digest('hex');
+
+/** Where each file in g-sho-data/ came from. */
+interface ManifestEntry {
+  url: string;
+  sha256: string;
+  /** the source's release, for those that have them */
+  version?: string;
+  /** when this copy was downloaded (YYYY-MM-DD) */
+  date: string;
+}
+
+function readManifest(): Record<string, ManifestEntry> {
+  return fs.existsSync(MANIFEST)
+    ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8'))
+    : {};
+}
+
+/** g-sho-data/`name`, if the data repo has it. */
+function dataCopy(name: string): Uint8Array | undefined {
+  const file = path.join(DATA_DIR, name);
+  return fs.existsSync(file) ? fs.readFileSync(file) : undefined;
+}
+
+/**
+ * Saves a downloaded file into the data repo (when it's checked out) as
+ * `name`, and notes where it came from. Unchanged files aren't rewritten.
+ */
+function saveDataCopy(
+  name: string,
+  url: string,
+  data: Uint8Array,
+  version?: string,
+) {
+  if (!fs.existsSync(DATA_DIR)) return;
+  const manifest = readManifest();
+  const hash = sha256(data);
+  if (manifest[name]?.sha256 === hash && dataCopy(name)) return;
+  const file = path.join(DATA_DIR, name);
+  fs.mkdirSync(path.dirname(file), {recursive: true});
+  fs.writeFileSync(file, data);
+  manifest[name] = {
+    url,
+    sha256: hash,
+    ...(version && {version}),
+    date: new Date().toISOString().slice(0, 10),
+  };
+  const sorted = Object.fromEntries(
+    Object.entries(manifest).sort(([a], [b]) => (a < b ? -1 : 1)),
+  );
+  fs.writeFileSync(MANIFEST, JSON.stringify(sorted, null, 2) + '\n');
+  console.log(`saved g-sho-data/${name} (commit it in g-sho-data)`);
+}
+
+/**
+ * A pinned file: from the data repo when it has it, else downloaded (and
+ * saved there). Either way it must match its hash.
+ */
+async function pinned(
+  name: string,
+  url: string,
+  want: string,
+  init?: RequestInit,
+): Promise<Uint8Array> {
+  const copy = dataCopy(name);
+  if (copy && sha256(copy) === want) return copy;
+  console.log(`downloading ${url}`);
+  const data = new Uint8Array(await (await fetchOk(url, init)).arrayBuffer());
+  const got = sha256(data);
+  if (got !== want) throw new Error(`${url}: sha256 ${got}, expected ${want}`);
+  saveDataCopy(name, url, data);
+  return data;
+}
+
+/**
+ * A source that changes: downloaded (and a new version saved to the data
+ * repo as `name`), or, when it can't be, the data repo's copy. With an
+ * ETag, undefined means unchanged since. The ETag is only sent when the
+ * data repo already has the file, so a new checkout of it gets filled in.
+ */
+async function latest(
+  name: string,
+  url: string,
+  {etag, version}: {etag?: string; version?: string} = {},
+): Promise<{data: Uint8Array; etag?: string} | undefined> {
+  const send = etag && (!fs.existsSync(DATA_DIR) || dataCopy(name));
+  try {
+    const res = await fetch(url, {
+      headers: send ? {'If-None-Match': etag} : {},
+    });
+    if (res.status === 304) return undefined;
+    if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+    const data = new Uint8Array(await res.arrayBuffer());
+    saveDataCopy(name, url, data, version);
+    return {data, etag: res.headers.get('etag') ?? undefined};
+  } catch (e) {
+    const copy = dataCopy(name);
+    if (!copy) throw e;
+    console.warn(`${(e as Error).message}: using g-sho-data/${name}`);
+    // No ETag, so the source is tried again next time.
+    return {data: copy};
+  }
+}
+
+/** Saves an ETag beside the file it's for, or removes a stale one. */
+function writeEtag(file: string, etag: string | undefined) {
+  if (etag) fs.writeFileSync(file, etag);
+  else fs.rmSync(file, {force: true});
+}
+
 async function downloadHandwritingModel() {
   const {repo, revision, files} = HANDWRITING_MODEL;
   const dir = path.join(CACHE_DIR, 'handwriting', revision);
   fs.mkdirSync(dir, {recursive: true});
-  for (const file of files) {
+  for (const {file, sha256: want} of files) {
     const out = path.join(dir, file);
-    if (fs.existsSync(out)) continue;
-    console.log(`downloading ${repo}/${file}`);
-    const res = await fetchOk(
+    if (fs.existsSync(out) && sha256(fs.readFileSync(out)) === want) continue;
+    const data = await pinned(
+      `models/handwriting/${file}`,
       `https://huggingface.co/${repo}/resolve/${revision}/${file}`,
+      want,
     );
-    fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+    fs.writeFileSync(out, data);
   }
   fs.writeFileSync(
     path.join(CACHE_DIR, 'handwriting', 'current.json'),
@@ -98,21 +237,13 @@ async function downloadHandwritingModel() {
   );
 }
 
-const sha256 = (data: Uint8Array) =>
-  createHash('sha256').update(data).digest('hex');
-
 async function downloadOcrModels() {
   const dir = path.join(CACHE_DIR, 'ocr');
   fs.mkdirSync(dir, {recursive: true});
   for (const {file, url, sha256: want} of OCR_FILES) {
     const out = path.join(dir, file);
     if (fs.existsSync(out) && sha256(fs.readFileSync(out)) === want) continue;
-    console.log(`downloading ${url}`);
-    const data = new Uint8Array(await (await fetchOk(url)).arrayBuffer());
-    const got = sha256(data);
-    if (got !== want)
-      throw new Error(`${url}: sha256 ${got}, expected ${want}`);
-    fs.writeFileSync(out, data);
+    fs.writeFileSync(out, await pinned(`models/ocr/${file}`, url, want));
   }
 }
 
@@ -130,31 +261,62 @@ async function latestRelease(repo: string): Promise<Release> {
   return (await res.json()) as Release;
 }
 
+/** True unless the data repo is checked out and lacks one of `names`. */
+function hasDataCopies(names: string[]): boolean {
+  return !fs.existsSync(DATA_DIR) || names.every(n => dataCopy(n));
+}
+
+/**
+ * A GitHub repo's latest release (`assets` to download it from), or when
+ * GitHub can't be reached, the version the data repo has a copy of (no
+ * `assets`: use the copies of `names`).
+ */
+async function latestReleaseOrCopy(
+  repo: string,
+  names: string[],
+): Promise<{version: string; assets?: Release['assets']}> {
+  try {
+    const release = await latestRelease(repo);
+    return {version: release.tag_name, assets: release.assets};
+  } catch (e) {
+    const version = readManifest()[names[0]]?.version;
+    if (!version || !names.every(n => dataCopy(n))) throw e;
+    console.warn(`${(e as Error).message}: using g-sho-data (${version})`);
+    return {version};
+  }
+}
+
 /** KanjiVG stroke data (SVG per character) for stroke order diagrams. */
 async function downloadKanjiVG() {
-  const release = await latestRelease('KanjiVG/kanjivg');
+  const name = 'sources/kanjivg.zip';
+  const release = await latestReleaseOrCopy('KanjiVG/kanjivg', [name]);
   const dir = path.join(CACHE_DIR, 'kanjivg');
   const versionFile = path.join(dir, 'version.json');
   const have = fs.existsSync(versionFile)
     ? JSON.parse(fs.readFileSync(versionFile, 'utf8')).version
     : undefined;
-  if (have === release.tag_name) {
-    console.log(`KanjiVG ${release.tag_name} already downloaded`);
+  if (have === release.version && hasDataCopies([name])) {
+    console.log(`KanjiVG ${release.version} already downloaded`);
     return;
   }
-  const asset = release.assets.find(a => a.name.endsWith('-main.zip'));
-  if (!asset) throw new Error(`no -main.zip in KanjiVG ${release.tag_name}`);
-  console.log(`downloading ${asset.name}`);
-  const res = await fetchOk(asset.browser_download_url);
+  let data: Uint8Array;
+  if (release.assets) {
+    const asset = release.assets.find(a => a.name.endsWith('-main.zip'));
+    if (!asset) throw new Error(`no -main.zip in KanjiVG ${release.version}`);
+    console.log(`downloading ${asset.name}`);
+    data = (await latest(name, asset.browser_download_url, release))!.data;
+  } else {
+    data = dataCopy(name)!;
+  }
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
   const zip = path.join(dir, 'kanjivg.zip');
-  fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+  fs.writeFileSync(zip, data);
   execFileSync('unzip', ['-q', zip, '-d', dir]);
   fs.rmSync(zip);
   fs.writeFileSync(
     versionFile,
-    JSON.stringify({version: release.tag_name}, null, 2) + '\n',
+    JSON.stringify({version: release.version}, null, 2) + '\n',
   );
 }
 
@@ -170,17 +332,15 @@ async function downloadJmdictXml() {
     fs.existsSync(etagFile) && fs.existsSync(out)
       ? fs.readFileSync(etagFile, 'utf8')
       : undefined;
-  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
-  if (res.status === 304) {
+  const got = await latest('sources/JMdict_e.gz', url, {etag});
+  if (!got) {
     console.log('JMdict XML already downloaded');
     return;
   }
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  console.log('downloading JMdict_e.gz');
+  console.log('downloaded JMdict_e.gz');
   fs.mkdirSync(CACHE_DIR, {recursive: true});
-  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
-  const newEtag = res.headers.get('etag');
-  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+  fs.writeFileSync(out, got.data);
+  writeEtag(etagFile, got.etag);
 }
 
 /**
@@ -195,24 +355,23 @@ async function downloadTatoebaFile(url: string, file: string) {
     fs.existsSync(etagFile) && fs.existsSync(out)
       ? fs.readFileSync(etagFile, 'utf8')
       : undefined;
-  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
-  if (res.status === 304) {
+  const base = path.basename(new URL(url).pathname);
+  const got = await latest(`sources/tatoeba/${base}`, url, {etag});
+  if (!got) {
     console.log(`Tatoeba ${file} already downloaded`);
     return;
   }
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  console.log(`downloading Tatoeba ${file}`);
+  console.log(`downloaded Tatoeba ${file}`);
   fs.mkdirSync(dir, {recursive: true});
-  const archive = path.join(dir, path.basename(new URL(url).pathname));
-  fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+  const archive = path.join(dir, base);
+  fs.writeFileSync(archive, got.data);
   if (archive.endsWith('.tar.bz2')) {
     execFileSync('tar', ['xjf', archive, '-C', dir]);
     fs.rmSync(archive);
   } else {
     execFileSync('bunzip2', ['-f', archive]);
   }
-  const newEtag = res.headers.get('etag');
-  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+  writeEtag(etagFile, got.etag);
 }
 
 /** Tatoeba's word index and its sentences, for more example sentences. */
@@ -243,17 +402,15 @@ async function downloadJaWiktionary() {
     fs.existsSync(etagFile) && fs.existsSync(out)
       ? fs.readFileSync(etagFile, 'utf8')
       : undefined;
-  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
-  if (res.status === 304) {
+  const got = await latest('sources/ja-extract.jsonl.gz', url, {etag});
+  if (!got) {
     console.log('Japanese Wiktionary already downloaded');
     return;
   }
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  console.log('downloading the Japanese Wiktionary (kaikki.org)');
+  console.log('downloaded the Japanese Wiktionary (kaikki.org)');
   fs.mkdirSync(dir, {recursive: true});
-  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
-  const newEtag = res.headers.get('etag');
-  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+  fs.writeFileSync(out, got.data);
+  writeEtag(etagFile, got.etag);
 }
 
 /**
@@ -273,24 +430,17 @@ async function downloadMisspellings() {
   const out = path.join(dir, MISSPELLINGS.file);
   if (
     fs.existsSync(out) &&
-    sha256(fs.readFileSync(out)) === MISSPELLINGS.sha256
+    sha256(fs.readFileSync(out)) === MISSPELLINGS.sha256 &&
+    hasDataCopies([`sources/${MISSPELLINGS.file}`])
   ) {
     return;
   }
-  console.log('downloading Wikipedia’s list of common misspellings');
-  const data = new Uint8Array(
-    await (
-      await fetchOk(MISSPELLINGS.url, {
-        headers: {'user-agent': 'g-sho build (https://g-sho.org)'},
-      })
-    ).arrayBuffer(),
+  const data = await pinned(
+    `sources/${MISSPELLINGS.file}`,
+    MISSPELLINGS.url,
+    MISSPELLINGS.sha256,
+    {headers: {'user-agent': 'g-sho build (https://g-sho.org)'}},
   );
-  const got = sha256(data);
-  if (got !== MISSPELLINGS.sha256) {
-    throw new Error(
-      `${MISSPELLINGS.url}: sha256 ${got}, expected ${MISSPELLINGS.sha256}`,
-    );
-  }
   fs.mkdirSync(dir, {recursive: true});
   fs.writeFileSync(out, data);
 }
@@ -308,18 +458,19 @@ const WORDNET = {
 async function downloadWordNet() {
   const dir = path.join(CACHE_DIR, 'wordnet');
   const out = path.join(dir, WORDNET.file);
-  if (fs.existsSync(out) && sha256(fs.readFileSync(out)) === WORDNET.sha256) {
+  if (
+    fs.existsSync(out) &&
+    sha256(fs.readFileSync(out)) === WORDNET.sha256 &&
+    hasDataCopies([`sources/${WORDNET.file}`])
+  ) {
     console.log('Open English WordNet already downloaded');
     return;
   }
-  console.log(`downloading ${WORDNET.url}`);
-  const data = new Uint8Array(await (await fetchOk(WORDNET.url)).arrayBuffer());
-  const got = sha256(data);
-  if (got !== WORDNET.sha256) {
-    throw new Error(
-      `${WORDNET.url}: sha256 ${got}, expected ${WORDNET.sha256}`,
-    );
-  }
+  const data = await pinned(
+    `sources/${WORDNET.file}`,
+    WORDNET.url,
+    WORDNET.sha256,
+  );
   fs.mkdirSync(dir, {recursive: true});
   fs.writeFileSync(out, data);
 }
@@ -332,30 +483,31 @@ async function downloadWordNet() {
 const WORDFREQ = {
   commit: '912caf64b657478d1dff1138efdc078947d54bb1',
   file: 'large_ja.msgpack.gz',
+  sha256: 'e6ab743b939c1802fc03791f1d58dee2861e822ceecdcdee3f0e05b863ef26d8',
 };
 
 /** wordfreq's English list, from the same commit: how common English words are (spelling suggestions). */
-const WORDFREQ_EN = 'large_en.msgpack.gz';
+const WORDFREQ_EN = {
+  file: 'large_en.msgpack.gz',
+  sha256: 'dffae8066b78dce0a6667cf5f58e567054f902674667090a7ac8a8a44628b05c',
+};
 
 async function downloadWordfreq() {
   const dir = path.join(CACHE_DIR, 'wordfreq', WORDFREQ.commit);
-  const en = path.join(dir, WORDFREQ_EN);
-  if (!fs.existsSync(en)) {
-    console.log(`downloading wordfreq ${WORDFREQ_EN}`);
-    const res = await fetchOk(
-      `https://raw.githubusercontent.com/rspeer/wordfreq/${WORDFREQ.commit}/wordfreq/data/${WORDFREQ_EN}`,
-    );
-    fs.mkdirSync(dir, {recursive: true});
-    fs.writeFileSync(en, Buffer.from(await res.arrayBuffer()));
-  }
-  const out = path.join(dir, WORDFREQ.file);
-  if (fs.existsSync(out)) return;
-  console.log(`downloading wordfreq ${WORDFREQ.file}`);
-  const res = await fetchOk(
-    `https://raw.githubusercontent.com/rspeer/wordfreq/${WORDFREQ.commit}/wordfreq/data/${WORDFREQ.file}`,
-  );
   fs.mkdirSync(dir, {recursive: true});
-  fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  for (const {file, sha256: want} of [WORDFREQ_EN, WORDFREQ]) {
+    const out = path.join(dir, file);
+    const name = `sources/wordfreq/${file}`;
+    if (
+      fs.existsSync(out) &&
+      sha256(fs.readFileSync(out)) === want &&
+      hasDataCopies([name])
+    ) {
+      continue;
+    }
+    const url = `https://raw.githubusercontent.com/rspeer/wordfreq/${WORDFREQ.commit}/wordfreq/data/${file}`;
+    fs.writeFileSync(out, await pinned(name, url, want));
+  }
   fs.writeFileSync(
     path.join(CACHE_DIR, 'wordfreq', 'current.json'),
     JSON.stringify({commit: WORDFREQ.commit, file: WORDFREQ.file}, null, 2) +
@@ -376,24 +528,25 @@ async function downloadTatoebaTranscriptions() {
     fs.existsSync(etagFile) && fs.existsSync(csv)
       ? fs.readFileSync(etagFile, 'utf8')
       : undefined;
-  const res = await fetch(url, {headers: etag ? {'If-None-Match': etag} : {}});
-  if (res.status === 304) {
+  const got = await latest('sources/tatoeba/transcriptions.tar.bz2', url, {
+    etag,
+  });
+  if (!got) {
     console.log('Tatoeba transcriptions already downloaded');
     return;
   }
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  console.log('downloading Tatoeba transcriptions');
+  console.log('downloaded Tatoeba transcriptions');
   fs.mkdirSync(dir, {recursive: true});
   const archive = path.join(dir, 'transcriptions.tar.bz2');
-  fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+  fs.writeFileSync(archive, got.data);
   execFileSync('tar', ['xjf', archive, '-C', dir]);
   fs.rmSync(archive);
-  const newEtag = res.headers.get('etag');
-  if (newEtag) fs.writeFileSync(etagFile, newEtag);
+  writeEtag(etagFile, got.etag);
 }
 
 async function downloadDictionary() {
-  const release = await latestRelease(REPO);
+  const names = Object.values(ASSETS).map(f => `sources/${f}.tgz`);
+  const release = await latestReleaseOrCopy(REPO, names);
 
   fs.mkdirSync(CACHE_DIR, {recursive: true});
   const versionFile = path.join(CACHE_DIR, 'version.json');
@@ -403,25 +556,31 @@ async function downloadDictionary() {
   const allPresent = Object.values(ASSETS).every(f =>
     fs.existsSync(path.join(CACHE_DIR, f)),
   );
-  if (have === release.tag_name && allPresent) {
-    console.log(`data ${release.tag_name} already downloaded`);
+  if (have === release.version && allPresent && hasDataCopies(names)) {
+    console.log(`data ${release.version} already downloaded`);
     return;
   }
 
   await Promise.all(
     Object.entries(ASSETS).map(async ([prefix, outName]) => {
-      const asset = release.assets.find(
-        a => a.name.startsWith(prefix) && a.name.endsWith('.json.tgz'),
-      );
-      if (!asset) {
-        throw new Error(
-          `no asset starting with ${prefix} in ${release.tag_name}`,
+      const name = `sources/${outName}.tgz`;
+      let data: Uint8Array;
+      if (release.assets) {
+        const asset = release.assets.find(
+          a => a.name.startsWith(prefix) && a.name.endsWith('.json.tgz'),
         );
+        if (!asset) {
+          throw new Error(
+            `no asset starting with ${prefix} in ${release.version}`,
+          );
+        }
+        console.log(`downloading ${asset.name}`);
+        data = (await latest(name, asset.browser_download_url, release))!.data;
+      } else {
+        data = dataCopy(name)!;
       }
-      console.log(`downloading ${asset.name}`);
-      const res = await fetchOk(asset.browser_download_url);
       const tgz = path.join(CACHE_DIR, `${outName}.tgz`);
-      fs.writeFileSync(tgz, Buffer.from(await res.arrayBuffer()));
+      fs.writeFileSync(tgz, data);
 
       // Each archive holds a single JSON file. Extract it to its own
       // directory, then move it to the stable name.
@@ -430,7 +589,7 @@ async function downloadDictionary() {
       fs.mkdirSync(tmpDir);
       execFileSync('tar', ['xzf', tgz, '-C', tmpDir]);
       const [json] = fs.readdirSync(tmpDir).filter(f => f.endsWith('.json'));
-      if (!json) throw new Error(`no json in ${asset.name}`);
+      if (!json) throw new Error(`no json in ${name}`);
       fs.renameSync(path.join(tmpDir, json), path.join(CACHE_DIR, outName));
       fs.rmSync(tmpDir, {recursive: true});
       fs.rmSync(tgz);
@@ -439,19 +598,21 @@ async function downloadDictionary() {
 
   fs.writeFileSync(
     versionFile,
-    JSON.stringify({version: release.tag_name}, null, 2) + '\n',
+    JSON.stringify({version: release.version}, null, 2) + '\n',
   );
-  console.log(`downloaded ${release.tag_name}`);
+  console.log(`downloaded ${release.version}`);
 }
 
 // `--models`: only the (pinned) handwriting and OCR models, for building the
 // app with dictionary data from a data release (.github/workflows/deploy.yml).
+// They come from g-sho-data when it's checked out.
 if (process.argv.includes('--models')) {
   await Promise.all([downloadHandwritingModel(), downloadOcrModels()]);
   process.exit(0);
 }
 
-await Promise.all([
+// All of them, even when one fails, so the data repo gets what it can.
+const results = await Promise.allSettled([
   downloadDictionary(),
   downloadJmdictXml(),
   downloadJaWiktionary(),
@@ -464,3 +625,6 @@ await Promise.all([
   downloadOcrModels(),
   downloadKanjiVG(),
 ]);
+const failed = results.filter(r => r.status === 'rejected');
+for (const r of failed) console.error(r.reason);
+if (failed.length) process.exit(1);

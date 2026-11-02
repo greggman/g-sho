@@ -71,11 +71,18 @@ Requires Node 24 or newer, and Rust with the WebAssembly target for the
 handwriting recognizer's kernels (`rustup target add wasm32-unknown-unknown`).
 
 ```sh
+git submodule update --init   # g-sho-data (or clone with --recurse-submodules)
 npm install
 npm run download     # fetch the dictionary data and the handwriting and OCR models into .cache/
 npm run build:data   # build the data shards into dist/data/
 npm run dev          # build the app, watch for changes, serve at http://localhost:8787
 ```
+
+A copy of every source and model is kept in the data repo, `g-sho-data/`
+(a submodule, [greggman/g-sho-data](https://github.com/greggman/g-sho-data)).
+`npm run download` takes the pinned files (the models, …) from it, saves new
+versions of the sources into it (commit them there), and uses its copies when
+a source can't be reached. See [g-sho-data/README.md](g-sho-data/README.md).
 
 Signing in locally: the local database lives in `.wrangler/`. "Sign in with
 GitHub" needs the app's secret in a gitignored `.dev.vars` file

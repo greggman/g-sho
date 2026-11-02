@@ -1,0 +1,3 @@
+[submodule "g-sho-data"]
+	path = g-sho-data
+	url = https://github.com/greggman/g-sho-data.git

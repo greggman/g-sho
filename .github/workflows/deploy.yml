@@ -32,7 +32,11 @@ jobs:
       # to publish a data release
       contents: write
     steps:
+      # With g-sho-data, our copy of the sources and models, so a build
+      # doesn't depend on the sites they come from.
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - uses: actions/setup-node@v7
         with:
@@ -72,10 +76,13 @@ jobs:
           tar -xzf data.tar.gz -C dist
           rm data.tar.gz
 
-      - name: Download the handwriting and OCR models
+      # From g-sho-data.
+      - name: Get the handwriting and OCR models
         if: steps.data.outputs.tag
         run: npm run download:models
 
+      # New versions of the sources are saved into this checkout of
+      # g-sho-data but not pushed; a source that's down uses its copy there.
       - name: Download the dictionary sources and the models
         if: steps.data.outputs.build
         run: npm run download
