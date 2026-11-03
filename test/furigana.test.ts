@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {highlightParts} from '../src/client/render.ts';
+import {highlightParts, spokenGlosses} from '../src/client/render.ts';
 import {parseFurigana, plainText} from '../src/shared/furigana.ts';
 
 test('parses readings, one per group', () => {
@@ -29,4 +29,16 @@ test('highlight cuts plain text and keeps readings whole', () => {
     .filter(([, m]) => m)
     .map(([p]) => p);
   assert.deepEqual(marked, [['食', 'た'], ['べる']]);
+});
+
+test('glosses said aloud, without their notes', () => {
+  assert.equal(spokenGlosses(['eyelid']), 'eyelid');
+  assert.equal(
+    spokenGlosses(['to live on (e.g. a salary)', 'to live off']),
+    'to live on, to live off',
+  );
+  assert.equal(
+    spokenGlosses(['cat (esp. the domestic cat, Felis catus)', 'feline']),
+    'cat, feline',
+  );
 });

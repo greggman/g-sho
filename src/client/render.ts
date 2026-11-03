@@ -10,7 +10,7 @@ import type {
 } from '../shared/types.ts';
 import type {Dict} from './dict.ts';
 import {fill, h, join, searchLink} from './dom.ts';
-import {speakJapaneseButton} from './speak.ts';
+import {speakEnglishButton, speakJapaneseButton} from './speak.ts';
 import {t, language} from './i18n.ts';
 import {jaDefinitionsSlot, jaText, linkJapanese} from './japanese.ts';
 import {
@@ -323,6 +323,31 @@ function xref(ref: (string | number)[]): HTMLElement {
   );
 }
 
+/**
+ * A sense's glosses as said aloud, without their notes in brackets:
+ * "to live on (e.g. a salary); to live off" → "to live on, to live off".
+ */
+export function spokenGlosses(glosses: string[]): string {
+  return glosses
+    .map(g => g.replace(/\s*\([^)]*\)/g, '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * A speaker for a sense's glosses. One that's a single word plays its
+ * recording when there is one (eyelid has none; cash has).
+ */
+function glossSpeaker(dict: Dict, sense: Sense): HTMLElement | undefined {
+  const text = spokenGlosses(sense.g);
+  if (!text) return undefined;
+  const word = /^[a-z][a-z'-]*$/i.test(text) ? text.toLowerCase() : undefined;
+  return speakEnglishButton(
+    text,
+    word ? async () => (await dict.englishWord(word))?.au : [],
+  );
+}
+
 function renderSense(
   dict: Dict,
   sense: Sense,
@@ -356,6 +381,9 @@ function renderSense(
     h(
       'div',
       {class: 'sense-line'},
+      // First, so it floats to the end of the first line, away from the
+      // glosses (often dragged across to copy).
+      glossSpeaker(dict, sense),
       h('span', {class: 'sense-num'}, `${n}. `),
       h('span', {class: 'glosses'}, sense.g.join('; ')),
       tags.length > 0 && h('span', {class: 'sense-tags'}, tags.join(', ')),

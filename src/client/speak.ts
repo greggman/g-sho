@@ -377,7 +377,7 @@ const ICON =
 function button(
   lang: string,
   say: () => Promise<Said>,
-  paths: string[] = [],
+  paths: () => string[] = () => [],
   replay: (path: string) => Promise<Said> = say,
 ) {
   const b = h('button', {
@@ -392,7 +392,7 @@ function button(
     const said = await doSay();
     b.classList.remove('speaking');
     b.classList.toggle('unavailable', said.kind === 'none');
-    showPopup(b, said, paths, p => void run(() => replay(p)));
+    showPopup(b, said, paths(), p => void run(() => replay(p)));
   };
   b.addEventListener('click', e => {
     e.preventDefault();
@@ -401,23 +401,35 @@ function button(
     void run(say);
   });
   b.innerHTML = ICON;
-  if (paths.length) b.dataset.recording = '';
+  if (paths().length) b.dataset.recording = '';
   return b;
 }
 
 /**
- * A speaker for an English word, with its recordings (enw `au`); undefined
- * when nothing could say it.
+ * A speaker for an English word, with its recordings (enw `au`), or a way
+ * to look them up (said by the voice until they're found); undefined when
+ * nothing could say it.
  */
 export function speakEnglishButton(
   word: string,
-  paths: string[] = [],
+  recordings: string[] | (() => Promise<string[] | undefined>) = [],
 ): HTMLElement | undefined {
+  let paths = Array.isArray(recordings) ? recordings : [];
   if (!paths.length && !synth()) return undefined;
+  if (!Array.isArray(recordings)) {
+    recordings().then(
+      p => {
+        if (!p?.length) return;
+        paths = p;
+        b.dataset.recording = '';
+      },
+      () => {},
+    );
+  }
   const b = button(
     'en',
     () => sayEnglish(word, paths),
-    paths,
+    () => paths,
     async p => {
       stop();
       return (await playRecording(p))

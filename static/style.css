@@ -2886,6 +2886,13 @@ html.show-english-english .english-word:not(.no-en) {
   margin-left: auto;
 }
 
+/* A sense's speaker (its glosses), at the end of its first line, without
+   making the line taller. */
+.sense-line .speak {
+  float: right;
+  margin: -3px 0 -3px 8px;
+}
+
 .en-ipa {
   color: var(--muted);
   font-size: 0.9rem;
