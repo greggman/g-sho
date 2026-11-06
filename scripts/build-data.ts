@@ -732,13 +732,44 @@ async function readJaDefinitions(
     );
     return undefined;
   }
-  const byWord = await readWiktionary(file);
+  // Which kanji each word on a kana page is (scripts/wiktionary-headings.ts).
+  const headings = path.join(CACHE_DIR, 'jawiktionary', 'headings.json.gz');
+  let sections = {};
+  if (fs.existsSync(headings)) {
+    sections = JSON.parse(
+      zlib.gunzipSync(fs.readFileSync(headings)).toString('utf8'),
+    );
+  } else {
+    console.warn(
+      'warning: Japanese Wiktionary headings missing; run `npm run download`',
+    );
+  }
+  // JMdict's spellings by reading, to tell a heading's from a field's name.
+  const spellings = new Map<string, Set<string>>();
+  for (const w of dict.words) {
+    for (const r of w.kana) {
+      const key = normalizeJa(r.text);
+      let set = spellings.get(key);
+      if (!set) spellings.set(key, (set = new Set()));
+      for (const k of w.kanji) set.add(k.text);
+    }
+  }
+  const byWord = await readWiktionary(file, sections, (word, reading) => {
+    const set = spellings.get(normalizeJa(reading));
+    if (!set) return false;
+    // Or its first kanji alone: たえる's heading names 耐 (耐える).
+    return (
+      set.has(word) ||
+      (Array.from(word).length === 1 && [...set].some(k => k[0] === word))
+    );
+  });
   const words: WordForms[] = dict.words.map(w => ({
     id: Number(w.id),
     kanji: w.kanji.map(k => k.text),
     kana: w.kana.map(k => k.text),
     usuallyKana: w.sense[0]?.misc.includes('uk') ?? false,
     glosses: w.sense.flatMap(s => s.gloss.map(g => g.text)),
+    pos: [...new Set(w.sense.flatMap(s => s.partOfSpeech))],
   }));
   const owners = assignKanaPages(words, byWord);
   const out = new Map<number, JaDefinition[]>();

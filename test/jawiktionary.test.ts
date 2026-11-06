@@ -242,6 +242,38 @@ describe('matching JMdict words to Japanese Wiktionary', () => {
     ]);
   });
 
+  test('a kana page’s headings say which word each entry is', async () => {
+    const sections = {
+      かう: [
+        {w: ['買う'], d: '代価を払って手に入れる'},
+        {w: ['支う'], d: '支えにする'},
+        {w: ['交う'], d: '混じる'},
+      ],
+    };
+    const file = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'jaw-')),
+      'x.jsonl.gz',
+    );
+    fs.writeFileSync(
+      file,
+      zlib.gzipSync(ENTRIES.map(e => JSON.stringify(e)).join('\n')),
+    );
+    const headed = await readWiktionary(file, sections);
+    // No English to go by: only the headings tell 支う from the rest.
+    for (const [k, gloss] of [
+      ['買う', '代価を払って手に入れる。'],
+      ['支う', '支えにする。'],
+      ['交う', '混じる。'],
+    ]) {
+      const defs = matchWord({...word([k], ['かう']), glosses: []}, headed);
+      assert.deepEqual(
+        defs.flatMap(d => d.s.map(s => s.g)),
+        [gloss],
+        k,
+      );
+    }
+  });
+
   test('a sense marked with a spelling’s first kanji goes to it', () => {
     assert.deepEqual(glosses(word(['耐える', '堪える'], ['たえる'])), [
       '我慢する。',

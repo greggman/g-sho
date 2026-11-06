@@ -12,16 +12,18 @@
  *      include one of the entry's, or the word is written in kana (so
  *      homophones like かみ 紙/神/髪 don't get each other's definitions).
  *
- * A kana page can hold several words with no word of which kanji each is
- * (かう: 買う, 飼う, 支う, 交う), and each kanji spelling points to the
- * page. Several entries with the same part of speech are different words
- * (one word's adverb and adjective are one word), so each of those goes
- * to the word pointing there whose
- * English glosses share the most of its English translations (buy,
- * purchase → 買う; see, meet, encounter → 会う, not 合う, which also means
- * "to meet") (assignKanaPages). The rest, with no English to tell them by
- * (often none has any), go to the words that didn't get one of those:
- * after 買う, 飼う and 交う take theirs, 支う gets what's left.
+ * A kana page can hold several words (かう: 買う, 飼う, 支う, 交う), each
+ * kanji spelling pointing to the page. The page's headings say which is
+ * which ("{{verb}}:買う"), but the extract leaves them out, so they're read
+ * from Wikimedia's dump (wiktionary-headings.ts).
+ *
+ * Without them (the headings don't name the word), it's a guess. Several
+ * entries with the same part of speech are different words (one word's
+ * adverb and adjective are one word), so each of those goes to the word
+ * pointing there whose English glosses share the most of its English
+ * translations (buy, purchase → 買う; see, meet, encounter → 会う, not 合う,
+ * which also means "to meet") (assignKanaPages). The rest, with no English
+ * to tell them by, go to the words that didn't get one of those.
  *
  * A kanji spelling's entry often covers several readings, marking each
  * sense with them: "【うえ、かみ】頭の方向" or "（セイ）いのち". Only the senses
@@ -34,6 +36,7 @@ import * as readline from 'node:readline';
 import * as zlib from 'node:zlib';
 import {isAllKana} from '../src/shared/kana.ts';
 import {normalizeJa} from '../src/shared/normalize.ts';
+import {sectionFor, type Section} from './wiktionary-headings.ts';
 import type {JaDefinition, JaSense} from '../src/shared/types.ts';
 
 export interface WordForms {
@@ -44,6 +47,33 @@ export interface WordForms {
   usuallyKana: boolean;
   /** its English glosses (JMdict), to tell a kana page's words apart */
   glosses?: string[];
+  /** its parts of speech (JMdict's: v5u, n, adj-i, …), for the same */
+  pos?: string[];
+}
+
+/** JMdict parts of speech → the Wiktionary ones they can be. */
+function wiktionaryPos(jmdict: string): string[] {
+  if (/^v(s|z)/.test(jmdict)) return ['verb', 'noun'];
+  if (/^(v|aux-v)/.test(jmdict)) return ['verb'];
+  if (/^adj-(na|nari|t)$/.test(jmdict)) return ['adj_noun', 'noun'];
+  if (jmdict === 'adj-pn') return ['adnominal'];
+  if (/^(adj|aux-adj)/.test(jmdict)) return ['adj'];
+  if (/^adv/.test(jmdict)) return ['adv'];
+  if (jmdict === 'int') return ['intj'];
+  if (/^(n|pn|num|ctr|adj-no)/.test(jmdict)) return ['noun', 'pron', 'num'];
+  return [];
+}
+
+/** Parts of speech a JMdict word and a Wiktionary entry are compared by. */
+const COMPARED = new Set(['verb', 'noun', 'adj', 'adj_noun', 'adv', 'intj']);
+
+/**
+ * Whether a Wiktionary entry's part of speech can be the word's; true
+ * when either isn't one that's compared.
+ */
+function samePos(w: WordForms, e: WiktEntry): boolean {
+  if (!w.pos?.length || !COMPARED.has(e.pos)) return true;
+  return w.pos.some(p => wiktionaryPos(p).includes(e.pos));
 }
 
 interface WiktEntry {
@@ -60,6 +90,8 @@ interface WiktEntry {
   kun?: Set<string>;
   /** kanji spellings listed for a kana word */
   kanji: Set<string>;
+  /** the kanji are from the page's headings: it's that word, not the kana one */
+  kanjiFromHeading?: boolean;
   /** for a "の漢字表記" pointer: the kana words it points to */
   formOf: string[];
   /** its English translations, normalized (englishKey) */
@@ -134,6 +166,13 @@ function convertSense(s: RawSense): JaSense | undefined {
 /** Reads the Japanese entries of the extract, by word. */
 export async function readWiktionary(
   file: string,
+  /** each kana page's word sections (wiktionary-headings.ts), if read */
+  sections: Record<string, Section[]> = {},
+  /**
+   * Whether a word is a spelling of a reading (JMdict's), to tell a
+   * heading's spelling (買う) from the field some name (料理, 相撲)
+   */
+  isSpelling: (word: string, reading: string) => boolean = () => true,
 ): Promise<Map<string, WiktEntry[]>> {
   const byWord = new Map<string, WiktEntry[]>();
   const lines = readline.createInterface({
@@ -197,6 +236,26 @@ export async function readWiktionary(
     if (!list) byWord.set(raw.word, (list = []));
     list.push(entry);
   }
+  // The kanji of entries that don't say, from their page's headings: the
+  // ones that are its spellings, in JMdict or by a Wiktionary page of
+  // theirs pointing to it.
+  const spelling = (k: string, reading: string) =>
+    isSpelling(k, reading) ||
+    (byWord.get(k) ?? []).some(e => e.formOf.includes(reading));
+  for (const [word, list] of byWord) {
+    const page = sections[word];
+    if (!page) continue;
+    for (const e of list) {
+      if (e.kanji.size || !e.senses.length) continue;
+      const kanji = sectionFor(e.senses[0].g, page)?.w.filter(k =>
+        spelling(k, word),
+      );
+      if (kanji?.length) {
+        e.kanji = new Set(kanji);
+        e.kanjiFromHeading = true;
+      }
+    }
+  }
   return byWord;
 }
 
@@ -221,7 +280,13 @@ function sensesFor(
     // Only a list of readings or spellings is a mark; "（広告などで）" isn't.
     const isMark =
       parts.length > 0 &&
-      parts.every(p => isAllKana(p) || p.length <= 6) &&
+      // Readings, or spellings: kanji and a little kana (上る), not
+      // "（生物がそこに）存在する".
+      parts.every(
+        p =>
+          isAllKana(p) ||
+          /^[\u3400-\u9fff\uf900-\ufaff々]+[ぁ-ん]{0,3}$/.test(p),
+      ) &&
       parts.some(
         p => isAllKana(p) || kanji.has(p) || /[\u4e00-\u9fff]/.test(p),
       ) &&
@@ -240,6 +305,17 @@ function sensesFor(
     if (applies) out.push({...s, g: s.g.slice(m[0].length) || s.g});
   }
   return out;
+}
+
+/**
+ * Whether an entry's kanji are for this spelling: it, or its first kanji
+ * alone (たえる's heading names 耐・堪 for 耐える, 堪える).
+ */
+function writes(kanji: Set<string>, spelling: string): boolean {
+  return (
+    kanji.has(spelling) ||
+    [...kanji].some(k => Array.from(k).length === 1 && spelling[0] === k)
+  );
 }
 
 const real = (list: WiktEntry[] | undefined) =>
@@ -264,7 +340,7 @@ function pointers(
  */
 function ambiguous(e: WiktEntry, page: WiktEntry[]): boolean {
   if (e.kanji.size) return false;
-  return page.filter(t => !t.kanji.size && t.pos === e.pos).length > 1;
+  return page.filter(t => t.pos === e.pos).length > 1;
 }
 
 /** How many of the entry's English translations the glosses share. */
@@ -331,18 +407,26 @@ export function matchWord(
   /**
    * Whether an entry that doesn't say its kanji is this word's: when it's
    * the only one of its part of speech on the page; of several, when it
-   * was assigned to this word, or to none and this word got none of them.
+   * was assigned to this word, or to none and this word got none of them
+   * (by English, or by its headings) and can be its part of speech.
    */
   const mine = (e: WiktEntry, page: WiktEntry[]): boolean => {
     if (!ambiguous(e, page)) return true;
     const owner = owners.get(e);
     if (owner !== undefined) return owner === w.id;
-    return !page.some(o => o.pos === e.pos && owners.get(o) === w.id);
+    if (!samePos(w, e)) return false;
+    return !page.some(
+      o =>
+        o.pos === e.pos &&
+        (owners.get(o) === w.id || w.kanji.some(k => writes(o.kanji, k))),
+    );
   };
   /** A kana page's entries that a kanji spelling's pointer there means. */
   const pointedTo = (k: string, target: string): WiktEntry[] => {
     const page = real(byWord.get(target));
-    return page.filter(t => (t.kanji.size ? t.kanji.has(k) : mine(t, page)));
+    return page.filter(t =>
+      t.kanji.size ? writes(t.kanji, k) : mine(t, page),
+    );
   };
 
   for (const k of w.kanji.slice(0, 4)) {
@@ -364,9 +448,12 @@ export function matchWord(
   for (const r of w.kana.slice(0, 3)) {
     const page = real(byWord.get(r));
     for (const e of page) {
-      const kanjiMatch = [...e.kanji].some(k => kanji.has(k));
+      const kanjiMatch = w.kanji.some(k => writes(e.kanji, k));
       const kanaWord = !kanji.size || (w.usuallyKana && !e.kanji.size);
-      if (kanjiMatch || (kanaWord && (e.kanji.size > 0 || mine(e, page)))) {
+      if (
+        kanjiMatch ||
+        (kanaWord && (e.kanji.size ? !e.kanjiFromHeading : mine(e, page)))
+      ) {
         add(e);
       }
     }

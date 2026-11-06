@@ -13,7 +13,9 @@
  * Tatoeba's word index with its Japanese and English sentences (more example
  * sentences, .cache/tatoeba/),
  * and the Japanese Wiktionary as extracted by kaikki.org (Japanese
- * definitions, .cache/jawiktionary/), and PaddleOCR's text detection and
+ * definitions, .cache/jawiktionary/), with which kanji each word on its kana
+ * pages is, from Wikimedia's dump (.cache/jawiktionary/headings.json.gz),
+ * and PaddleOCR's text detection and
  * recognition models as converted by RapidOCR (.cache/ocr/), pinned by hash,
  * Open English WordNet (English definitions, .cache/wordnet/), pinned by
  * hash, and for spelling suggestions, wordfreq's English frequencies and
@@ -32,6 +34,8 @@ import {createHash} from 'node:crypto';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
+import {readDumpSections} from './wiktionary-headings.ts';
 
 // Node gives each of a host's addresses (IPv6, then IPv4) only 250ms to
 // connect, too little for some sites (kaikki.org) on a slow connection.
@@ -425,6 +429,62 @@ async function downloadJaWiktionary() {
 }
 
 /**
+ * Which kanji each word on a Japanese Wiktionary kana page is, read from
+ * the page headings the extract leaves out ("{{verb}}:買う"), in Wikimedia's
+ * dump of the Japanese Wiktionary (about 95 MB, monthly; CC BY-SA). Only
+ * what's read from it goes in g-sho-data, not the dump. The dump isn't
+ * downloaded again while its ETag is unchanged, but is always read again
+ * (10s), in case how it's read has changed.
+ */
+async function downloadJaHeadings() {
+  const url =
+    'https://dumps.wikimedia.org/jawiktionary/latest/jawiktionary-latest-pages-articles.xml.bz2';
+  const name = 'sources/ja-headings.json.gz';
+  const dir = path.join(CACHE_DIR, 'jawiktionary');
+  const out = path.join(dir, 'headings.json.gz');
+  const dump = path.join(dir, 'dump.xml.bz2');
+  const etagFile = `${dump}.etag`;
+  fs.mkdirSync(dir, {recursive: true});
+  const useCopy = (error?: Error) => {
+    const copy = dataCopy(name);
+    if (!copy) throw error ?? new Error(`no g-sho-data/${name}`);
+    if (error) console.warn(`${error.message}: using g-sho-data/${name}`);
+    else console.log(`using g-sho-data/${name}`);
+    fs.writeFileSync(out, copy);
+  };
+  if (OFFLINE) return useCopy();
+  const etag =
+    fs.existsSync(etagFile) && fs.existsSync(dump)
+      ? fs.readFileSync(etagFile, 'utf8')
+      : undefined;
+  try {
+    const res = await get(url, {
+      headers: etag ? {'If-None-Match': etag} : {},
+    });
+    if (res.status !== 304) {
+      if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+      console.log(`downloading ${url}`);
+      fs.writeFileSync(dump, Buffer.from(await res.arrayBuffer()));
+      writeEtag(etagFile, res.headers.get('etag') ?? undefined);
+      const modified = res.headers.get('last-modified');
+      fs.writeFileSync(
+        `${dump}.date`,
+        modified ? new Date(modified).toISOString().slice(0, 10) : '',
+      );
+    }
+  } catch (e) {
+    return useCopy(e as Error);
+  }
+  const sections = await readDumpSections(dump);
+  const data = zlib.gzipSync(JSON.stringify(sections));
+  fs.writeFileSync(out, data);
+  const date = fs.existsSync(`${dump}.date`)
+    ? fs.readFileSync(`${dump}.date`, 'utf8')
+    : '';
+  saveDataCopy(name, url, data, date || undefined);
+}
+
+/**
  * Wikipedia's list of common English misspellings, in its machine-readable
  * form ("abandonned->abandoned"): what real spelling mistakes look like, to
  * learn the spelling suggestions' error model from (CC BY-SA 4.0). Pinned
@@ -626,6 +686,7 @@ const results = await Promise.allSettled([
   downloadDictionary(),
   downloadJmdictXml(),
   downloadJaWiktionary(),
+  downloadJaHeadings(),
   downloadWordNet(),
   downloadMisspellings(),
   downloadTatoebaExamples(),
