@@ -10,8 +10,9 @@ no server-side code and no database, so it can be hosted anywhere (GitHub Pages)
 All sources are the same ones jisho.org credits, consumed through the
 [jmdict-simplified](https://github.com/scriptin/jmdict-simplified) JSON builds
 (CC BY-SA 4.0), which are regenerated weekly from the upstream files. g-sho
-picks up new data at most quarterly (see README, "Deploying"): builds reuse
-the newest `data-…` GitHub release of the built data.
+picks up new data when its copy of the sources (g-sho-data) is updated, by
+hand (see README, "Deploying"): builds reuse the `data-…` GitHub release of
+the built data until then.
 
 | Data | Upstream | License |
 | --- | --- | --- |
@@ -231,7 +232,7 @@ jisho.org uses).
   Saver on or on a connection the browser reports as cellular. Settings →
   Offline shows progress, has "Download now", and an off switch that frees
   the space.
-- When the data is refreshed (quarterly), data sets whose version changed
+- When the data is rebuilt, data sets whose version changed
   download again in full. Per-file updates would make that smaller; maybe
   later.
 

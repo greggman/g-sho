@@ -184,13 +184,17 @@ python3 -m venv .venv-anki && .venv-anki/bin/pip install anki
 Worker (`src/server/`, the `/api` endpoints) to Cloudflare with `wrangler
 deploy`. It runs on every push to `main`. Pull requests only build and test.
 
-The dictionary data changes at most quarterly. Builds use the newest
-`data-…` GitHub release (the built `dist/data`, ~84 MB compressed) instead of
-downloading the sources, so pushes never change the data. On 1 January,
-April, July and October, or when you run the workflow by hand with **Refresh
-the dictionary data** ticked, it downloads the latest sources, builds the
-data, and publishes a new `data-…` release once the tests pass. (The first
-run, with no data release yet, does the same.) The deploy job uses the
+Builds never download anything: the sources and models come from
+`g-sho-data`. The built dictionary data (`dist/data`, ~84 MB compressed) is
+kept as a `data-<key>` GitHub release, the key a hash of the `g-sho-data`
+commit and of the data build's code (`scripts/data-key.ts`). A push that
+changes either (new sources, or a change to how they're parsed) builds the
+data from `g-sho-data` and publishes it once the tests pass; any other push
+reuses it, so the data doesn't change.
+
+New sources are got by hand, when wanted: `npm run download` saves new
+versions into `g-sho-data`; commit and push them there, then commit the
+submodule here (`git add g-sho-data`) and push. The deploy job uses the
 GitHub environment `production`, whose secret `CLOUDFLARE_API_TOKEN` is
 limited to the `main` branch. See [PLAN-SERVER.md](PLAN-SERVER.md) for the
 Cloudflare setup.

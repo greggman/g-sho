@@ -24,8 +24,8 @@
  * still there. Pinned files (the models, WordNet, …) are taken from it when
  * it has them. Sources that change (JMdict, Tatoeba, …) are downloaded, and
  * each new version is saved into it (commit it there); when a source can't
- * be reached, its copy there is used instead. g-sho-data/SOURCES.json says
- * where each file came from.
+ * be reached, its copy there is used instead; with --offline, every file
+ * comes from there. g-sho-data/SOURCES.json says where each came from.
  */
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -98,8 +98,19 @@ interface Release {
   assets: {name: string; browser_download_url: string}[];
 }
 
+/**
+ * `--offline`: nothing is downloaded; every file comes from g-sho-data, so
+ * the data built is exactly what its commit holds (the deploy workflow).
+ */
+const OFFLINE = process.argv.includes('--offline');
+
+function get(url: string, init?: RequestInit): Promise<Response> {
+  if (OFFLINE) return Promise.reject(new Error(`${url}: offline`));
+  return fetch(url, init);
+}
+
 async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
+  const res = await get(url, init);
   if (!res.ok) {
     throw new Error(`${url}: ${res.status} ${res.statusText}`);
   }
@@ -194,18 +205,20 @@ async function latest(
 ): Promise<{data: Uint8Array; etag?: string} | undefined> {
   const send = etag && (!fs.existsSync(DATA_DIR) || dataCopy(name));
   try {
-    const res = await fetch(url, {
+    const res = await get(url, {
       headers: send ? {'If-None-Match': etag} : {},
     });
     if (res.status === 304) return undefined;
     if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
     const data = new Uint8Array(await res.arrayBuffer());
+    console.log(`downloaded ${url}`);
     saveDataCopy(name, url, data, version);
     return {data, etag: res.headers.get('etag') ?? undefined};
   } catch (e) {
     const copy = dataCopy(name);
     if (!copy) throw e;
-    console.warn(`${(e as Error).message}: using g-sho-data/${name}`);
+    if (OFFLINE) console.log(`using g-sho-data/${name}`);
+    else console.warn(`${(e as Error).message}: using g-sho-data/${name}`);
     // No ETag, so the source is tried again next time.
     return {data: copy};
   }
@@ -281,7 +294,8 @@ async function latestReleaseOrCopy(
   } catch (e) {
     const version = readManifest()[names[0]]?.version;
     if (!version || !names.every(n => dataCopy(n))) throw e;
-    console.warn(`${(e as Error).message}: using g-sho-data (${version})`);
+    if (OFFLINE) console.log(`using g-sho-data (${repo} ${version})`);
+    else console.warn(`${(e as Error).message}: using g-sho-data (${version})`);
     return {version};
   }
 }
@@ -337,7 +351,6 @@ async function downloadJmdictXml() {
     console.log('JMdict XML already downloaded');
     return;
   }
-  console.log('downloaded JMdict_e.gz');
   fs.mkdirSync(CACHE_DIR, {recursive: true});
   fs.writeFileSync(out, got.data);
   writeEtag(etagFile, got.etag);
@@ -361,7 +374,6 @@ async function downloadTatoebaFile(url: string, file: string) {
     console.log(`Tatoeba ${file} already downloaded`);
     return;
   }
-  console.log(`downloaded Tatoeba ${file}`);
   fs.mkdirSync(dir, {recursive: true});
   const archive = path.join(dir, base);
   fs.writeFileSync(archive, got.data);
@@ -407,7 +419,6 @@ async function downloadJaWiktionary() {
     console.log('Japanese Wiktionary already downloaded');
     return;
   }
-  console.log('downloaded the Japanese Wiktionary (kaikki.org)');
   fs.mkdirSync(dir, {recursive: true});
   fs.writeFileSync(out, got.data);
   writeEtag(etagFile, got.etag);
@@ -535,7 +546,6 @@ async function downloadTatoebaTranscriptions() {
     console.log('Tatoeba transcriptions already downloaded');
     return;
   }
-  console.log('downloaded Tatoeba transcriptions');
   fs.mkdirSync(dir, {recursive: true});
   const archive = path.join(dir, 'transcriptions.tar.bz2');
   fs.writeFileSync(archive, got.data);
@@ -600,7 +610,7 @@ async function downloadDictionary() {
     versionFile,
     JSON.stringify({version: release.version}, null, 2) + '\n',
   );
-  console.log(`downloaded ${release.version}`);
+  console.log(`jmdict-simplified ${release.version} in .cache/`);
 }
 
 // `--models`: only the (pinned) handwriting and OCR models, for building the
