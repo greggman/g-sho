@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import {before, describe, test} from 'node:test';
 import {
+  assignKanaPages,
   matchWord,
   readWiktionary,
   type WordForms,
@@ -87,6 +88,56 @@ const ENTRIES = [
       {form: 'なま', tags: ['transliteration', 'kun']},
     ],
   },
+  // A kana page with several verbs that don't say their kanji, and each
+  // kanji spelling pointing there: told apart by their English.
+  ...['買う', '交う', '支う'].map(word => ({
+    word,
+    pos: 'character',
+    pos_title: '和語の漢字表記',
+    senses: [{glosses: ['かうの漢字表記。'], form_of: [{word: 'かう'}]}],
+  })),
+  {
+    word: 'かう',
+    pos: 'verb',
+    pos_title: '動詞',
+    senses: [{glosses: ['代価を払って手に入れる。']}],
+    translations: [
+      {lang_code: 'en', word: 'buy'},
+      {lang_code: 'en', word: 'purchase'},
+    ],
+  },
+  {
+    word: 'かう',
+    pos: 'verb',
+    pos_title: '動詞',
+    senses: [{glosses: ['支えにする。']}],
+  },
+  {
+    word: 'かう',
+    pos: 'verb',
+    pos_title: '動詞',
+    senses: [{glosses: ['混じる。']}],
+    translations: [
+      {lang_code: 'en', word: 'mix'},
+      {lang_code: 'en', word: 'mingle'},
+    ],
+  },
+  // Senses marked with a spelling's first kanji.
+  {
+    word: '堪える',
+    pos: 'character',
+    pos_title: '和語の漢字表記',
+    senses: [{glosses: ['たえるの漢字表記。'], form_of: [{word: 'たえる'}]}],
+  },
+  {
+    word: 'たえる',
+    pos: 'verb',
+    pos_title: '動詞',
+    senses: [
+      {glosses: ['【耐、堪】我慢する。']},
+      {glosses: ['【絶】途中で終わる。']},
+    ],
+  },
   // A kanji-character entry and another language: left out.
   {
     word: '山',
@@ -167,6 +218,34 @@ describe('matching JMdict words to Japanese Wiktionary', () => {
   test('furigana hints come along', () => {
     const [def] = matchWord(word(['猫'], ['ねこ']), byWord);
     assert.deepEqual(def.s[1].r, [['我が儘', 'わがまま']]);
+  });
+
+  test('a kana page’s words are told apart by their English', () => {
+    const kau = [
+      {...word(['買う'], ['かう']), id: 1, glosses: ['to buy', 'to purchase']},
+      {
+        ...word(['交う'], ['かう']),
+        id: 2,
+        glosses: ['to pass each other', 'to mingle together'],
+      },
+      // No English in common: it gets what the others didn't.
+      {...word(['支う'], ['かう']), id: 3, glosses: ['to support']},
+    ];
+    const owners = assignKanaPages(kau, byWord);
+    const defs = kau.map(w =>
+      matchWord(w, byWord, owners).flatMap(d => d.s.map(s => s.g)),
+    );
+    assert.deepEqual(defs, [
+      ['代価を払って手に入れる。'],
+      ['混じる。'],
+      ['支えにする。'],
+    ]);
+  });
+
+  test('a sense marked with a spelling’s first kanji goes to it', () => {
+    assert.deepEqual(glosses(word(['耐える', '堪える'], ['たえる'])), [
+      '我慢する。',
+    ]);
   });
 
   test('kanji-character entries and other languages are left out', () => {

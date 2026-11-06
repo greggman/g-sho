@@ -12,6 +12,17 @@
  *      include one of the entry's, or the word is written in kana (so
  *      homophones like かみ 紙/神/髪 don't get each other's definitions).
  *
+ * A kana page can hold several words with no word of which kanji each is
+ * (かう: 買う, 飼う, 支う, 交う), and each kanji spelling points to the
+ * page. Several entries with the same part of speech are different words
+ * (one word's adverb and adjective are one word), so each of those goes
+ * to the word pointing there whose
+ * English glosses share the most of its English translations (buy,
+ * purchase → 買う; see, meet, encounter → 会う, not 合う, which also means
+ * "to meet") (assignKanaPages). The rest, with no English to tell them by
+ * (often none has any), go to the words that didn't get one of those:
+ * after 買う, 飼う and 交う take theirs, 支う gets what's left.
+ *
  * A kanji spelling's entry often covers several readings, marking each
  * sense with them: "【うえ、かみ】頭の方向" or "（セイ）いのち". Only the senses
  * for the word's own readings (or spellings) are kept, without the mark.
@@ -31,6 +42,8 @@ export interface WordForms {
   kana: string[];
   /** the word is usually written in kana */
   usuallyKana: boolean;
+  /** its English glosses (JMdict), to tell a kana page's words apart */
+  glosses?: string[];
 }
 
 interface WiktEntry {
@@ -49,6 +62,8 @@ interface WiktEntry {
   kanji: Set<string>;
   /** for a "の漢字表記" pointer: the kana words it points to */
   formOf: string[];
+  /** its English translations, normalized (englishKey) */
+  english: Set<string>;
 }
 
 interface RawSense {
@@ -66,6 +81,24 @@ interface RawEntry {
   pos_title?: string;
   senses?: RawSense[];
   forms?: {form: string; tags?: string[]}[];
+  translations?: {lang_code?: string; word?: string}[];
+}
+
+/** Translations too general to tell words apart ("be": 居る and 要る). */
+const GENERIC = new Set(['be', 'have', 'do', 'get', 'take', 'make', 'go']);
+
+/**
+ * An English word or gloss, comparable: "to buy (something)" → "buy",
+ * "to be needed" → "needed".
+ */
+export function englishKey(s: string): string {
+  return s
+    .replace(/\([^)]*\)/g, '')
+    .toLowerCase()
+    .replace(/^\s*to\s+/, '')
+    .replace(/^be\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const MAX_SENSES = 10;
@@ -141,6 +174,12 @@ export async function readWiktionary(
         forms.filter(f => f.tags?.includes('kanji')).map(f => f.form),
       ),
       formOf,
+      english: new Set(
+        (raw.translations ?? [])
+          .filter(t => t.lang_code === 'en' && t.word)
+          .map(t => englishKey(t.word!))
+          .filter(t => t && !GENERIC.has(t)),
+      ),
     };
     const tagged = forms.filter(f =>
       f.tags?.some(
@@ -191,18 +230,93 @@ function sensesFor(
       if (unmarkedApply) out.push(s);
       continue;
     }
+    // A spelling, or its first kanji: 【耐、堪】 is for 耐える and 堪える.
     const applies = parts.some(p =>
-      isAllKana(p) ? readings.has(normalizeJa(p)) : kanji.has(p),
+      isAllKana(p)
+        ? readings.has(normalizeJa(p))
+        : kanji.has(p) ||
+          (Array.from(p).length === 1 && [...kanji].some(k => k[0] === p)),
     );
     if (applies) out.push({...s, g: s.g.slice(m[0].length) || s.g});
   }
   return out;
 }
 
-/** The Japanese definitions of this JMdict word, if Wiktionary has it. */
+const real = (list: WiktEntry[] | undefined) =>
+  (list ?? []).filter(e => !e.formOf.length || e.senses.length);
+
+/** The kana words `k` (one of w's spellings) points to that w is read as. */
+function pointers(
+  w: WordForms,
+  k: string,
+  byWord: Map<string, WiktEntry[]>,
+): string[] {
+  const readings = new Set(w.kana.map(normalizeJa));
+  return (byWord.get(k) ?? []).flatMap(e =>
+    e.formOf.filter(t => readings.has(normalizeJa(t))),
+  );
+}
+
+/**
+ * Whether a page's entry is one of several that don't say which kanji
+ * they're for and have the same part of speech: different words, which
+ * need telling apart (assignKanaPages).
+ */
+function ambiguous(e: WiktEntry, page: WiktEntry[]): boolean {
+  if (e.kanji.size) return false;
+  return page.filter(t => !t.kanji.size && t.pos === e.pos).length > 1;
+}
+
+/** How many of the entry's English translations the glosses share. */
+function sharedEnglish(e: WiktEntry, glosses: string[]): number {
+  return [...e.english].filter(t =>
+    glosses.some(g => g === t || g.startsWith(`${t} `)),
+  ).length;
+}
+
+/**
+ * For kana pages with several entries that don't say which kanji they're
+ * for: which word (id) each entry is, of the words whose spellings point
+ * to the page. The one sharing the most English; none on a tie or none.
+ */
+export function assignKanaPages(
+  words: WordForms[],
+  byWord: Map<string, WiktEntry[]>,
+): Map<WiktEntry, number> {
+  const best = new Map<WiktEntry, {id?: number; score: number}>();
+  for (const w of words) {
+    const glosses = (w.glosses ?? []).map(englishKey);
+    const targets = new Set(
+      w.kanji.slice(0, 4).flatMap(k => pointers(w, k, byWord)),
+    );
+    // A word written in kana is matched by its reading too.
+    if (!w.kanji.length || w.usuallyKana) {
+      for (const r of w.kana.slice(0, 3)) targets.add(r);
+    }
+    for (const target of targets) {
+      const page = real(byWord.get(target));
+      for (const e of page.filter(t => ambiguous(t, page))) {
+        const score = sharedEnglish(e, glosses);
+        if (!score) continue;
+        const b = best.get(e);
+        if (!b || score > b.score) best.set(e, {id: w.id, score});
+        else if (score === b.score && b.id !== w.id) b.id = undefined;
+      }
+    }
+  }
+  const out = new Map<WiktEntry, number>();
+  for (const [e, {id}] of best) if (id !== undefined) out.set(e, id);
+  return out;
+}
+
+/**
+ * The Japanese definitions of this JMdict word, if Wiktionary has it.
+ * `owners`: assignKanaPages.
+ */
 export function matchWord(
   w: WordForms,
   byWord: Map<string, WiktEntry[]>,
+  owners: Map<WiktEntry, number> = new Map(),
 ): JaDefinition[] {
   const readings = new Set(w.kana.map(normalizeJa));
   const kanji = new Set(w.kanji);
@@ -214,17 +328,29 @@ export function matchWord(
     const senses = sensesFor(e, readings, kanji);
     if (senses.length) found.push({p: e.posTitle, s: senses});
   };
-  const real = (list: WiktEntry[] | undefined) =>
-    (list ?? []).filter(e => !e.formOf.length || e.senses.length);
+  /**
+   * Whether an entry that doesn't say its kanji is this word's: when it's
+   * the only one of its part of speech on the page; of several, when it
+   * was assigned to this word, or to none and this word got none of them.
+   */
+  const mine = (e: WiktEntry, page: WiktEntry[]): boolean => {
+    if (!ambiguous(e, page)) return true;
+    const owner = owners.get(e);
+    if (owner !== undefined) return owner === w.id;
+    return !page.some(o => o.pos === e.pos && owners.get(o) === w.id);
+  };
+  /** A kana page's entries that a kanji spelling's pointer there means. */
+  const pointedTo = (k: string, target: string): WiktEntry[] => {
+    const page = real(byWord.get(target));
+    return page.filter(t => (t.kanji.size ? t.kanji.has(k) : mine(t, page)));
+  };
 
   for (const k of w.kanji.slice(0, 4)) {
     for (const e of byWord.get(k) ?? []) {
       if (e.formOf.length) {
         for (const target of e.formOf) {
           if (!readings.has(normalizeJa(target))) continue;
-          for (const t of real(byWord.get(target))) {
-            if (!t.kanji.size || t.kanji.has(k)) add(t);
-          }
+          for (const t of pointedTo(k, target)) add(t);
         }
       } else if (
         !e.readings.size ||
@@ -236,9 +362,13 @@ export function matchWord(
   }
   if (found.length) return found;
   for (const r of w.kana.slice(0, 3)) {
-    for (const e of real(byWord.get(r))) {
+    const page = real(byWord.get(r));
+    for (const e of page) {
       const kanjiMatch = [...e.kanji].some(k => kanji.has(k));
-      if (!kanji.size || kanjiMatch || (w.usuallyKana && !e.kanji.size)) add(e);
+      const kanaWord = !kanji.size || (w.usuallyKana && !e.kanji.size);
+      if (kanjiMatch || (kanaWord && (e.kanji.size > 0 || mine(e, page)))) {
+        add(e);
+      }
     }
   }
   return found;

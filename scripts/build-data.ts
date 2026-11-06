@@ -18,8 +18,10 @@ import {parseFurigana, plainText} from '../src/shared/furigana.ts';
 import {makePack} from '../src/shared/pack.ts';
 import {decodeMsgpack} from './msgpack.ts';
 import {
+  assignKanaPages,
   matchWord as matchJaWord,
   readWiktionary,
+  type WordForms,
 } from './build-jawiktionary.ts';
 import {buildExamples} from './build-examples.ts';
 import {readEnglish, readWordNet} from './build-english.ts';
@@ -731,18 +733,18 @@ async function readJaDefinitions(
     return undefined;
   }
   const byWord = await readWiktionary(file);
+  const words: WordForms[] = dict.words.map(w => ({
+    id: Number(w.id),
+    kanji: w.kanji.map(k => k.text),
+    kana: w.kana.map(k => k.text),
+    usuallyKana: w.sense[0]?.misc.includes('uk') ?? false,
+    glosses: w.sense.flatMap(s => s.gloss.map(g => g.text)),
+  }));
+  const owners = assignKanaPages(words, byWord);
   const out = new Map<number, JaDefinition[]>();
-  for (const w of dict.words) {
-    const defs = matchJaWord(
-      {
-        id: Number(w.id),
-        kanji: w.kanji.map(k => k.text),
-        kana: w.kana.map(k => k.text),
-        usuallyKana: w.sense[0]?.misc.includes('uk') ?? false,
-      },
-      byWord,
-    );
-    if (defs.length) out.set(Number(w.id), defs);
+  for (const w of words) {
+    const defs = matchJaWord(w, byWord, owners);
+    if (defs.length) out.set(w.id, defs);
   }
   return out;
 }
